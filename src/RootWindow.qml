@@ -760,7 +760,7 @@ ApplicationWindow {
     Rectangle {
         id: topToolBar
         height: 56
-        width: topRowLayout.implicitWidth + 24
+        width: Math.min(parent.width - 24, topToolBarFlick.implicitWidth + 24)
         anchors.horizontalCenter: parent.horizontalCenter
         color: (rootWindow.visibility === Window.FullScreen) ? "#44121214" : "#99121214"
         z: 9999
@@ -779,11 +779,9 @@ ApplicationWindow {
 
         MouseArea {
             id: topToolBarMouseArea
-            anchors.bottom: parent.bottom
-            anchors.left: parent.left
-            anchors.right: parent.right
-            height: 44
+            anchors.fill: parent
             hoverEnabled: true
+            propagateComposedEvents: true
             onContainsMouseChanged: {
                 if (containsMouse) {
                     keepVisibleTimer.stop();
@@ -791,15 +789,28 @@ ApplicationWindow {
                     keepVisibleTimer.start();
                 }
             }
+            onWheel: function(wheel) {
+                var nextX = topToolBarFlick.contentX - wheel.angleDelta.y;
+                topToolBarFlick.contentX = Math.max(0, Math.min(nextX, topToolBarFlick.contentWidth - topToolBarFlick.width));
+                wheel.accepted = true;
+            }
+        }
+
+        Flickable {
+            id: topToolBarFlick
+            anchors.fill: parent
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            contentWidth: topRowLayout.implicitWidth
+            contentHeight: height
+            flickableDirection: Flickable.HorizontalFlick
+            boundsBehavior: Flickable.StopAtBounds
+            clip: true
+            readonly property real implicitWidth: topRowLayout.implicitWidth
 
             RowLayout {
                 id: topRowLayout
-                anchors.bottom: parent.bottom
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
-                height: 44
+                height: parent.height
                 spacing: 6
 
             Button {
@@ -1457,8 +1468,8 @@ ApplicationWindow {
                     }
                 }
             }
+            }
         }
-    }
     }
 
     // Protruding error indicator at the top edge of the window when top bar is hidden

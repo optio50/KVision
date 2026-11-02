@@ -471,7 +471,7 @@ Window {
                 if (segments) {
                     for (var i = 0; i < segments.length; i++) {
                         var seg = segments[i];
-                        var localOffsetMs = new Date(seg.startTime).getTimezoneOffset() * 60000;
+                        var localOffsetMs = seg.timeIsLocal ? 0 : new Date(seg.startTime).getTimezoneOffset() * 60000;
                         fastAdjustedSegments.push({
                             "startTime": seg.startTime + localOffsetMs,
                             "endTime": seg.endTime + localOffsetMs
@@ -502,7 +502,7 @@ Window {
             if (segments) {
                 for (var i = 0; i < segments.length; i++) {
                     var seg = segments[i];
-                    var localOffsetMs = new Date(seg.startTime).getTimezoneOffset() * 60000;
+                    var localOffsetMs = seg.timeIsLocal ? 0 : new Date(seg.startTime).getTimezoneOffset() * 60000;
                     adjustedSegments.push({
                         "startTime": seg.startTime + localOffsetMs,
                         "endTime": seg.endTime + localOffsetMs

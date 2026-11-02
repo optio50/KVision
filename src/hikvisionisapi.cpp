@@ -105,9 +105,8 @@ void HikvisionISAPI::doSearchRequest(const QString &sessionId)
     m_activeReplies[sessionId] = reply;
     connect(reply, &QNetworkReply::finished, this, &HikvisionISAPI::onReplyFinished);
 
-    // Standalone SD-card cameras often never answer this HTTP search.
-    // Fall back to the SDK search if ISAPI stays silent.
-    QTimer::singleShot(8000, this, [this, sessionId]() {
+    const bool standaloneCamera = session.channelId <= 1;
+    QTimer::singleShot(standaloneCamera ? 1200 : 8000, this, [this, sessionId]() {
         if (!m_sessions.contains(sessionId) || m_sessions[sessionId].sdkFallbackStarted)
             return;
         qWarning() << "[ISAPI] Search timed out; falling back to SDK recording search";
@@ -347,8 +346,8 @@ void HikvisionISAPI::startSdkSearch(const QString &sessionId)
             while (true) {
                 int state = NET_DVR_FindNextFile_V50(findHandle, &data);
                 if (state == 1000) {
-                    QDateTime start = fromSdkTime(data.struStartTime);
-                    QDateTime end = fromSdkTime(data.struStopTime);
+                    QDateTime start = fromSdkTime(data.struStartTime).addSecs(-3600);
+                    QDateTime end = fromSdkTime(data.struStopTime).addSecs(-3600);
                     if (start.isValid() && end.isValid() && start < end) {
                         if (session.isMonthSearch) {
                             if (!days.contains(start.date().day()))
@@ -357,6 +356,7 @@ void HikvisionISAPI::startSdkSearch(const QString &sessionId)
                             QVariantMap segment;
                             segment["startTime"] = start.toMSecsSinceEpoch();
                             segment["endTime"] = end.toMSecsSinceEpoch();
+                            segment["timeIsLocal"] = true;
                             segments.append(segment);
                         }
                     }
