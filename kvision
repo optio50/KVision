@@ -1,0 +1,13 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+binary=$root/build/kvision
+
+if [ ! -x "$binary" ]; then
+    echo "Building KVision for first run..."
+    cmake -S "$root" -B "$root/build" -DCMAKE_BUILD_TYPE=Release
+    cmake --build "$root/build" -j"$(nproc)"
+fi
+
+exec "$binary" "$@"
