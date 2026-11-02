@@ -1,7 +1,11 @@
 #!/bin/sh
 set -eu
 
-root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+source=$0
+if command -v readlink >/dev/null 2>&1; then
+    source=$(readlink -f "$0")
+fi
+root=$(CDPATH= cd -- "$(dirname -- "$source")" && pwd)
 binary=$root/build/kvision
 
 if [ ! -x "$binary" ]; then
