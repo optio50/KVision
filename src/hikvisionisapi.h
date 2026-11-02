@@ -8,7 +8,9 @@
 #include <QVariantMap>
 #include <QDateTime>
 #include <QMap>
+#include <QTimer>
 #include <QUuid>
+#include "hcnetsdk_compat.h"
 
 struct PlaybackSegment {
     QDateTime startTime;
@@ -26,6 +28,7 @@ struct HikvisionSearchSession {
     int currentPosition;
     QVariantList accumulatedSegments;
     QList<int> accumulatedDays;
+    bool sdkFallbackStarted = false;
 };
 
 class HikvisionISAPI : public QObject
@@ -51,6 +54,9 @@ private slots:
 
 private:
     void doSearchRequest(const QString &sessionId);
+    void startSdkSearch(const QString &sessionId);
+    static void fillSdkTime(NET_DVR_TIME &out, const QDateTime &value);
+    static QDateTime fromSdkTime(const NET_DVR_TIME_SEARCH &value);
 
     QNetworkAccessManager *m_netManager;
     QString m_currentUser;

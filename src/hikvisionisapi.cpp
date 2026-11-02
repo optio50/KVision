@@ -4,6 +4,8 @@
 #include <QXmlStreamReader>
 #include <QDebug>
 #include <QThread>
+#include <cstring>
+#include "hikvisionmanager.h"
 
 HikvisionISAPI::HikvisionISAPI(QObject *parent)
     : QObject(parent)
@@ -102,6 +104,19 @@ void HikvisionISAPI::doSearchRequest(const QString &sessionId)
     reply->setProperty("password", m_currentPassword);
     m_activeReplies[sessionId] = reply;
     connect(reply, &QNetworkReply::finished, this, &HikvisionISAPI::onReplyFinished);
+
+    // Standalone SD-card cameras often never answer this HTTP search.
+    // Fall back to the SDK search if ISAPI stays silent.
+    QTimer::singleShot(8000, this, [this, sessionId]() {
+        if (!m_sessions.contains(sessionId) || m_sessions[sessionId].sdkFallbackStarted)
+            return;
+        qWarning() << "[ISAPI] Search timed out; falling back to SDK recording search";
+        if (m_activeReplies.contains(sessionId) && m_activeReplies[sessionId]) {
+            m_activeReplies[sessionId]->abort();
+        } else {
+            startSdkSearch(sessionId);
+        }
+    });
 }
 
 void HikvisionISAPI::onAuthenticationRequired(QNetworkReply *reply, QAuthenticator *authenticator)
@@ -147,6 +162,10 @@ void HikvisionISAPI::onReplyFinished()
             } else {
                 emit searchFailed(recorderIp, session.channelId, session.startTime, reply->errorString());
             }
+        }
+        if (!session.sdkFallbackStarted) {
+            startSdkSearch(sessionId);
+            return;
         }
         m_sessions.remove(sessionId);
         return;
@@ -258,6 +277,113 @@ void HikvisionISAPI::onReplyFinished()
         }
         m_sessions.remove(sessionId);
     }
+}
+
+void HikvisionISAPI::fillSdkTime(NET_DVR_TIME &out, const QDateTime &value)
+{
+    out.dwYear = value.date().year();
+    out.dwMonth = value.date().month();
+    out.dwDay = value.date().day();
+    out.dwHour = value.time().hour();
+    out.dwMinute = value.time().minute();
+    out.dwSecond = value.time().second();
+}
+
+QDateTime HikvisionISAPI::fromSdkTime(const NET_DVR_TIME_SEARCH &value)
+{
+    return QDateTime(QDate(value.wYear, value.byMonth, value.byDay),
+                     QTime(value.byHour, value.byMinute, value.bySecond));
+}
+
+void HikvisionISAPI::startSdkSearch(const QString &sessionId)
+{
+    if (!m_sessions.contains(sessionId))
+        return;
+    HikvisionSearchSession session = m_sessions.take(sessionId);
+    if (session.sdkFallbackStarted)
+        return;
+    session.sdkFallbackStarted = true;
+
+    QThread *worker = QThread::create([this, session]() {
+        const QString ip = session.recorderInfo.value("ip").toString();
+        const int port = session.recorderInfo.value("sdkPort").toInt() > 0
+            ? session.recorderInfo.value("sdkPort").toInt()
+            : session.recorderInfo.value("port").toInt();
+        const QString username = session.recorderInfo.value("username").toString();
+        const QString password = session.recorderInfo.value("password").toString();
+
+        NET_DVR_DEVICEINFO_V40 deviceInfo;
+        std::memset(&deviceInfo, 0, sizeof(deviceInfo));
+        LONG userId = HikvisionManager::instance()->loginShared(ip, port > 0 ? port : 8000, username, password, deviceInfo);
+        if (userId < 0) {
+            QMetaObject::invokeMethod(this, [this, session]() {
+                emit searchFailed(session.recorderInfo.value("ip").toString(), session.channelId, session.startTime, tr("SDK login failed"));
+            }, Qt::QueuedConnection);
+            return;
+        }
+
+        int channel = session.channelId;
+        const auto &info = deviceInfo.struDeviceV30;
+        if (info.byChanNum == 0 && info.byIPChanNum > 0)
+            channel = session.channelId + info.byStartDChan - 1;
+        else if (info.byChanNum > 0 && session.channelId > info.byChanNum)
+            channel = info.byStartDChan + (session.channelId - info.byChanNum) - 1;
+        else if (info.byChanNum > 0)
+            channel = session.channelId + info.byStartChan - 1;
+
+        NET_DVR_FILECOND_V40 cond;
+        std::memset(&cond, 0, sizeof(cond));
+        cond.lChannel = channel;
+        cond.dwFileType = 0xFF;
+        cond.dwIsLocked = 0xFF;
+        fillSdkTime(cond.struStartTime, session.startTime);
+        fillSdkTime(cond.struStopTime, session.endTime);
+
+        QVariantList segments;
+        QList<int> days;
+        LONG findHandle = NET_DVR_FindFile_V40(userId, &cond);
+        if (findHandle >= 0) {
+            NET_DVR_FINDDATA_V50 data;
+            while (true) {
+                int state = NET_DVR_FindNextFile_V50(findHandle, &data);
+                if (state == 1000) {
+                    QDateTime start = fromSdkTime(data.struStartTime);
+                    QDateTime end = fromSdkTime(data.struStopTime);
+                    if (start.isValid() && end.isValid() && start < end) {
+                        if (session.isMonthSearch) {
+                            if (!days.contains(start.date().day()))
+                                days.append(start.date().day());
+                        } else {
+                            QVariantMap segment;
+                            segment["startTime"] = start.toMSecsSinceEpoch();
+                            segment["endTime"] = end.toMSecsSinceEpoch();
+                            segments.append(segment);
+                        }
+                    }
+                } else if (state == 1002) {
+                    QThread::msleep(10);
+                } else {
+                    break;
+                }
+            }
+            NET_DVR_FindClose_V30(findHandle);
+        }
+        HikvisionManager::instance()->logoutShared(ip);
+
+        QMetaObject::invokeMethod(this, [this, session, segments, days]() {
+            const QString ip = session.recorderInfo.value("ip").toString();
+            if (session.isMonthSearch) {
+                QVariantList dayList;
+                for (int day : days)
+                    dayList.append(day);
+                emit monthAvailabilityFinished(ip, session.channelId, session.year, session.month, dayList, true);
+            } else {
+                emit searchFinished(ip, session.channelId, session.startTime, segments);
+            }
+        }, Qt::QueuedConnection);
+    });
+    connect(worker, &QThread::finished, worker, &QThread::deleteLater);
+    worker->start();
 }
 
 void HikvisionISAPI::cancelAllSearches()
