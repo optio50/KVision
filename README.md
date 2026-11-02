@@ -22,6 +22,7 @@ Do not run KVision as root.
 - Added double-digit PTZ preset entry using an on-screen keypad, with Go and Save actions.
 - Restored audio mute and volume controls in normal camera cells.
 - Added drag-and-drop swapping of cameras between grid cells.
+- Merging cells now works for Panovision cameras.
 - Added windowed-mode cursor and viewport-button auto-hide.
 - Prevented the main window from reopening at a tiny saved size.
 - Added the root `./kvision` launcher for clone-and-run startup.
@@ -61,7 +62,7 @@ System installation is optional. `./kvision` from the repository root is the nor
 ## Features
 
 - Live multi-camera grids for RTSP and Hikvision recorders.
-- Camera assignment, removal, swapping, and drag-and-drop cell exchange.
+- Camera assignment, removal, swapping, and drag-and-drop cell exchange, including merged cells for Panovision cameras.
 - Per-camera audio mute and volume controls.
 - PTZ pan, tilt, zoom, and mouse-driven preset recall/save.
 - Playback, snapshots, downloads, and auxiliary windows.
