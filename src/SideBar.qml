@@ -2447,6 +2447,13 @@ FocusScope {
                             }
 
                             CheckBox {
+                                text: qsTr("Hide cursor and viewport buttons when idle (windowed mode)")
+                                checked: viewSettings.hideCursorWhenWindowed
+                                onCheckedChanged: viewSettings.hideCursorWhenWindowed = checked
+                                Layout.fillWidth: true
+                            }
+
+                            CheckBox {
                                 text: qsTr("LNG_00253")
                                 checked: viewSettings.disableViewportZoomAnimation
                                 onCheckedChanged: viewSettings.disableViewportZoomAnimation = checked

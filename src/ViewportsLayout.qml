@@ -62,9 +62,6 @@ FocusScope {
                 if (typeof rootWindow !== "undefined" && rootWindow.isPlaybackWindowOpen) {
                     return true;
                 }
-                if ((root.size.width > 1 || root.size.height > 1) && !player.isFullScreen) {
-                    return true;
-                }
                 return player.volume <= 0.0;
             });
             player.avOptions = Qt.binding(function() {
@@ -221,6 +218,11 @@ FocusScope {
         property int selectionIndex2
         property bool multiselect: selectionIndex2 != selectionIndex1
         property int keyModifiers: 0
+        property int dragSourceIndex: -1
+        property int dragTargetIndex: -1
+        property real dragStartX: 0
+        property real dragStartY: 0
+        property bool isDragging: false
 
         onLayoutRatioChanged: selectionReset()
         onSelectionIndex1Changed: selectionReset()
@@ -370,17 +372,10 @@ FocusScope {
                     height: parent.height
                     activeFocusOnTab: d.fullScreenIndex < 0 || d.fullScreenIndex === model.index
 
-                    // Drag source on the visible viewport itself!
-                    Drag.active: viewportMouseArea.drag.active
-                    Drag.dragType: Drag.Automatic
-                    Drag.supportedActions: Qt.MoveAction
-                    Drag.mimeData: {
-                        "application/x-cctv-viewport-index": String(model.index)
-                    }
-
                     property int cursorColumnOffset: 0
                     property int cursorRowOffset: 0
                     property bool fullScreen: false
+                    readonly property bool dragActive: d.isDragging && d.dragSourceIndex === model.index
 
                     property var player: null
                     property alias d2SecondaryUrlFailed: d2.secondaryUrlFailed
@@ -694,6 +689,8 @@ FocusScope {
                         color: root.color
                         anchors.fill: parent
                         clip: true
+                        opacity: viewport.dragActive ? 0.5 : 1.0
+                        Behavior on opacity { NumberAnimation { duration: 120 } }
                     }
 
                     Rectangle {
@@ -751,6 +748,26 @@ FocusScope {
                                     border.width: 2
                                     border.color: "#00f5d4"
                                 }
+                            },
+                            State {
+                                name: "dragSource"
+                                when: d.isDragging && d.dragSourceIndex === model.index
+
+                                PropertyChanges {
+                                    target: selectionFrame
+                                    border.width: 3
+                                    border.color: "#ff7a00"
+                                }
+                            },
+                            State {
+                                name: "dragTarget"
+                                when: d.isDragging && d.dragTargetIndex === model.index
+
+                                PropertyChanges {
+                                    target: selectionFrame
+                                    border.width: 3
+                                    border.color: "#00f5d4"
+                                }
                             }
                         ]
                     }
@@ -767,9 +784,8 @@ FocusScope {
                         
                         // Enable wheel events for zooming
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
-                        drag.target: dragDummyViewport
-                        drag.threshold: 15
-                        cursorShape: root.pendingSwapSourceIndex >= 0 ? Qt.DragMoveCursor : Qt.ArrowCursor
+                        hoverEnabled: true
+                        cursorShape: d.isDragging ? Qt.DragMoveCursor : (root.pendingSwapSourceIndex >= 0 ? Qt.DragMoveCursor : Qt.ArrowCursor)
 
                         onPressed: {
                             if (mouse.button === Qt.RightButton) {
@@ -779,48 +795,102 @@ FocusScope {
                                 }
                                 return;
                             }
-                            console.log("[CCTV Viewer Debug] Pressed viewport. index =", model.index, "pendingSwapSourceIndex =", root.pendingSwapSourceIndex);
-                            if (root.pendingSwapSourceIndex >= 0 && generalSettings.allowSwappingViewports) {
-                                var sourceIndex = root.pendingSwapSourceIndex;
-                                var targetIndex = model.index;
-                                if (sourceIndex !== targetIndex) {
-                                    var sourceItem = root.model.get(sourceIndex);
-                                    var targetItem = root.model.get(targetIndex);
-                                    if (sourceItem && targetItem) {
-                                        var tempUrl = sourceItem.url;
-                                        var tempSecUrl = sourceItem.secondaryUrl;
-                                        var tempVol = sourceItem.volume;
-                                        var tempOpts = sourceItem.avFormatOptions;
-                                        var tempStreamMode = sourceItem.streamMode;
-
-                                        sourceItem.url = targetItem.url;
-                                        sourceItem.secondaryUrl = targetItem.secondaryUrl;
-                                        sourceItem.volume = targetItem.volume;
-                                        sourceItem.avFormatOptions = targetItem.avFormatOptions;
-                                        sourceItem.streamMode = targetItem.streamMode;
-
-                                        targetItem.url = tempUrl;
-                                        targetItem.secondaryUrl = tempSecUrl;
-                                        targetItem.volume = tempVol;
-                                        targetItem.avFormatOptions = tempOpts;
-                                        targetItem.streamMode = tempStreamMode;
-
-                                        Utils.log_info("Swapped viewport " + (sourceIndex + 1) + " with " + (targetIndex + 1));
-                                    }
-                                }
-                                root.pendingSwapSourceIndex = -1;
-                            } else {
-                                if (d.activeFocusIndex >= 0 && d.keyModifiers & Qt.ShiftModifier) {
-                                    d.selectionIndex2 = model.index;
-                                } else {
-                                    viewport.forceActiveFocus();
-                                    d.selectionReset();
+                            // Left button: record potential drag start in root coordinates
+                            var pt = viewportMouseArea.mapToItem(root, mouse.x, mouse.y);
+                            d.dragSourceIndex = model.index;
+                            d.dragStartX = pt.x;
+                            d.dragStartY = pt.y;
+                            d.isDragging = false;
+                            d.dragTargetIndex = -1;
+                        }
+                        onPositionChanged: {
+                            if (d.dragSourceIndex >= 0 && !d.isDragging) {
+                                var pt = viewportMouseArea.mapToItem(root, mouse.x, mouse.y);
+                                var dx = Math.abs(pt.x - d.dragStartX);
+                                var dy = Math.abs(pt.y - d.dragStartY);
+                                if (dx > 15 || dy > 15) {
+                                    d.isDragging = true;
+                                    d.dragTargetIndex = root.indexAt(pt.x, pt.y);
                                 }
                             }
                         }
                         onReleased: {
-                            dragDummyViewport.x = 0;
-                            dragDummyViewport.y = 0;
+                            var pt = viewportMouseArea.mapToItem(root, mouse.x, mouse.y);
+                            var targetIndex = root.indexAt(pt.x, pt.y);
+
+                            if (targetIndex >= 0 && targetIndex !== d.dragSourceIndex) {
+                                var dx = Math.abs(pt.x - d.dragStartX);
+                                var dy = Math.abs(pt.y - d.dragStartY);
+                                if ((dx > 15 || dy > 15) && generalSettings.allowSwappingViewports) {
+                                // Drag-to-swap: exchange camera URLs between source and target cells
+                                var sourceIndex = d.dragSourceIndex;
+                                var sourceItem = root.model.get(sourceIndex);
+                                var targetItem = root.model.get(targetIndex);
+                                if (sourceItem && targetItem) {
+                                    var tempUrl = sourceItem.url;
+                                    var tempSecUrl = sourceItem.secondaryUrl;
+                                    var tempVol = sourceItem.volume;
+                                    var tempOpts = sourceItem.avFormatOptions;
+                                    var tempStreamMode = sourceItem.streamMode;
+
+                                    sourceItem.url = targetItem.url;
+                                    sourceItem.secondaryUrl = targetItem.secondaryUrl;
+                                    sourceItem.volume = targetItem.volume;
+                                    sourceItem.avFormatOptions = targetItem.avFormatOptions;
+                                    sourceItem.streamMode = targetItem.streamMode;
+
+                                    targetItem.url = tempUrl;
+                                    targetItem.secondaryUrl = tempSecUrl;
+                                    targetItem.volume = tempVol;
+                                    targetItem.avFormatOptions = tempOpts;
+                                    targetItem.streamMode = tempStreamMode;
+
+                                    Utils.log_info("Swapped viewport " + (sourceIndex + 1) + " with " + (targetIndex + 1));
+                                }
+                            }
+                            } else if (!d.isDragging && d.dragSourceIndex >= 0) {
+                                // Normal click behavior (no drag occurred)
+                                var clickTargetIndex = model.index;
+                                if (root.pendingSwapSourceIndex >= 0 && generalSettings.allowSwappingViewports) {
+                                    var sourceIndex = root.pendingSwapSourceIndex;
+                                    if (sourceIndex !== clickTargetIndex) {
+                                        var sourceItem = root.model.get(sourceIndex);
+                                        var targetItem = root.model.get(clickTargetIndex);
+                                        if (sourceItem && targetItem) {
+                                            var tempUrl = sourceItem.url;
+                                            var tempSecUrl = sourceItem.secondaryUrl;
+                                            var tempVol = sourceItem.volume;
+                                            var tempOpts = sourceItem.avFormatOptions;
+                                            var tempStreamMode = sourceItem.streamMode;
+
+                                            sourceItem.url = targetItem.url;
+                                            sourceItem.secondaryUrl = targetItem.secondaryUrl;
+                                            sourceItem.volume = targetItem.volume;
+                                            sourceItem.avFormatOptions = targetItem.avFormatOptions;
+                                            sourceItem.streamMode = targetItem.streamMode;
+
+                                            targetItem.url = tempUrl;
+                                            targetItem.secondaryUrl = tempSecUrl;
+                                            targetItem.volume = tempVol;
+                                            targetItem.avFormatOptions = tempOpts;
+                                            targetItem.streamMode = tempStreamMode;
+
+                                            Utils.log_info("Swapped viewport " + (sourceIndex + 1) + " with " + (clickTargetIndex + 1));
+                                        }
+                                    }
+                                    root.pendingSwapSourceIndex = -1;
+                                } else {
+                                    if (d.activeFocusIndex >= 0 && d.keyModifiers & Qt.ShiftModifier) {
+                                        d.selectionIndex2 = clickTargetIndex;
+                                    } else {
+                                        viewport.forceActiveFocus();
+                                        d.selectionReset();
+                                    }
+                                }
+                            }
+                            d.dragSourceIndex = -1;
+                            d.dragTargetIndex = -1;
+                            d.isDragging = false;
                         }
                         onPressAndHold: d2.setCurrentIndex("pressAndHoldIndex", true)
                         onDoubleClicked: {
@@ -874,6 +944,10 @@ FocusScope {
                         }
 
                         function mouseMoveHandler() {
+                            if (d.isDragging) {
+                                // Suppress drag-multiselect while a camera drag-to-swap is in progress
+                                return;
+                            }
                             if (!containsMouse) {
                                 var selectionIndex2 = viewport.indexAt(mouseX, mouseY);
 
@@ -891,11 +965,19 @@ FocusScope {
                     Menu {
                         id: contextMenu
                         
+                        // When "Stream Select" is clicked, the menu auto-closes (Qt default
+                        // for triggered items) which would instantly kill the submenu via
+                        // onClosed. This flag lets the submenu survive that specific close.
+                        property bool keepSubMenuOpen: false
+                        
                         topPadding: 5
                         bottomPadding: 5
                         
                         onClosed: {
-                            streamSubMenu.close();
+                            if (!keepSubMenuOpen) {
+                                streamSubMenu.close();
+                            }
+                            keepSubMenuOpen = false;
                         }
                         
                         enter: Transition {
@@ -1002,6 +1084,9 @@ FocusScope {
                             }
                             
                             onTriggered: {
+                                // Mark the submenu to survive the parent menu's
+                                // auto-close, then open it.
+                                contextMenu.keepSubMenuOpen = true;
                                 streamSubMenu.popup(streamSelectMenuItem, streamSelectMenuItem.width, 0);
                             }
                         }
@@ -1527,8 +1612,7 @@ FocusScope {
         }
         var topLeftElement = model.get(topLeftIndex);
 
-        if (d.selectionWidth() !== d.selectionHeight() ||
-            d.selectionWidth() <= 0 || d.selectionHeight() <= 0 ||
+        if (d.selectionWidth() <= 0 || d.selectionHeight() <= 0 ||
             (d.selectionWidth() >= root.size.width && d.selectionHeight() >= root.size.height)) {
             return false;
         }

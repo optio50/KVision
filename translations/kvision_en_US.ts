@@ -4754,15 +4754,15 @@
         </message>
         <message>
             <source>LNG_00468</source>
-            <translation>Automatycznie</translation>
+            <translation>Auto</translation>
         </message>
         <message>
             <source>LNG_00467</source>
-            <translation>Tylko MAIN</translation>
+            <translation>MAIN only</translation>
         </message>
         <message>
             <source>LNG_00466</source>
-            <translation>Tylko SUB</translation>
+            <translation>SUB only</translation>
         </message>
         <message>
             <source>LNG_00465</source>

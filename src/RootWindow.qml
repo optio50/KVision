@@ -28,6 +28,9 @@ ApplicationWindow {
     property bool isSyncing: false
     property bool topBarAutoCollapse: !viewSettings.showTopBarByDefault
     readonly property bool isPlaybackWindowOpen: playbackWindowLoader.active && playbackWindowLoader.item && playbackWindowLoader.item.visible
+    // True when the auto-hide timer has blanked the mouse cursor (fullscreen inactivity).
+    // Viewport overlays (hover buttons, etc.) use this to fade out together with the cursor.
+    readonly property bool cursorHidden: cursorShape.hidden
 
     onClosing: {
         if (!closeAccepted) {
@@ -106,8 +109,10 @@ ApplicationWindow {
         }
     }
 
-    width: rootWindowSettings.width
-    height: rootWindowSettings.height
+    width: Math.max(rootWindowSettings.width, 960)
+    height: Math.max(rootWindowSettings.height, 600)
+    minimumWidth: 960
+    minimumHeight: 600
 
     // Right-to-left User Interfaces support
     LayoutMirroring.enabled: Qt.application.layoutDirection == Qt.RightToLeft
@@ -386,6 +391,10 @@ ApplicationWindow {
             if (viewSettings.hideCursorWhenFullScreen !== diskHideCursor) {
                 viewSettings.hideCursorWhenFullScreen = diskHideCursor;
             }
+            var diskHideCursorWindowed = Context.readSetting("View", "hideCursorWhenWindowed", true);
+            if (viewSettings.hideCursorWhenWindowed !== diskHideCursorWindowed) {
+                viewSettings.hideCursorWhenWindowed = diskHideCursorWindowed;
+            }
             var diskShowChannelStatus = Context.readSetting("View", "showChannelStatus", true);
             if (viewSettings.showChannelStatus !== diskShowChannelStatus) {
                 viewSettings.showChannelStatus = diskShowChannelStatus;
@@ -539,6 +548,7 @@ ApplicationWindow {
         category: "View"
 
         property bool hideCursorWhenFullScreen: true
+        property bool hideCursorWhenWindowed: true
         property bool showChannelStatus: true
         property bool showCameraInfo: true
         property bool hoverControlIcons: true
@@ -1748,6 +1758,7 @@ ApplicationWindow {
         Context.writeSetting("ViewportsLayoutsCollection", "defaultAVFormatOptions", layoutsCollectionSettings.defaultAVFormatOptions);
 
         Context.writeSetting("View", "hideCursorWhenFullScreen", viewSettings.hideCursorWhenFullScreen);
+        Context.writeSetting("View", "hideCursorWhenWindowed", viewSettings.hideCursorWhenWindowed);
         Context.writeSetting("View", "showChannelStatus", viewSettings.showChannelStatus);
         Context.writeSetting("View", "showCameraInfo", viewSettings.showCameraInfo);
         Context.writeSetting("View", "hoverControlIcons", viewSettings.hoverControlIcons);
@@ -2577,8 +2588,9 @@ ApplicationWindow {
     CursorShape {
         id: cursorShape
 
-        autoHide: rootWindow.activeFocusItem != null && // Disabled when ApplicationWindow is't active
-                  Context.config.fullScreen && viewSettings.hideCursorWhenFullScreen
+        autoHide: rootWindow.activeFocusItem != null && // Disabled when ApplicationWindow isn't active
+                  ((Context.config.fullScreen && viewSettings.hideCursorWhenFullScreen) ||
+                   (!Context.config.fullScreen && viewSettings.hideCursorWhenWindowed))
         autoHideTimeout: 3000
         anchors.fill: parent
     }

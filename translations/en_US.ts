@@ -3263,17 +3263,17 @@
         <message>
             <location filename="../src/ViewportsLayout.qml" line="1220" />
             <source>LNG_00468</source>
-            <translation>Automatycznie</translation>
+            <translation>Auto</translation>
         </message>
         <message>
             <location filename="../src/ViewportsLayout.qml" line="1269" />
             <source>LNG_00467</source>
-            <translation>Tylko MAIN</translation>
+            <translation>MAIN only</translation>
         </message>
         <message>
             <location filename="../src/ViewportsLayout.qml" line="1318" />
             <source>LNG_00466</source>
-            <translation>Tylko SUB</translation>
+            <translation>SUB only</translation>
         </message>
         <message>
             <location filename="../src/ViewportsLayout.qml" line="1553" />
