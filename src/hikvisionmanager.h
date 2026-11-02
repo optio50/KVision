@@ -37,6 +37,10 @@ public:
     // PTZ zoom control
     Q_INVOKABLE bool ptzZoom(const QString &ip, int port, const QString &username, const QString &password, int channelId, int command, bool stop);
 
+    // PTZ preset control (presets are stored on the camera itself).
+    // command: SET_PRESET=8 (save current position), GOTO_PRESET=39 (recall), CLE_PRESET=9 (clear)
+    Q_INVOKABLE bool ptzPreset(const QString &ip, int port, const QString &username, const QString &password, int channelId, int command, int presetIndex);
+
     // Force I-Frame for seamless switching
     Q_INVOKABLE bool forceIFrame(const QString &ip, int port, const QString &username, const QString &password, int channelId);
 
@@ -80,6 +84,7 @@ private:
         int channelId;
         int command;
         bool stop;
+        int presetIndex = 0; // > 0 for preset commands (SET/GOTO/CLE), 0 for movement commands
     };
 
     std::queue<PtzCommand> m_ptzQueue;

@@ -513,7 +513,17 @@ bool HikvisionManager::ptzZoom(const QString &ip, int port, const QString &usern
 {
     {
         std::lock_guard<std::mutex> lock(m_ptzMutex);
-        m_ptzQueue.push({ip, port, username, password, channelId, command, stop});
+        m_ptzQueue.push({ip, port, username, password, channelId, command, stop, 0});
+    }
+    m_ptzCond.notify_one();
+    return true;
+}
+
+bool HikvisionManager::ptzPreset(const QString &ip, int port, const QString &username, const QString &password, int channelId, int command, int presetIndex)
+{
+    {
+        std::lock_guard<std::mutex> lock(m_ptzMutex);
+        m_ptzQueue.push({ip, port, username, password, channelId, command, false, presetIndex});
     }
     m_ptzCond.notify_one();
     return true;
@@ -556,15 +566,21 @@ void HikvisionManager::ptzWorkerLoop()
             }
         }
 
-        DWORD dwStop = cmd.stop ? 1 : 0;
-        BOOL ret = NET_DVR_PTZControl_Other(lUserID, static_cast<LONG>(targetChannel), static_cast<DWORD>(cmd.command), dwStop);
+        BOOL ret = FALSE;
+        if (cmd.presetIndex > 0) {
+            // Preset command (SET_PRESET=8, GOTO_PRESET=39, CLE_PRESET=9) — acts on a preset slot
+            ret = NET_DVR_PTZPreset_Other(lUserID, static_cast<LONG>(targetChannel), static_cast<DWORD>(cmd.command), static_cast<DWORD>(cmd.presetIndex));
+        } else {
+            DWORD dwStop = cmd.stop ? 1 : 0;
+            ret = NET_DVR_PTZControl_Other(lUserID, static_cast<LONG>(targetChannel), static_cast<DWORD>(cmd.command), dwStop);
+        }
         if (!ret) {
             DWORD err = NET_DVR_GetLastError();
             qWarning() << "[Hikvision PTZ Worker] PTZ Control failed for IP:" << cmd.ip << "Channel:" << targetChannel 
-                       << "Command:" << cmd.command << "Stop:" << cmd.stop << "Error:" << err;
+                       << "Command:" << cmd.command << "Preset:" << cmd.presetIndex << "Stop:" << cmd.stop << "Error:" << err;
         } else {
             qDebug() << "[Hikvision PTZ Worker] PTZ Control succeeded for IP:" << cmd.ip << "Channel:" << targetChannel 
-                     << "Command:" << cmd.command << "Stop:" << cmd.stop;
+                     << "Command:" << cmd.command << "Preset:" << cmd.presetIndex << "Stop:" << cmd.stop;
         }
     }
 }
