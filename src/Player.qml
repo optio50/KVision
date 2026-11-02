@@ -35,6 +35,39 @@ FocusScope {
     property real oneToOneX: 0
     property real oneToOneY: 0
 
+    function videoFrameSize() {
+        if (isQuickPlayback && quickPlaybackPlayerLoader.item &&
+                quickPlaybackPlayerLoader.item.videoWidth > 0 &&
+                quickPlaybackPlayerLoader.item.videoHeight > 0) {
+            return Qt.size(quickPlaybackPlayerLoader.item.videoWidth,
+                           quickPlaybackPlayerLoader.item.videoHeight);
+        }
+        var activeOutput = activePlayerIndex === 1 ? videoOutput1 : videoOutput2;
+        if (activeOutput.sourceRect.width > 0 && activeOutput.sourceRect.height > 0) {
+            return activeOutput.sourceRect;
+        }
+        return Qt.size(16, 9);
+    }
+
+    function fittedVideoRect() {
+        var frame = videoFrameSize();
+        var frameRatio = frame.width / Math.max(1, frame.height);
+        // Only unusually wide panoramic streams keep their exact ratio.
+        // Normal substreams fill the cell even when they are not exactly 16:9.
+        if (frameRatio <= 2.0) {
+            return Qt.rect(0, 0, videoContainer.width, videoContainer.height);
+        }
+        var containerRatio = videoContainer.width / Math.max(1, videoContainer.height);
+        if (frameRatio > containerRatio) {
+            var fittedHeight = videoContainer.width / frameRatio;
+            return Qt.rect(0, (videoContainer.height - fittedHeight) / 2,
+                           videoContainer.width, fittedHeight);
+        }
+        var fittedWidth = videoContainer.height * frameRatio;
+        return Qt.rect((videoContainer.width - fittedWidth) / 2, 0,
+                       fittedWidth, videoContainer.height);
+    }
+
     onIsOneToOneChanged: {
         if (isOneToOne) {
             var videoW = 1280;
@@ -713,10 +746,10 @@ FocusScope {
             VideoOutput {
                 id: videoOutput1
                 source: qmlAvPlayer1
-                x: root.isOneToOne ? root.oneToOneX : -root.zoomX * width
-                y: root.isOneToOne ? root.oneToOneY : -root.zoomY * height
-                width: root.isOneToOne ? (sourceRect.width > 0 ? sourceRect.width : parent.width) : (parent.width / Math.max(0.001, root.zoomWidth))
-                height: root.isOneToOne ? (sourceRect.height > 0 ? sourceRect.height : parent.height) : (parent.height / Math.max(0.001, root.zoomHeight))
+                x: root.isOneToOne ? root.oneToOneX : root.fittedVideoRect().x - root.zoomX * root.fittedVideoRect().width
+                y: root.isOneToOne ? root.oneToOneY : root.fittedVideoRect().y - root.zoomY * root.fittedVideoRect().height
+                width: root.isOneToOne ? (sourceRect.width > 0 ? sourceRect.width : parent.width) : (root.fittedVideoRect().width / Math.max(0.001, root.zoomWidth))
+                height: root.isOneToOne ? (sourceRect.height > 0 ? sourceRect.height : parent.height) : (root.fittedVideoRect().height / Math.max(0.001, root.zoomHeight))
                 fillMode: VideoOutput.Stretch
                 visible: (!root.isHikvision || hikPlayerSettings.useRealStreams)
                 opacity: activePlayerIndex === 1 ? 1.0 : 0.0
@@ -736,10 +769,10 @@ FocusScope {
             VideoOutput {
                 id: videoOutput2
                 source: qmlAvPlayer2
-                x: root.isOneToOne ? root.oneToOneX : -root.zoomX * width
-                y: root.isOneToOne ? root.oneToOneY : -root.zoomY * height
-                width: root.isOneToOne ? (sourceRect.width > 0 ? sourceRect.width : parent.width) : (parent.width / Math.max(0.001, root.zoomWidth))
-                height: root.isOneToOne ? (sourceRect.height > 0 ? sourceRect.height : parent.height) : (parent.height / Math.max(0.001, root.zoomHeight))
+                x: root.isOneToOne ? root.oneToOneX : root.fittedVideoRect().x - root.zoomX * root.fittedVideoRect().width
+                y: root.isOneToOne ? root.oneToOneY : root.fittedVideoRect().y - root.zoomY * root.fittedVideoRect().height
+                width: root.isOneToOne ? (sourceRect.width > 0 ? sourceRect.width : parent.width) : (root.fittedVideoRect().width / Math.max(0.001, root.zoomWidth))
+                height: root.isOneToOne ? (sourceRect.height > 0 ? sourceRect.height : parent.height) : (root.fittedVideoRect().height / Math.max(0.001, root.zoomHeight))
                 fillMode: VideoOutput.Stretch
                 visible: (!root.isHikvision || hikPlayerSettings.useRealStreams)
                 opacity: activePlayerIndex === 2 ? 1.0 : 0.0
@@ -797,10 +830,10 @@ FocusScope {
                 z: 3
                 active: root.isQuickPlayback
                 visible: root.isQuickPlayback
-                x: root.isOneToOne ? root.oneToOneX : -root.zoomX * width
-                y: root.isOneToOne ? root.oneToOneY : -root.zoomY * height
-                width: root.isOneToOne ? ((item && item.videoWidth > 0) ? item.videoWidth : videoContainer.width) : (videoContainer.width / Math.max(0.001, root.zoomWidth))
-                height: root.isOneToOne ? ((item && item.videoHeight > 0) ? item.videoHeight : videoContainer.height) : (videoContainer.height / Math.max(0.001, root.zoomHeight))
+                x: root.isOneToOne ? root.oneToOneX : root.fittedVideoRect().x - root.zoomX * root.fittedVideoRect().width
+                y: root.isOneToOne ? root.oneToOneY : root.fittedVideoRect().y - root.zoomY * root.fittedVideoRect().height
+                width: root.isOneToOne ? ((item && item.videoWidth > 0) ? item.videoWidth : root.fittedVideoRect().width) : (root.fittedVideoRect().width / Math.max(0.001, root.zoomWidth))
+                height: root.isOneToOne ? ((item && item.videoHeight > 0) ? item.videoHeight : root.fittedVideoRect().height) : (root.fittedVideoRect().height / Math.max(0.001, root.zoomHeight))
                 sourceComponent: quickPlaybackPlayerComponent
 
                 onLoaded: {
@@ -1333,12 +1366,7 @@ FocusScope {
             property bool isHovered: false
 
             function updateHoverState() {
-                isHovered = containsMouse ||
-                            snapshotMouseAreaBtn.containsMouse ||
-                            (playbackBadge.visible && playbackMouseAreaBtn.containsMouse) ||
-                            oneToOneMouseAreaBtn.containsMouse ||
-                            zoomMouseAreaBtn.containsMouse ||
-                            (volumeControl.visible && (muteMouseArea.containsMouse || sliderMouseArea.containsMouse || maxVolMouseArea.containsMouse || volumeSlider.pressed));
+                isHovered = containsMouse && !(typeof rootWindow !== "undefined" && rootWindow.cursorHidden);
             }
 
             onContainsMouseChanged: updateHoverState()
@@ -1353,7 +1381,7 @@ FocusScope {
                     bottomMargin: root.isQuickPlayback ? (quickPlaybackControlsPanel.height + 12) : 6
                 }
                 spacing: 6
-                visible: (root.source !== "") && (!viewSettings.hoverControlIcons || playerHoverArea.isHovered)
+                visible: (root.source !== "") && (!viewSettings.hoverControlIcons || playerHoverArea.isHovered) && !(typeof rootWindow !== "undefined" && rootWindow.cursorHidden)
 
                 Row {
                     id: volumeControl
@@ -1705,7 +1733,7 @@ FocusScope {
                     ToolTip.delay: Compact.toolTipDelay
                     ToolTip.timeout: Compact.toolTipTimeout
                     ToolTip.visible: oneToOneMouseAreaBtn.containsMouse
-                    ToolTip.text: root.isOneToOne ? qsTr("LNG_00155") : qsTr("LNG_00154")
+                    ToolTip.text: root.isOneToOne ? qsTr("Exit 1:1 pixel view") : qsTr("Show the camera at its actual pixel size")
                 }
 
                 Control {

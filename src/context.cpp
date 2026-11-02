@@ -720,12 +720,9 @@ void Context::trimMemory()
     malloc_trim(0);
     qint64 rssAfter = getCurrentRSS();
     qint64 freedBytes = rssBefore - rssAfter;
-    if (freedBytes > 0) {
+    if (freedBytes > 0 && Context::enableLogs()) {
         fprintf(stderr, "[Memory] GC & Manual memory trim released %.2f MB to the operating system kernel.\n",
                 static_cast<double>(freedBytes) / (1024.0 * 1024.0));
-        fflush(stderr);
-    } else {
-        fprintf(stderr, "[Memory] GC & Manual memory trim executed. Memory usage did not change significantly.\n");
         fflush(stderr);
     }
 #endif

@@ -14,4 +14,16 @@ if [ ! -x "$binary" ]; then
     cmake --build "$root/build" -j"$(nproc)"
 fi
 
-exec "$binary" "$@"
+verbose=0
+for arg in "$@"; do
+    if [ "$arg" = "--verbose" ] || [ "$arg" = "-l" ]; then
+        verbose=1
+    fi
+done
+
+if [ "$verbose" -eq 1 ]; then
+    exec "$binary" "$@"
+fi
+
+# libhpr prints a routine discovery line directly to the console.
+exec "$binary" "$@" 2>&1 | grep -v --line-buffered 'find .* mac and .* ip'

@@ -116,9 +116,12 @@ Window {
                         ListElement { size: "4x4" }
                         ListElement { size: "5x5" }
                         ListElement { size: "6x6" }
+                        ListElement { size: "6x5" }
                         ListElement { size: "7x7" }
                         ListElement { size: "8x8" }
                         ListElement { size: "9x9" }
+                        ListElement { size: "10x10" }
+                        ListElement { size: "15x15" }
 
                         Component.onCompleted: {
                             fromJSValue(sideBarSettings.windowDivision);
@@ -232,7 +235,7 @@ Window {
 
                             function str2size(str) {
                                 var separatorTr = qsTr("LNG_00295");
-                                var regexp = new RegExp("^[1-9][x%1][1-9]$".arg(separatorTr));
+                                var regexp = new RegExp("^[1-9][0-9]?[x%1][1-9][0-9]?$".arg(separatorTr));
                                 if (regexp.test(str)) {
                                     var size = str.split(new RegExp("[x%1]".arg(separatorTr)));
                                     return Qt.size(size[0], size[1]);
@@ -390,6 +393,75 @@ Window {
                             font.pixelSize: 11
                             horizontalAlignment: Text.AlignHCenter
                             verticalAlignment: Text.AlignVCenter
+                        }
+                    }
+                }
+            }
+
+            GroupBox {
+                title: qsTr("Toolbar layouts")
+                enabled: toolsUnlockSwitch.checked
+                Layout.fillWidth: true
+
+                background: Rectangle {
+                    color: "#141a21"
+                    border.color: "#2a3540"
+                    border.width: 1
+                    radius: 8
+                }
+                label: Text {
+                    text: parent.title
+                    color: "#00f5d4"
+                    font.bold: true
+                    font.pixelSize: 12
+                }
+
+                ColumnLayout {
+                    anchors.fill: parent
+                    spacing: 6
+
+                    Repeater {
+                        model: layoutsCollectionModel
+                        delegate: Switch {
+                            id: toolbarLayoutSwitch
+                            property int layoutIndex: model.index
+                            property var layoutItem: {
+                                try { return model.layoutModel; } catch (e) { return null; }
+                            }
+                            Layout.fillWidth: true
+                            checked: layoutItem ? layoutItem.visible : true
+                            text: {
+                                var layout = layoutItem;
+                                if (!layout) return "Layout " + (layoutIndex + 1);
+                                if (layout.name && layout.name.trim() !== "") return layout.name;
+                                if (layout.isNvr) return "NVR " + layout.nvrIp;
+                                return "View " + (layoutIndex + 1);
+                            }
+                            onClicked: if (layoutItem) layoutItem.visible = checked
+
+                            indicator: Rectangle {
+                                implicitWidth: 36
+                                implicitHeight: 18
+                                y: parent.height / 2 - height / 2
+                                radius: 9
+                                color: parent.checked ? "#00f5d4" : "#1c242c"
+                                border.color: parent.checked ? "#00f5d4" : "#2a3540"
+                                Rectangle {
+                                    x: toolbarLayoutSwitch.checked ? parent.width - width - 2 : 2
+                                    y: 2
+                                    width: 14
+                                    height: 14
+                                    radius: 7
+                                    color: "white"
+                                }
+                            }
+                            contentItem: Text {
+                                text: parent.text
+                                color: "#a0aec0"
+                                font.pixelSize: 11
+                                verticalAlignment: Text.AlignVCenter
+                                leftPadding: parent.indicator.width + parent.spacing
+                            }
                         }
                     }
                 }

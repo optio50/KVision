@@ -17,6 +17,9 @@ HikvisionManager::HikvisionManager(QObject *parent)
     std::thread initThread([this]() {
         if (NET_DVR_Init()) {
             m_initialized = true;
+            if (!Context::enableLogs()) {
+                NET_DVR_SetLogPrint(FALSE);
+            }
             qDebug() << "[Hikvision] HCNetSDK Initialized successfully in background.";
         } else {
             qWarning() << "[Hikvision] Failed to initialize HCNetSDK.";

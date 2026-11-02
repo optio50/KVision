@@ -459,7 +459,7 @@ FocusScope {
                             if (fullScreen) {
                                 preFullScreenVolume = vItem.volume;
                                 if (!viewportSettings.noUnmuteWhenFullScreen && vItem.volume <= 0.0) {
-                                    vItem.volume = 1.0;
+                                    vItem.volume = 0.25;
                                 }
                             } else {
                                 resetZoom();

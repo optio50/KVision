@@ -760,7 +760,7 @@ ApplicationWindow {
     Rectangle {
         id: topToolBar
         height: 56
-        width: Math.min(parent.width - 24, topToolBarFlick.implicitWidth + 24)
+        width: topRowLayout.implicitWidth + 24
         anchors.horizontalCenter: parent.horizontalCenter
         color: (rootWindow.visibility === Window.FullScreen) ? "#44121214" : "#99121214"
         z: 9999
@@ -779,9 +779,11 @@ ApplicationWindow {
 
         MouseArea {
             id: topToolBarMouseArea
-            anchors.fill: parent
+            anchors.bottom: parent.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            height: 44
             hoverEnabled: true
-            propagateComposedEvents: true
             onContainsMouseChanged: {
                 if (containsMouse) {
                     keepVisibleTimer.stop();
@@ -789,28 +791,15 @@ ApplicationWindow {
                     keepVisibleTimer.start();
                 }
             }
-            onWheel: function(wheel) {
-                var nextX = topToolBarFlick.contentX - wheel.angleDelta.y;
-                topToolBarFlick.contentX = Math.max(0, Math.min(nextX, topToolBarFlick.contentWidth - topToolBarFlick.width));
-                wheel.accepted = true;
-            }
-        }
-
-        Flickable {
-            id: topToolBarFlick
-            anchors.fill: parent
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
-            contentWidth: topRowLayout.implicitWidth
-            contentHeight: height
-            flickableDirection: Flickable.HorizontalFlick
-            boundsBehavior: Flickable.StopAtBounds
-            clip: true
-            readonly property real implicitWidth: topRowLayout.implicitWidth
 
             RowLayout {
                 id: topRowLayout
-                height: parent.height
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.leftMargin: 12
+                anchors.rightMargin: 12
+                height: 44
                 spacing: 6
 
             Button {
@@ -934,7 +923,7 @@ ApplicationWindow {
                     height: 16
                     source: {
                         var colorStr = minimizeButton.hovered ? "%2333ccff" : "%2300c8ff";
-                        return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><line x1='5' y1='19' x2='19' y2='19'></line><line x1='12' y1='5' x2='12' y2='14'></line><polyline points='7 10 12 15 17 10'></polyline></svg>";
+                        return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><line x1='5' y1='18' x2='19' y2='18'></line></svg>";
                     }
                 }
 
@@ -1295,7 +1284,7 @@ ApplicationWindow {
                 }
 
                 Repeater {
-                    model: [1, 2, 3, 4, 5, 6, 7, 8, 9]
+                    model: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15]
                     delegate: Button {
                         id: gridBtn
                         property int gridSize: modelData
