@@ -1,407 +1,72 @@
 # KVision
 
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-Donate-yellow.svg?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/arkanis)
+Personal Linux CCTV client for live Hikvision and RTSP camera walls, playback, and PTZ control.
 
-<a href="https://buymeacoffee.com/arkanis" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" height="42" style="height: 42px !important; width: auto !important;"></a>
+This repository is a private working copy based on the upstream KVision/cctv-viewer project. It keeps the original application and adds the local fixes used on this system.
 
-> [!TIP]
-> **Support KVision:** If you find this software useful and enjoy using it, you can support its development by [buying me a coffee](https://buymeacoffee.com/arkanis)! ☕
+## Quick start
 
-> [!IMPORTANT]
-> **Important Disclaimer & User Information:**
-> * **Original Author:** This project is a fork and modification of the original [cctv-viewer](https://github.com/iEvgeny/cctv-viewer) created by **Evgeny S. Maksimov** ([@iEvgeny](https://github.com/iEvgeny)).
-> * **Built with AI Assistance:** This version has been heavily modified and built using **Gemini** and **Claude** AI assistants.
-> * **Not a Professional Programmer:** I am not a professional software developer. This is a personal project created for my own needs.
-> * **Use At Your Own Risk:** The program is provided "as is", without warranty of any kind. You use this software entirely at your own responsibility and risk.
-> * **Do Not Contact Me for Support:** Please do not contact me with support questions, bug reports, or help requests. I cannot and will not provide technical support.
-> * **NEVER Run As Root:** For security and safety reasons, **NEVER run this program as root or with administrator privileges**. 
->
-> **Project Goal:** This project was created for the sole purpose of allowing me to completely abandon Windows on my system by replacing the essential camera viewing and playback functionality of the Hikvision iVMS-4200 software on Linux.
-
----
-
-## About KVision
-
-**KVision** is a high-performance VMS (Video Management System) class desktop application designed for simultaneous viewing of live video feeds (RTSP/ONVIF) and deep integration with Hikvision NVR/DVR video recorders (both Live view and synchronized Playback archives).
-
-It is designed for Linux users who need a robust, lightweight, and smooth alternative to bloated proprietary software.
-
----
-
-## Detailed Application Features
-
-### 📺 Live View Grid & Viewport Interactions
-* **Camera Assignment (Select-and-Click)**: Select a viewport in the main grid layout to focus it, then click the **"+" (Add)** button on any camera in the NVR/DVR list to assign it.
-* **Viewport Swapping**: Swap camera feeds between two grid viewports by selecting the **"Swap viewports"** option in the right-click context menu of the source viewport and then clicking on the target viewport.
-* **Camera Removal**: Quickly clear/remove a camera stream from any grid viewport using the right-click context menu (**"Remove camera"**) with a safety confirmation dialog.
-* **Double-Click to Maximize**: Double-click any camera viewport in the grid to maximize it to full screen. Double-click again to restore the grid layout.
-* **Individual Viewport Settings**: Customize RTSP transport protocols, volume levels, and display properties for each viewport individually via the context menu (**"Change settings"**).
-* **Multi-Monitor & Auxiliary Windows**: Spawn multiple independent auxiliary viewport windows (via the **"New Window"** button or `Ctrl+N` shortcut) to display different camera grid layouts simultaneously across multiple screens or monitors.
-* **Real-Time Bidirectional Configuration Sync**: Instantly synchronizes NVR settings, local camera names, and layouts collection definitions bidirectionally in real-time between the main window and all open auxiliary windows using high-performance file watching (`QFileSystemWatcher`). Window positioning and active layout selection indices remain strictly isolated per window via dynamic, automatic unique window ID allocation.
-
-
-### 🔍 Advanced Image Controls & Zooming
-* **Interactive Viewport Zooming (Region Selection)**: Enter zoom mode by clicking the magnifying glass icon on any viewport. Click and drag a rectangular marquee over the video stream to crop and zoom into that specific region. Click the icon again to reset the zoom.
-* **Proportional Zoom Selection**: Hold the `Shift` key while drawing the zoom rectangle to lock the selection to a 16:9 aspect ratio, preventing distorted crops.
-* **Pan Zoom**: Click and hold the middle mouse button (scroll wheel) and drag to freely pan the zoomed-in video stream around the viewport.
-* **1:1 Pixel Mapping Mode**: View camera streams in their native pixel-to-pixel resolution without any scaling distortion.
-* **Mouse Wheel Zoom (Fullscreen)**: Scale the stream dynamically in fullscreen mode by holding the `Ctrl` key and scrolling the mouse wheel.
-
-### 🔌 Hikvision NVR/DVR Deep Integration
-* **Auto-Discovery**: Enter your NVR/DVR IP address and credentials to automatically discover and list all active camera channels.
-* **Automatic NVR Preset Grid**: Click **"Generate Grid"** in the recorders panel to automatically generate a tailored viewport layout (preset) mapping all discovered cameras to an optimal grid size.
-* **Dynamic Quality Selection**: Manually toggle between **Main Stream** (high resolution) and **Sub Stream** (low bandwidth/CPU load) for any viewport via the context menu to save system resources and network bandwidth.
-* **Local Camera Renaming (Custom Names)**: Clicking the edit icon (pencil) on a camera tile in the recorder channel list allows setting a custom, local name for that camera. The name update is immediately reflected on the tile, live players, and playback timeline. Custom names are saved locally in the settings JSON and do not alter the physical NVR device. The custom name can be reset to the NVR default at any time.
-
-### ⏱️ Synchronized Playback Archive
-* **Multi-Camera Synchronization**: Play back archived video recordings from multiple Hikvision recorders/cameras simultaneously in perfect time synchronization.
-* **Interactive Timeline**: Drag the timeline horizontally to navigate through time. Scale the timeline smoothly with the mouse wheel (from a full 24-hour view down to a precise 10-minute resolution).
-* **Footage Availability Cache**: Visual colored bars indicating recording segments on NVR storage are cached dynamically to eliminate flickering during timeline manipulation.
-* **Timeline Auto-Follow**: The timeline view automatically scrolls to keep the red playback indicator centered, pausing intelligently when the user drags the timeline manually.
-* **Manual Re-Center**: Click the **"Center"** button to instantly snap the timeline back to center around the active playback indicator.
-* **15-Min Quick Check**: Click the archive icon next to a camera or recorder in the live view to automatically start playback starting **exactly 15 minutes before the current system time**, allowing you to instantly inspect recent events.
-
-### 📸 Snapshot Capture & Path Configuration
-* **Instant Snapshot Capturing**: Take high-quality, virtually lossless snapshots (JPEG format, quality 98) directly from any active viewport in both Live View and Playback Archive.
-* **Camera Icon Overlay**: Viewports feature a subtle camera overlay icon in the toolbar. Clicking it flashes the icon orange (`#ff7a00`) for exactly 1 second to confirm successful capture.
-* **High-Resolution Archive Captures**: Playback snapshots are captured at the stream's full native source resolution directly from the decoded frame buffer in memory, bypassing any display scaling or window size constraints.
-* **Custom Paths Configuration**: Configure default storage paths for snapshots (`~/Obrazy/CCTV` by default) and downloaded videos (`~/Wideo/CCTV` by default) inside the **"Saving" ("Zapis")** section of the Settings panel.
-* **Native KDE Directory Browser**: Click the `...` browser buttons to open a native-style KDE directory selector. The dialog opens precisely at the folder currently shown in the text input, falling back to the user's home folder (`~/`) if the field is empty or points to a non-existent path.
-
-### 📥 Archive Recording Downloader
-* **Direct MP4 Downloader**: Download segments of archived footage directly to your local drive.
-* **Flexible Timeframe Range**: Select precise start/end points for the export.
-* **Visual Progress Bar**: Track the download process in real-time, with download bandwidth correctly accounted for in the System Statistics panel.
-
-### 📊 Multi-Threaded System Statistics Panel
-* **Slide-Out Overlay**: Hover and slide the left edge of the screen to reveal a diagnostic monitoring overlay.
-* **Metrics Tracked**:
-  * **CPU & RAM**: Total system CPU load (%) and the memory consumed by `kvision` and its download subprocesses.
-  * **GPU & VRAM**: Core graphics card utilization and video memory usage (real-time XML parsing of `nvidia-smi` data, filtering only relevant process allocations).
-  * **Network Bandwidth**: Live download speed aggregated from all active video players and download subprocesses.
-* **Pin Feature**: Click the pin icon to keep the stats panel locked open, or let it slide away automatically.
-* **Stutter-Free Video Rendering**: Calculations are performed on a separate thread (`StatsWorker`) to guarantee zero frames are dropped during 60 FPS video rendering.
-
-### 🛠️ Global Application Settings & UI
-* **Auto-Collapsing Top Bar**: The top options toolbar automatically collapses when the mouse leaves its boundary to maximize video workspace. This behavior is toggleable in Settings or directly using the pin icon on the top bar.
-* **Top Bar Controls**: Compact layout controls on the top bar: fullscreen button (with green visual state), window minimize button (with cyan/blue icon), grid locking switch, options, and a hamburger menu for advanced options.
-* **Close Confirmation**: Intercepts both system window close buttons and exit button actions, requesting a Polish/English confirmation before quitting.
-* **Custom Layout Presets**: Create custom layout presets with configurable row and column counts (e.g., 2x2, 3x3, 4x4).
-* **Global Shortcuts**: Complete control via keyboard hotkeys:
-  * `F11`: Toggle fullscreen.
-  * `M`: Mute/unmute active viewport audio.
-  * `Alt + Left` / `Alt + Right`: Switch layouts.
-  * `Alt + 1` to `Alt + 9`: Instant preset switching.
-* **Multilingual UI**: Live translation switching across 22 languages.
-* **Cross-Platform Settings Import / Export**: Dedicated **Import / Export** tab in the side panel (below Settings) allowing one-click backup and migration of configuration files (`*.conf` / `*.ini`) between Linux (`~/.config/KVision/KVision.conf`) and Windows (`%APPDATA%\KVision\KVision.ini`), with automatic OS path adaptation for snapshot and video directories.
-
----
-
-## Screenshots
-
-| Main Window Grid (5x5) | Main Window (Obfuscated Feeds) |
-| :---: | :---: |
-| <a href="images/screenshot_main_grid.png"><img src="images/screenshot_main_grid.png" width="350" alt="Main Window Grid"/></a> | <a href="images/screenshot_main_obfuscated.png"><img src="images/screenshot_main_obfuscated.png" width="350" alt="Main Window Obfuscated"/></a> |
-
-| Playback Archive Timeline | System Statistics Panel (Slide-out) |
-| :---: | :---: |
-| <a href="images/screenshot_archive_playback.png"><img src="images/screenshot_archive_playback.png" width="350" alt="Playback Archive"/></a> | <a href="images/screenshot_stats_overlay.png"><img src="images/screenshot_stats_overlay.png" width="350" alt="System Statistics"/></a> |
-
-| NVR Settings & Recorders | NVR Cameras List |
-| :---: | :---: |
-| <a href="images/screenshot_nvr_settings.png"><img src="images/screenshot_nvr_settings.png" width="350" alt="NVR Settings"/></a> | <a href="images/screenshot_nvr_cameras.png"><img src="images/screenshot_nvr_cameras.png" width="350" alt="NVR Cameras"/></a> |
-
-| Archive Timeframe Selection | General Application Settings |
-| :---: | :---: |
-| <a href="images/screenshot_archive_setup.png"><img src="images/screenshot_archive_setup.png" width="350" alt="Archive Setup"/></a> | <a href="images/screenshot_app_settings.png"><img src="images/screenshot_app_settings.png" width="350" alt="App Settings"/></a> |
-
----
-
-## System Requirements & Dependencies
-
-### Hardware Environment (Tested On)
-The application has been extensively developed and tested across multiple hardware configurations on CachyOS (Arch Linux derivative) running **KDE Plasma 6.6.5 on Wayland**:
-
-**Machine 1 (High-end Desktop):**
-- **Operating System:** CachyOS Linux x86_64
-- **Kernel:** Linux 7.0.11-1-cachyos
-- **Desktop Environment:** KDE Plasma 6.6.5 (KWin Wayland)
-- **CPU:** AMD Ryzen 9 5950X (16 Cores / 32 Threads)
-- **System Memory:** 64 GB RAM
-- **Graphics Card:** NVIDIA GeForce RTX 5070 Ti (16 GB VRAM)
-
-**Machine 2 (Production Environment):**
-- **Operating System:** CachyOS Linux x86_64
-- **Kernel:** Linux 7.0.11-1-cachyos
-- **Desktop Environment:** KDE Plasma 6.6.5 (KWin Wayland)
-- **CPU:** Intel Core i7-9700F (8 Cores @ 4.70 GHz)
-- **System Memory:** 16 GB RAM
-- **Graphics Card:** NVIDIA GeForce GTX 1070 Ti (8 GB VRAM)
-- **Performance Details:** Running on a 4K monitor displaying a 30-camera grid view.
-  - **CPU System Usage:** ~20%
-  - **GPU Utilization:** 25-30%
-  - **Total System RAM Usage:** ~5 GB (Application consumes ~2-2.5 GB)
-  - **VRAM Usage:** 1-2 GB
-
-**Machine 3:**
-- **Operating System:** CachyOS Linux x86_64
-- **Kernel:** Linux 7.0.11-1-cachyos
-- **Desktop Environment:** KDE Plasma 6.6.5 (KWin Wayland)
-- **CPU:** AMD Ryzen 5 5600X (6 Cores / 12 Threads @ 4.65 GHz)
-- **System Memory:** 64 GB RAM
-- **Graphics Card:** NVIDIA GeForce RTX 3060 Ti (8 GB VRAM)
-
-### Software Dependencies
-To build and run the application, the following packages are required:
-
-* **Runtime Dependencies:**
-  - `qt5-declarative` (Qt5 QML module)
-  - `qt5-multimedia` (Qt5 Multimedia module)
-  - `qt5-quickcontrols` (Qt5 Quick Controls 1)
-  - `qt5-quickcontrols2` (Qt5 Quick Controls 2)
-  - `qt5-graphicaleffects` (Qt5 Graphical Effects)
-  - `qt5-svg` (Qt5 SVG icon rendering)
-  - `ffmpeg` (>= 5.0 recommended for advanced RTSP network timeout features)
-  - `qt5-wayland` *(optional, for native Wayland support)*
-  - *Note: Hikvision SDK shared libraries are pre-bundled under `src/hikvision_sdk/lib/` and automatically set up via the build configuration or Pacman package.*
-
-* **Build Dependencies:**
-  - `cmake` (>= 3.10)
-  - `qt5-tools` (for translation compilation `lrelease`)
-  - `git`
-
----
-
-## Getting Started
-
-To clone this repository, make sure you include the submodules:
 ```bash
-git clone --recurse-submodules https://github.com/arkanista/kvision.git
-```
-
-### Pre-compiled Arch Linux Package (Arch Linux / CachyOS)
-
-If you are running Arch Linux or CachyOS, you can skip compilation and install the pre-compiled Pacman package directly from the latest release:
-
-* **[Download kvision-2.7.5-1-x86_64.pkg.tar.zst](https://github.com/Arkanista/KVision/releases/download/v2.7.5/kvision-2.7.5-1-x86_64.pkg.tar.zst)**
-
-To install the downloaded package:
-```bash
-sudo pacman -U kvision-2.7.5-1-x86_64.pkg.tar.zst
-```
-
-> [!NOTE]
-> The package is built and tested with modern system libraries including FFmpeg 9 (`libavutil.so.61` / `libavformat.so.63`) on Arch Linux / CachyOS.
-
-### Building from Source (Arch Linux / CachyOS)
-
-The easiest and recommended way to build and install the application from source on Arch-based distributions is by using `makepkg`, which automatically resolves and installs all required dependencies.
-
-1. Navigate to the Arch packaging directory:
-   ```bash
-   cd kvision/packaging/arch
-   ```
-2. Build the package (the `-s` flag will automatically download and install all missing dependencies via `pacman`, and `-i` will install the built package):
-   ```bash
-   makepkg -si
-   ```
-
-### Building on Ubuntu / Debian (and other derivatives)
-
-KVision is fully compatible with Ubuntu, Debian, and other derivatives. The build system dynamically configures the shared library search paths (RPATH) based on your system's library directory layout (e.g., `/usr/lib/x86_64-linux-gnu` under Ubuntu's multi-arch layout vs `/usr/lib` on Arch Linux).
-
-> [!NOTE]
-> Starting from version 2.2.7, you **do not** need to manually configure `/etc/ld.so.conf.d/` or run `ldconfig` to fix missing `libhcnetsdk.so` errors. The build system automatically sets the correct RPATH, resolving library paths seamlessly!
-
-Here is the step-by-step installation guide:
-
-#### Option A: Quick Automated Installer (Recommended)
-You can build and install KVision with all dependencies in a single step using the provided setup script:
-```bash
-git clone --recurse-submodules https://github.com/Arkanista/KVision.git
+git clone --recurse-submodules https://github.com/optio50/KVision.git
 cd KVision
-./tools/install_ubuntu.sh
+./kvision
 ```
 
-#### Option B: Manual Step-by-Step Installation
+The first run configures and builds the application in `build/`, then launches it. Later runs start the already built program immediately.
 
-1. **Enable the Universe repository and install required dependencies:**
-   *(Note: On Ubuntu 22.04 / 24.04 LTS, Qt5 multimedia packages are hosted in the `universe` repository).*
-   ```bash
-   sudo add-apt-repository -y universe
-   sudo apt update
-   sudo apt install -y cmake build-essential git ffmpeg \
-     qtdeclarative5-dev qtmultimedia5-dev qtquickcontrols2-5-dev \
-     libqt5svg5-dev libqt5multimedia5-plugins qttools5-dev libgtest-dev libva-dev \
-     libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libavdevice-dev \
-     qml-module-qtgraphicaleffects qml-module-qtquick-controls2 \
-     qml-module-qtquick-layouts qml-module-qtmultimedia \
-     qml-module-qt-labs-platform qml-module-qt-labs-settings \
-     qml-module-qt-labs-folderlistmodel qml-module-qtquick-dialogs \
-     qtwayland5 # optional for native Wayland support
-   ```
+Do not run KVision as root.
 
-2. **Clone the repository with submodules:**
-   ```bash
-   git clone --recurse-submodules https://github.com/Arkanista/KVision.git
-   cd KVision
-   ```
+## Recent local changes
 
-3. **Configure and build the application:**
-   ```bash
-   cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-   cmake --build build -j$(nproc)
-   ```
+- Added a scalable, mouse-driven PTZ pad for small and large camera cells.
+- Added double-digit PTZ preset entry using an on-screen keypad, with Go and Save actions.
+- Restored audio mute and volume controls in normal camera cells.
+- Added drag-and-drop swapping of cameras between grid cells.
+- Added windowed-mode cursor and viewport-button auto-hide.
+- Prevented the main window from reopening at a tiny saved size.
+- Added the root `./kvision` launcher for clone-and-run startup.
 
-4. **Install the application:**
-   ```bash
-   sudo cmake --install build
-   ```
+## Build and run
 
-5. **Run KVision:**
-   ```bash
-   kvision
-   ```
+### Ubuntu / Debian
 
-### 🔧 Troubleshooting: Video Streams & Ubuntu Setup
-
-#### Cameras are discovered, but Live View shows a black screen or exclamation mark
-If KVision connects to your NVR, retrieves the camera names, but the video feeds fail to play:
-
-1. **Missing QtMultimedia runtime plugins (Ubuntu/Debian):**
-   Make sure runtime multimedia plugins are installed (these are separate from development headers):
-   ```bash
-   sudo apt update
-   sudo apt install -y libqt5multimedia5-plugins qml-module-qtmultimedia
-   ```
-   Without `libqt5multimedia5-plugins`, Qt Quick's `VideoOutput` engine cannot render decoded video frames onto the screen.
-
-2. **RTSP Transport Protocol (UDP vs TCP):**
-   By default, RTSP stream negotiation may attempt UDP. Most network firewalls, routers with port forwarding (NAT), and many Hikvision units drop UDP packets.
-   * In KVision, open **NVR Settings** (gear icon) and edit your recorder.
-   * Set **RTSP Transport** to **`TCP`** (instead of Auto or UDP).
-
-3. **Ensure full installation (`sudo cmake --install build`):**
-   Do not run the binary directly from the `build/` folder without installation. Running `sudo cmake --install build` installs the Hikvision SDK binary components into the system multi-arch path (`/usr/lib/x86_64-linux-gnu/kvision`), which is required for playback and archive features to locate auxiliary renderers.
-
-4. **Verify RTSP stream outside KVision:**
-   You can verify whether your camera's RTSP feed is reachable on your system by running:
-   ```bash
-   ffplay -rtsp_transport tcp "rtsp://USER:PASSWORD@IP:PORT/Streaming/Channels/101"
-   ```
-   If `ffplay` streams video properly with `-rtsp_transport tcp`, but KVision displays a black screen, verify that `libqt5multimedia5-plugins` is installed.
-
-5. **Isolate Network/Router vs Local Issues using the Mock NVR Server:**
-   You can run a local simulated Hikvision NVR to test streaming and custom ports in a completely isolated environment (no external network, router, or physical NVR needed):
-   ```bash
-   python3 tools/mock_hikvision_server.py --http-port 17080 --rtsp-port 17554
-   ```
-   Then in KVision, add a new NVR with:
-   * **IP:** `127.0.0.1`
-   * **HTTP Port:** `17080`
-   * **RTSP Port:** `17554`
-   * **Username:** `admin`
-   * **Password:** `12345`
-   * **RTSP Transport:** `TCP`
-   
-   Click **"Discover Cameras"** and add. If video plays with the mock server, KVision and custom port handling are functioning properly on your system, and any streaming failure with your real NVR is due to network/NAT/firewall routing or physical device configuration.
-
-### Manual Build using CMake (Any Linux distribution)
-
-If you are not using Arch Linux or Ubuntu, you can build the application manually using CMake.
-
-1. **Install Dependencies:** Ensure you have installed all required runtime and build dependencies listed above using your distribution's package manager.
-   For Arch/CachyOS:
-   ```bash
-   sudo pacman -S base-devel cmake qt5-declarative qt5-multimedia qt5-quickcontrols qt5-quickcontrols2 qt5-svg qt5-graphicaleffects qt5-tools ffmpeg git qt5-wayland
-   ```
-   *(Note: `qt5-wayland` or `qtwayland5` is highly recommended for native Wayland support).*
-2. **Configure the build directory:**
-   ```bash
-   cd kvision
-   cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-   ```
-3. **Compile the project:**
-   ```bash
-   cmake --build build -j$(nproc)
-   ```
-4. **Install the application:**
-   ```bash
-   sudo cmake --install build
-   ```
-
-### Building on Windows (x64)
-
-KVision supports native 64-bit Windows builds using **MSVC 2022**, **Qt 5.15.2**, **FFmpeg**, and the **Hikvision Windows SDK (`EN-HCNetSDK`)**:
-- **Automated CI Build:** Use the included GitHub Actions workflow (`.github/workflows/build-windows.yml`) to automatically compile KVision and produce a portable `KVision-Windows-x64.zip` bundle with all required DLLs.
-- **Local Build & Configuration Guide:** See [BUILD_WINDOWS.md](BUILD_WINDOWS.md) for complete step-by-step instructions on building locally with CMake/Ninja/MSVC, deploying with `windeployqt`, locating `%APPDATA%\KVision\KVision.ini`, and migrating settings between Linux and Windows.
-
-For detailed usage instructions, check out the documentation files:
-- [English User Manual (INSTRUCTIONS.md)](INSTRUCTIONS.md)
-- [Polish User Manual (INSTRUKCJA.md)](INSTRUKCJA.md)
-- [Windows Build Guide (BUILD_WINDOWS.md)](BUILD_WINDOWS.md)
-
----
-
-## 🖥️ Desktop Scaling on KDE Plasma
-
-Starting from version 2.4.4, KVision automatically detects and correctly applies fractional desktop scaling (e.g., 125%, 145%, 150%) configured in KDE Plasma settings by enforcing native High DPI pass-through policies in Qt. The user interface should now scale correctly out-of-the-box without any manual intervention.
-
-### Native Wayland Support
-
-To ensure the best scaling experience and performance under Wayland, make sure you have the optional `qt5-wayland` package installed on your system. This allows KVision to run natively on Wayland instead of falling back to XWayland.
-
-For Arch Linux / Manjaro / CachyOS:
 ```bash
-sudo pacman -S qt5-wayland
+sudo apt update
+sudo apt install -y build-essential cmake git   qtbase5-dev qtdeclarative5-dev qtmultimedia5-dev   qtquickcontrols2-5-dev libqt5svg5-dev   qml-module-qtquick-controls2 qml-module-qtmultimedia   libqt5multimedia5-plugins ffmpeg libavcodec-dev libavformat-dev   libavutil-dev libswscale-dev libswresample-dev
 ```
 
-For Debian / Ubuntu / Linux Mint:
+Then:
+
 ```bash
-sudo apt install qtwayland5
+./kvision
 ```
 
-### Manual Scaling Override (Legacy/Fallback)
+### Manual build
 
-If you are running an older version, an unusual configuration, or simply wish to manually force a different scaling factor than the rest of the system, you can still override the application scaling using environment variables.
-
-For example, to force **150%** scaling, launch the application from the terminal with:
 ```bash
-env QT_FONT_DPI=96 QT_SCALE_FACTOR=1.5 kvision
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+./build/kvision
 ```
 
-*(You can permanently apply this by editing the application launcher `kvision.desktop` in the KDE menu editor and adding these variables to the "Environment variables" field).*
+### Optional system install
 
----
-
-## 💡 Recommended FFmpeg Options
-
-For Hikvision and general low-latency camera streaming over RTSP, we recommend configuring new streams with the following FFmpeg Override settings in the app:
-
-```text
--analyzeduration 100000 -probesize 500000 -fflags nobuffer -flags low_delay -rtsp_transport tcp
+```bash
+sudo cmake --install build
+kvision
 ```
 
-> **[RECOMMENDATION]** If you are migrating from an older version (prior to v2.6.0), it is highly recommended to change `-analyzeduration 0` to `-analyzeduration 100000`. Setting `0` on streams without an audio track causes delays in switching because FFmpeg will block for a hardcoded 5-second timeout waiting for audio packets. Setting a very low value (e.g., 100000 microseconds = 0.1s) completely resolves this issue while maintaining instant switching.
+System installation is optional. `./kvision` from the repository root is the normal way to run this private copy.
 
-These parameters provide the lowest latency, fastest stream connection, and maximum stability over RTSP, preventing the camera streams from falling behind (drift) over long operational periods. The `-rtsp_transport tcp` option forces TCP transport instead of UDP for maximum stream stability on standard networks.
+## Features
 
-### What are the effects of these low-latency flags?
-1. **`-fflags nobuffer`**: Instructs FFmpeg to process and output packets immediately without waiting to analyze and buffer the stream.
-   - *Advantage*: Prevents video streams from accumulating delay over time.
-   - *Side effect*: Disabling the packet buffer makes the stream more sensitive to network stutters. If the connection is unstable, you may experience minor frame stutters.
-2. **`-flags low_delay`**: Prevents the decoder from waiting for out-of-order frames, forcing it to decode and present frames as soon as they arrive.
-   - *Advantage*: Reduces decoding latency by a few frames.
-   - *Side effect*: If your camera is configured to produce B-frames (highly compressed bidirectional frames), you might experience brief visual smearing or artifacts during rapid movement.
+- Live multi-camera grids for RTSP and Hikvision recorders.
+- Camera assignment, removal, swapping, and drag-and-drop cell exchange.
+- Per-camera audio mute and volume controls.
+- PTZ pan, tilt, zoom, and mouse-driven preset recall/save.
+- Playback, snapshots, downloads, and auxiliary windows.
+- Local camera names and layout presets stored in the application settings.
 
-### How to manage or disable these options:
-- **Global configuration**: You can edit the global default FFmpeg command-line options in the **Settings** tab (Gear icon).
-- **Bulk Update**: You can apply your modified global settings to all active viewports by clicking the **"Update all cameras"** button in the settings window.
-- **Viewport override**: If you have a specific camera on a bad network connection that suffers from stuttering, you can exclude it from global settings. Open the individual **Viewport Settings** dialog, check the **"Do not include global FFmpeg settings changes"** checkbox, and edit its options independently (e.g. remove `-fflags nobuffer`).
+## Upstream
 
----
-
-## License
-
-This project is licensed under the GPL v3 License.
+The original cctv-viewer project was created by Evgeny S. Maksimov. This private repository is maintained separately for local use and is not a request for changes to the upstream project.
