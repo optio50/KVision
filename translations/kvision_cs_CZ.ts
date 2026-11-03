@@ -723,7 +723,7 @@
         </message>
         <message>
             <source>LNG_00056</source>
-            <translation>qrc:/INSTRUCTIONS_cs.md</translation>
+            <translation>qrc:/INSTRUCTIONS.md</translation>
         </message>
         <message>
             <source>LNG_00055</source>
