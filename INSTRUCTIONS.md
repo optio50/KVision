@@ -123,42 +123,50 @@ If you want to compile the program manually (e.g., on another Linux distribution
 
 ### Installing on Ubuntu / Debian (and derivatives)
 
-#### Option A: Quick Automated Installer (Recommended)
-You can compile and install KVision with all dependencies in a single step using the provided setup script:
+Install the build and runtime dependencies first. The launcher builds and starts KVision, but it does not install missing packages.
+
 ```bash
-git clone --recurse-submodules https://github.com/Arkanista/KVision.git
-cd KVision
-./tools/install_ubuntu.sh
+sudo apt update
+sudo apt install -y build-essential cmake git pkg-config \
+  qtbase5-dev qtdeclarative5-dev qtmultimedia5-dev \
+  qtquickcontrols2-5-dev qttools5-dev libqt5svg5-dev \
+  qml-module-qtquick-controls qml-module-qtquick-controls2 \
+  qml-module-qtquick-layouts qml-module-qtquick-window2 \
+  qml-module-qtquick-dialogs qml-module-qtqml-models2 \
+  qml-module-qt-labs-settings qml-module-qt-labs-platform \
+  qml-module-qtmultimedia qml-module-qtgraphicaleffects \
+  libqt5multimedia5-plugins \
+  ffmpeg libavcodec-dev libavformat-dev libavutil-dev \
+  libswscale-dev libswresample-dev libavdevice-dev \
+  libva-dev
 ```
 
-#### Option B: Manual Step-by-Step Installation
-1. Enable the `universe` repository (required on Ubuntu 22.04 / 24.04 for Qt5 multimedia packages) and install dependencies:
-   ```bash
-   sudo add-apt-repository -y universe
-   sudo apt update
-   sudo apt install -y cmake build-essential git ffmpeg \
-     qtdeclarative5-dev qtmultimedia5-dev qtquickcontrols2-5-dev \
-     libqt5svg5-dev libqt5multimedia5-plugins qttools5-dev libgtest-dev libva-dev \
-     libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libavdevice-dev \
-     qml-module-qtgraphicaleffects qml-module-qtquick-controls2 \
-     qml-module-qtquick-layouts qml-module-qtmultimedia \
-     qml-module-qt-labs-platform qml-module-qt-labs-settings \
-     qml-module-qt-labs-folderlistmodel qml-module-qtquick-dialogs \
-     qtwayland5
-   ```
-2. Configure and compile the project:
-   ```bash
-   cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr
-   cmake --build build -j$(nproc)
-   ```
-3. Install into the system:
-   ```bash
-   sudo cmake --install build
-   ```
+Then clone and run:
+
+```bash
+git clone https://github.com/optio50/KVision.git
+cd KVision
+./kvision
+```
+
+The first run configures and builds the application in `build/`, then launches it. Later runs start the already built program immediately.
+
+Do not run KVision as root.
 
 ### Launching
-The program can be launched from the system menu or by typing in the terminal:
+
+From the repository directory:
+
 ```bash
+./kvision
+```
+
+A system-wide install is optional:
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+sudo cmake --install build
 kvision
 ```
 
@@ -180,8 +188,8 @@ If KVision connects to your NVR, retrieves the camera names, but the video feeds
    * In KVision, open **NVR Settings** (gear icon) and edit your recorder.
    * Set **RTSP Transport** to **`TCP`** (instead of Auto or UDP).
 
-3. **Ensure full installation (`sudo cmake --install build`):**
-   Do not run the binary directly from the `build/` folder without installation. Running `sudo cmake --install build` installs the Hikvision SDK binary components into the system multi-arch path (`/usr/lib/x86_64-linux-gnu/kvision`), which is required for playback and archive features to locate auxiliary renderers.
+3. **Run from the repository or install it:**
+   `./kvision` from the repository directory is the normal way to run this copy. A system install with `sudo cmake --install build` is optional.
 
 4. **Verify RTSP stream outside KVision:**
    You can verify whether your camera's RTSP feed is reachable on your system by running:
