@@ -100,11 +100,20 @@ protected:
         auto data = std::tuple_cat(std::forward_as_tuple(m_callable), std::forward<URef>(args));
 
         if constexpr (isLoopCtrlResult()) {
-            return std::apply(&QmlAVUtils::FunctionTraits<Callable>::template invoke<Callable>, data);
+            return std::apply([](auto &&...args) {
+                return QmlAVUtils::FunctionTraits<Callable>::template invoke<Callable>(
+                    std::forward<decltype(args)>(args)...);
+            }, data);
         } else if constexpr (isVoidResult()) {
-            std::apply(&QmlAVUtils::FunctionTraits<Callable>::template invoke<Callable>, data);
+            std::apply([](auto &&...args) {
+                QmlAVUtils::FunctionTraits<Callable>::template invoke<Callable>(
+                    std::forward<decltype(args)>(args)...);
+            }, data);
         } else {
-            auto result = std::apply(&QmlAVUtils::FunctionTraits<Callable>::template invoke<Callable>, data);
+            auto result = std::apply([](auto &&...args) {
+                return QmlAVUtils::FunctionTraits<Callable>::template invoke<Callable>(
+                    std::forward<decltype(args)>(args)...);
+            }, data);
             this->setResult(std::move(result));
         }
 

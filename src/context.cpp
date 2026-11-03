@@ -11,6 +11,7 @@
 #include <QDesktopServices>
 #include <QApplication>
 #include <QWidget>
+#include <QDebug>
 #include "context.h"
 
 Context::Context(QObject *parent) : QObject(parent)

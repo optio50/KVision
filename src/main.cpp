@@ -2,6 +2,7 @@
 #include <QIcon>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QtQml>
 #include <QQuickWindow>
 #include <QTranslator>
 #include <QDir>
@@ -38,10 +39,25 @@ extern "C" {
 #include "hikvisionmanager.h"
 #include "nvrstatusmanager.h"
 #include "hikvisionplayer.h"
+
+#if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
+template<typename T>
+int qmlRegisterSingletonInstance(const char *uri, int versionMajor, int versionMinor,
+                                 const char *qmlName, T *instance)
+{
+    qmlRegisterSingletonType<T>(uri, versionMajor, versionMinor, qmlName,
+                                [instance](QQmlEngine *, QJSEngine *) -> QObject * {
+        QQmlEngine::setObjectOwnership(instance, QQmlEngine::CppOwnership);
+        return instance;
+    });
+    return 0;
+}
+#endif
+
+#include "systemstats.h"
 #include "hikvisionarchiveplayer.h"
 #include "hikvisionisapi.h"
 #include "hikvisiondownloader.h"
-#include "systemstats.h"
 
 QFile *g_logFile = nullptr;
 QMutex g_logMutex;
