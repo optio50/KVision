@@ -26,8 +26,6 @@ sudo apt install -y build-essential cmake git pkg-config \
   libva-dev
 ```
 
-CMake 3.14 or newer is required. Debian 10's packaged CMake is too old.
-
 Then clone and run:
 
 ```bash
