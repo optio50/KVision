@@ -6,8 +6,32 @@ This repository is a private working copy based on the upstream KVision/cctv-vie
 
 ## Quick start
 
+Install the build dependencies first. `./kvision` builds and launches the application, but it does not install missing packages.
+
+### Ubuntu / Debian
+
 ```bash
-git clone --recurse-submodules https://github.com/optio50/KVision.git
+sudo apt update
+sudo apt install -y build-essential cmake git pkg-config \
+  qtbase5-dev qtdeclarative5-dev qtmultimedia5-dev \
+  qtquickcontrols2-5-dev qttools5-dev libqt5svg5-dev \
+  qml-module-qtquick-controls qml-module-qtquick-controls2 \
+  qml-module-qtquick-layouts qml-module-qtquick-window2 \
+  qml-module-qtquick-dialogs qml-module-qtqml-models2 \
+  qml-module-qt-labs-settings qml-module-qt-labs-platform \
+  qml-module-qtmultimedia qml-module-qtgraphicaleffects \
+  libqt5multimedia5-plugins \
+  ffmpeg libavcodec-dev libavformat-dev libavutil-dev \
+  libswscale-dev libswresample-dev libavdevice-dev \
+  libva-dev
+```
+
+CMake 3.14 or newer is required. Debian 10's packaged CMake is too old.
+
+Then clone and run:
+
+```bash
+git clone https://github.com/optio50/KVision.git
 cd KVision
 ./kvision
 ```
@@ -29,29 +53,7 @@ Do not run KVision as root.
 
 ## Build and run
 
-### Ubuntu / Debian
-
-```bash
-sudo apt update
-sudo apt install -y build-essential cmake git pkg-config \
-  qtbase5-dev qtdeclarative5-dev qtmultimedia5-dev \
-  qtquickcontrols2-5-dev qttools5-dev libqt5svg5-dev \
-  qml-module-qtquick-controls qml-module-qtquick-controls2 \
-  qml-module-qtquick-layouts qml-module-qtquick-window2 \
-  qml-module-qtquick-dialogs qml-module-qtqml-models2 \
-  qml-module-qt-labs-settings qml-module-qt-labs-platform \
-  qml-module-qtmultimedia qml-module-qtgraphicaleffects \
-  libqt5multimedia5-plugins \
-  ffmpeg libavcodec-dev libavformat-dev libavutil-dev \
-  libswscale-dev libswresample-dev libavdevice-dev \
-  libva-dev
-```
-
-Then:
-
-```bash
-./kvision
-```
+`./kvision` from the repository root is the normal way to run this copy after the dependencies above are installed.
 
 ### Manual build
 
