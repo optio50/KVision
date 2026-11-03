@@ -67,7 +67,15 @@ void QmlAVDemuxer::load(const QUrl &url, const QmlAVOptions &avOptions)
                                   avOptions.avInputFormat(),
                                   dict);
         if (ret < 0) {
-            logWarning() << QString("Unable to open input file: \"%1\" (%2)").arg(av_err2str(ret)).arg(ret);
+            QString optDump;
+            const QVariantMap opts = avOptions;
+            for (auto it = opts.cbegin(); it != opts.cend(); ++it)
+                optDump += it.key() + "=" + it.value().toString() + " ";
+            logWarning() << QString("Unable to open input file: \"%1\" (%2) source=\"%3\" options=\"%4\"")
+                            .arg(av_err2str(ret))
+                            .arg(ret)
+                            .arg(QUrl::fromUserInput(source).toString(QUrl::RemoveUserInfo))
+                            .arg(optDump.trimmed());
             emit mediaStatusChanged(QMediaPlayer::InvalidMedia);
             return;
         }
