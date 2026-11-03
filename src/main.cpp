@@ -42,14 +42,23 @@ extern "C" {
 
 #if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
 template<typename T>
+struct QmlSingletonHolder {
+    static T *instance;
+    static QObject *provider(QQmlEngine *, QJSEngine *) {
+        QQmlEngine::setObjectOwnership(instance, QQmlEngine::CppOwnership);
+        return instance;
+    }
+};
+template<typename T>
+T *QmlSingletonHolder<T>::instance = nullptr;
+
+template<typename T>
 int qmlRegisterSingletonInstance(const char *uri, int versionMajor, int versionMinor,
                                  const char *qmlName, T *instance)
 {
+    QmlSingletonHolder<T>::instance = instance;
     qmlRegisterSingletonType<T>(uri, versionMajor, versionMinor, qmlName,
-                                [instance](QQmlEngine *, QJSEngine *) -> QObject * {
-        QQmlEngine::setObjectOwnership(instance, QQmlEngine::CppOwnership);
-        return instance;
-    });
+                                &QmlSingletonHolder<T>::provider);
     return 0;
 }
 #endif

@@ -1326,8 +1326,8 @@ void HikvisionArchivePlayer::paint(QPainter *painter)
         QFontMetrics fm(font);
         QFontMetrics fmIcon(iconFont);
         
-        int iconWidth = fmIcon.horizontalAdvance(themeIcon);
-        int textWidth = fm.horizontalAdvance(msg);
+        int iconWidth = fmIcon.width(themeIcon);
+        int textWidth = fm.width(msg);
         int spacing = 8;
         
         int rowWidth = iconWidth + spacing + textWidth;
