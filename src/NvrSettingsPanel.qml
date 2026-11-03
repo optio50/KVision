@@ -1,6 +1,6 @@
-import QtQuick 2.12
-import QtQuick.Layouts 1.12
-import QtQuick.Controls 2.12
+import QtQuick 2.11
+import QtQuick.Layouts 1.11
+import QtQuick.Controls 2.4
 import Qt.labs.settings 1.0
 import CCTV_Viewer.Hikvision 1.0
 import CCTV_Viewer.Utils 1.0

@@ -1,12 +1,12 @@
-import QtQml 2.12
-import QtQuick 2.12
-import QtQuick.Layouts 1.12
-import QtMultimedia 5.12
+import QtQml 2.11
+import QtQuick 2.11
+import QtQuick.Layouts 1.11
+import QtMultimedia 5.11
 import CCTV_Viewer.Core 1.0
 import CCTV_Viewer.Utils 1.0
 import CCTV_Viewer.Models 1.0
 import CCTV_Viewer.Hikvision 1.0
-import QtQuick.Controls 2.12
+import QtQuick.Controls 2.4
 
 FocusScope {
     id: root
@@ -48,7 +48,9 @@ FocusScope {
             player.parent = parentContainer;
 
             // Set bindings
-            player.visible = Qt.binding(function() { return root.visible && parentContainer.visible; });
+            player.visible = Qt.binding(function() {
+                return !!(root.visible && parentContainer && parentContainer.visible);
+            });
             player.index = index;
             player.color = Qt.binding(function() { return root.color; });
             player.volume = Qt.binding(function() {
