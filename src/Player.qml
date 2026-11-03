@@ -948,6 +948,8 @@ FocusScope {
                 if (root.rtspTransport === "tcp" || root.rtspTransport === "udp") {
                     avOpts["rtsp_transport"] = root.rtspTransport;
                 }
+                // On FFmpeg 4.4 this is listen_timeout and binds the remote host.
+                delete avOpts["timeout"];
                 return avOpts;
             }
 
@@ -997,6 +999,7 @@ FocusScope {
                 if (root.rtspTransport === "tcp" || root.rtspTransport === "udp") {
                     avOpts2["rtsp_transport"] = root.rtspTransport;
                 }
+                delete avOpts2["timeout"];
                 return avOpts2;
             }
 
@@ -1370,6 +1373,10 @@ FocusScope {
             }
 
             onContainsMouseChanged: updateHoverState()
+            Connections {
+                target: typeof rootWindow !== "undefined" ? rootWindow : null
+                function onCursorHiddenChanged() { playerHoverArea.updateHoverState() }
+            }
             Component.onCompleted: updateHoverState()
 
             // Symmetrically placed magnifying glass button overlay on the bottom right

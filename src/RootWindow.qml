@@ -469,9 +469,6 @@ ApplicationWindow {
                     if (opts3["stimeout"] === undefined) {
                         opts3["stimeout"] = 5000000;
                     }
-                    if (opts3["timeout"] === undefined) {
-                        opts3["timeout"] = 5000000;
-                    }
                     if (opts3["rw_timeout"] === undefined) {
                         opts3["rw_timeout"] = 5000000;
                     }
@@ -481,6 +478,23 @@ ApplicationWindow {
                     console.warn("Failed to migrate stimeout");
                 }
                 Context.writeSetting("ViewportsLayoutsCollection", "migratedTimeout5s_v2", true);
+            }
+
+            // FFmpeg 4.4 treats RTSP "timeout" as listen_timeout and binds the
+            // remote address (EADDRNOTAVAIL). stimeout/rw_timeout are the I/O timeouts.
+            var hasRemovedRtspListenTimeout = Context.readSetting("ViewportsLayoutsCollection", "removedRtspListenTimeout", false);
+            if (!hasRemovedRtspListenTimeout) {
+                try {
+                    var optsListen = JSON.parse(diskDefaultAVFormatOptions);
+                    if (optsListen["timeout"] !== undefined) {
+                        delete optsListen["timeout"];
+                        diskDefaultAVFormatOptions = JSON.stringify(optsListen);
+                        Context.writeSetting("ViewportsLayoutsCollection", "defaultAVFormatOptions", diskDefaultAVFormatOptions);
+                    }
+                } catch(err) {
+                    console.warn("Failed to remove RTSP listen timeout");
+                }
+                Context.writeSetting("ViewportsLayoutsCollection", "removedRtspListenTimeout", true);
             }
 
             var hasMigratedRtspTcp = Context.readSetting("ViewportsLayoutsCollection", "migratedRtspTcp", false);
