@@ -695,7 +695,11 @@ void StatsWorker::calculateCpuAndRam(const QVector<qint64> &pids, double &cpu, d
         statFile.close();
         if (line.startsWith("cpu ")) {
             QString valStr = line.mid(4).trimmed();
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+            QStringList parts = valStr.split(QChar(' '), Qt::SkipEmptyParts);
+#else
             QStringList parts = valStr.split(QChar(' '), QString::SkipEmptyParts);
+#endif
             for (int i = 0; i < parts.size() && i < 8; ++i) { // sum user to dirty/steal
                 totalCpuTime += parts[i].toLongLong();
             }
