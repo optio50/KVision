@@ -33,7 +33,18 @@ Do not run KVision as root.
 
 ```bash
 sudo apt update
-sudo apt install -y build-essential cmake git   qtbase5-dev qtdeclarative5-dev qtmultimedia5-dev   qtquickcontrols2-5-dev libqt5svg5-dev   qml-module-qtquick-controls2 qml-module-qtmultimedia   libqt5multimedia5-plugins ffmpeg libavcodec-dev libavformat-dev   libavutil-dev libswscale-dev libswresample-dev
+sudo apt install -y build-essential cmake git pkg-config \
+  qtbase5-dev qtdeclarative5-dev qtmultimedia5-dev \
+  qtquickcontrols2-5-dev qttools5-dev libqt5svg5-dev \
+  qml-module-qtquick-controls qml-module-qtquick-controls2 \
+  qml-module-qtquick-layouts qml-module-qtquick-window2 \
+  qml-module-qtquick-dialogs qml-module-qtqml-models2 \
+  qml-module-qt-labs-settings qml-module-qt-labs-platform \
+  qml-module-qtmultimedia qml-module-qtgraphicaleffects \
+  libqt5multimedia5-plugins \
+  ffmpeg libavcodec-dev libavformat-dev libavutil-dev \
+  libswscale-dev libswresample-dev libavdevice-dev \
+  libva-dev
 ```
 
 Then:
