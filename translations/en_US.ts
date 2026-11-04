@@ -1584,6 +1584,14 @@
             <source>LNG_00201</source>
             <translation>Loading new window...</translation>
         </message>
+        <message>
+            <source>LNG_00569</source>
+            <translation>View %1</translation>
+        </message>
+        <message>
+            <source>LNG_00570</source>
+            <translation>View %1</translation>
+        </message>
     </context>
     <context>
         <name>SideBar</name>

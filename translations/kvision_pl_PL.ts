@@ -2452,6 +2452,14 @@
             <source>LNG_00201</source>
             <translation>Ładowanie nowego okna...</translation>
         </message>
+        <message>
+            <source>LNG_00569</source>
+            <translation>Widok %1</translation>
+        </message>
+        <message>
+            <source>LNG_00570</source>
+            <translation>Widok %1</translation>
+        </message>
     </context>
     <context>
         <name>SettingsDialog</name>

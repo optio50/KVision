@@ -632,16 +632,16 @@ FocusScope {
 
                         property bool selected: d.selectionContains(model.index)
 
-                        property string url: model.url
-                        property string secondaryUrl: model.secondaryUrl
+                        property string url: model && model.url ? model.url : ""
+                        property string secondaryUrl: model && model.secondaryUrl ? model.secondaryUrl : ""
                         property bool secondaryUrlFailed: false
                         property int column: d.columnFromIndex(model.index)
                         property int row: d.rowFromIndex(model.index)
-                        property int columnSpan: model.columnSpan
-                        property int rowSpan: model.rowSpan
-                        property real volume: model.volume
-                        property var avFormatOptions: model.avFormatOptions
-                        property int streamMode: model.streamMode
+                        property int columnSpan: model && model.columnSpan !== undefined ? model.columnSpan : 1
+                        property int rowSpan: model && model.rowSpan !== undefined ? model.rowSpan : 1
+                        property real volume: model && model.volume !== undefined ? model.volume : 0
+                        property var avFormatOptions: model ? model.avFormatOptions : ({})
+                        property int streamMode: model && model.streamMode !== undefined ? model.streamMode : 0
 
                         onSecondaryUrlChanged: secondaryUrlFailed = false
 
@@ -942,6 +942,19 @@ FocusScope {
                                 }
 
                                 wheel.accepted = true;
+                            } else if (!(wheel.modifiers & (Qt.AltModifier | Qt.MetaModifier)) &&
+                                       !viewport.fullScreen &&
+                                       !(root.size.width === 1 && root.size.height === 1)) {
+                                var host = rootWindow.activeLayoutWindow ? rootWindow.activeLayoutWindow : rootWindow;
+                                var collection = (host === rootWindow) ? layoutsCollectionModel : host.layoutsModel;
+                                var current = (host === rootWindow) ? stackLayout.currentIndex : host.layoutIndex;
+                                rootWindow.handleLayoutWheel(wheel, collection, current, function(idx) {
+                                    if (host === rootWindow) {
+                                        stackLayout.currentIndex = idx;
+                                    } else {
+                                        host.layoutIndex = idx;
+                                    }
+                                });
                             }
                         }
 

@@ -473,6 +473,7 @@ Presents an interactive timeline showing the complete release history, updates, 
 * **Right mouse button (Context Menu)**:
   * Opens a quick settings menu for the selected viewport (allows removing the camera from the grid, changing between Main/Sub streams, or accessing individual display parameters).
 * **Mouse Scroll Wheel**:
+  * On the live camera page, scrolls between the saved layouts shown on the top bar (the same views as the preset buttons). Scrolling up moves to the next view on the right, scrolling down moves back, and the list wraps around. Hidden presets are skipped. A short label shows the layout name. Hold **Ctrl** while scrolling over a camera to zoom that view instead. The wheel does not change layouts while a camera is maximized.
   * Adjusts scale (Zoom) of the timeline in the playback archive player.
 
 ---

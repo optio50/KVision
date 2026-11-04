@@ -294,7 +294,7 @@ void NvrStatusManager::loadSettings()
     m_checkFull = settings.value("checkFull", true).toBool();
 
     QStringList mutedList = settings.value("mutedRecorders").toStringList();
-    m_mutedRecorders = QSet<QString>::fromList(mutedList);
+    m_mutedRecorders = QSet<QString>(mutedList.begin(), mutedList.end());
 
     settings.endGroup();
 }
@@ -335,7 +335,7 @@ void NvrStatusManager::reloadSettings()
     bool newCheckFull = settings.value("checkFull", true).toBool();
 
     QStringList mutedList = settings.value("mutedRecorders").toStringList();
-    QSet<QString> newMutedRecorders = QSet<QString>::fromList(mutedList);
+    QSet<QString> newMutedRecorders(mutedList.begin(), mutedList.end());
 
     settings.endGroup();
 

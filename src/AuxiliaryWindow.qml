@@ -61,6 +61,14 @@ Window {
         } else {
             layoutIndex = -1;
         }
+        contentItem.wheel.connect(function(wheel) {
+            if (instructionsWindow.visible || quitConfirmDialog.visible) return;
+            if (auxWindow.toolsWindow && auxWindow.toolsWindow.visible) return;
+            if (auxWindow.sidebarWindow && auxWindow.sidebarWindow.visible) return;
+            rootWindow.handleLayoutWheel(wheel, layoutsModel, auxWindow.layoutIndex, function(idx) {
+                auxWindow.layoutIndex = idx;
+            });
+        });
     }
 
     function changeGridSize(gridSize) {
@@ -168,6 +176,26 @@ Window {
                     model: layoutModel
                     focus: true
                 }
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.NoButton
+            z: 1
+            onWheel: {
+                if (topToolBarMouseArea.containsMouse) {
+                    wheel.accepted = true;
+                    return;
+                }
+                var layout = layoutRepeater.itemAt(auxWindow.layoutIndex);
+                if (layout && (layout.fullScreenIndex >= 0 ||
+                               (layout.size && layout.size.width === 1 && layout.size.height === 1))) {
+                    return;
+                }
+                rootWindow.handleLayoutWheel(wheel, layoutsModel, auxWindow.layoutIndex, function(idx) {
+                    auxWindow.layoutIndex = idx;
+                });
             }
         }
     }
@@ -596,73 +624,79 @@ Window {
                     Layout.alignment: Qt.AlignVCenter
                 }
 
-                RowLayout {
-                    spacing: 4
+                Flickable {
+                    id: layoutButtonFlick
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 36
+                    contentWidth: layoutButtonRow.implicitWidth
+                    contentHeight: height
+                    flickableDirection: Flickable.HorizontalFlick
+                    boundsBehavior: Flickable.StopAtBounds
+                    clip: true
 
-                    Repeater {
-                        model: layoutsModel
-                        delegate: Button {
-                            id: viewBtn
-                            property int layoutIndex: model.index
+                    Row {
+                        id: layoutButtonRow
+                        spacing: 4
+                        height: parent.height
 
-                            visible: {
-                                try {
-                                    var layout = model.layoutModel;
-                                    if (layout) {
-                                        return layout.visible;
-                                    }
-                                } catch(e) {}
-                                return true;
-                            }
+                        Repeater {
+                            model: layoutsModel
+                            delegate: Button {
+                                id: viewBtn
+                                property int layoutIndex: model.index
 
-                            text: {
-                                try {
-                                    var layout = model.layoutModel;
-                                    if (layout) {
-                                        if (layout.name && layout.name.trim() !== "") {
-                                            return layout.name;
+                                visible: {
+                                    try {
+                                        var layout = model.layoutModel;
+                                        if (layout) {
+                                            return layout.visible;
                                         }
-                                        if (layout.isNvr) {
-                                            return "📹 " + rootWindow.getRecorderName(layout.nvrIp);
-                                        } else {
-                                            var count = 1;
-                                            for (var i = 0; i < layoutIndex; ++i) {
-                                                var l = layoutsModel.get(i);
-                                                if (l && !l.isNvr) count++;
-                                            }
-                                            return "Widok " + count;
-                                        }
-                                    }
-                                } catch(e) {}
-                                return "Widok " + (layoutIndex + 1);
+                                    } catch(e) {}
+                                    return true;
+                                }
+
+                                text: rootWindow.layoutDisplayName(layoutsModel, layoutIndex)
+
+                                height: 30
+                                anchors.verticalCenter: parent.verticalCenter
+                                leftPadding: 12
+                                rightPadding: 12
+
+                                property bool isActive: auxWindow.layoutIndex === layoutIndex
+
+                                contentItem: Text {
+                                    text: viewBtn.text.toUpperCase()
+                                    font.bold: true
+                                    font.pixelSize: 10
+                                    color: viewBtn.isActive ? "#121214" : (viewBtn.hovered ? "#ffffff" : "#8898a6")
+                                    horizontalAlignment: Text.AlignHCenter
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+
+                                background: Rectangle {
+                                    color: viewBtn.isActive ? "#00f5d4" : (viewBtn.pressed ? "#cc121214" : (viewBtn.hovered ? "#3a4550" : "#1c242c"))
+                                    radius: 15
+                                    border.color: viewBtn.isActive ? "#00f5d4" : (viewBtn.hovered ? "#8898a6" : "#2a3540")
+                                    border.width: 1
+                                }
+
+                                onClicked: auxWindow.layoutIndex = layoutIndex
                             }
+                        }
+                    }
 
-                            Layout.preferredHeight: 30
-                            leftPadding: 12
-                            rightPadding: 12
-
-                            // Highlight if this is the currently active view!
-                            property bool isActive: auxWindow.layoutIndex === layoutIndex
-
-                            contentItem: Text {
-                                text: viewBtn.text.toUpperCase()
-                                font.bold: true
-                                font.pixelSize: 10
-                                color: viewBtn.isActive ? "#121214" : (viewBtn.hovered ? "#ffffff" : "#8898a6")
-                                horizontalAlignment: Text.AlignHCenter
-                                verticalAlignment: Text.AlignVCenter
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.NoButton
+                        onWheel: {
+                            if (layoutButtonFlick.contentWidth <= layoutButtonFlick.width) {
+                                wheel.accepted = true;
+                                return;
                             }
-
-                            background: Rectangle {
-                                color: viewBtn.isActive ? "#00f5d4" : (viewBtn.pressed ? "#cc121214" : (viewBtn.hovered ? "#3a4550" : "#1c242c"))
-                                radius: 15
-                                border.color: viewBtn.isActive ? "#00f5d4" : (viewBtn.hovered ? "#8898a6" : "#2a3540")
-                                border.width: 1
-                            }
-
-                            onClicked: {
-                                auxWindow.layoutIndex = layoutIndex;
-                            }
+                            var delta = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x;
+                            layoutButtonFlick.contentX = Math.max(0, Math.min(layoutButtonFlick.contentWidth - layoutButtonFlick.width,
+                                                                              layoutButtonFlick.contentX - delta));
+                            wheel.accepted = true;
                         }
                     }
                 }

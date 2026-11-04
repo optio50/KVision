@@ -61,7 +61,7 @@ ApplicationWindow {
         repeat: false
         onTriggered: {
             if (rootWindow.isSyncing) return;
-            var json = JSON.stringify(layoutsCollectionModel.toJSValue());
+            var json = rootWindow.persistedLayoutsJson();
             rootWindow.lastSavedModelsJson = json;
             layoutsCollectionSettings.models = json;
             console.log("[Sync] Debounced layouts save completed.");
@@ -241,6 +241,105 @@ ApplicationWindow {
         }
         return ip;
     }
+
+    function layoutDisplayName(collection, index) {
+        try {
+            var layout = collection.get(index);
+            if (!layout) {
+                return "Widok " + (index + 1);
+            }
+            if (layout.name && layout.name.trim() !== "") {
+                return layout.name;
+            }
+            if (layout.isNvr) {
+                return "📹 " + getRecorderName(layout.nvrIp);
+            }
+            var count = 1;
+            for (var i = 0; i < index; ++i) {
+                var other = collection.get(i);
+                if (other && !other.isNvr) count++;
+            }
+            return "Widok " + count;
+        } catch (e) {
+            return "Widok " + (index + 1);
+        }
+    }
+
+    function layoutIsPageable(collection, index) {
+        try {
+            var layout = collection.get(index);
+            if (!layout) return false;
+            if (layout === scratchLayout) return false;
+            return layout.visible !== false;
+        } catch (e) {
+            return true;
+        }
+    }
+
+    // Step through the same visible saved layouts shown on the top bar.
+    // direction > 0 moves to the next page (scroll down), < 0 to the previous.
+    function stepVisibleLayout(collection, currentIndex, direction) {
+        if (!collection || collection.count < 1) return -1;
+        var count = collection.count;
+        var start = currentIndex;
+        if (start < 0 || start >= count) {
+            start = direction > 0 ? -1 : 0;
+        }
+        for (var step = 1; step <= count; ++step) {
+            var idx = (start + direction * step) % count;
+            if (idx < 0) idx += count;
+            if (layoutIsPageable(collection, idx)) return idx;
+        }
+        return -1;
+    }
+
+    function showLayoutToast(name) {
+        layoutToastText.text = name;
+        layoutToast.opacity = 1.0;
+        layoutToastHideTimer.restart();
+    }
+
+    function handleLayoutWheel(wheel, collection, currentIndex, applyIndex) {
+        if (!wheel || !collection) return;
+        if (wheel.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return;
+        if (wheel.buttons !== Qt.NoButton) return;
+
+        var focus = rootWindow.activeFocusItem;
+        if (focus && (focus instanceof TextInput || focus instanceof TextEdit)) return;
+        if (quitConfirmDialog.visible || nvrStatusDialog.visible) return;
+        if (sidebarWindow.visible || toolsWindow.visible || instructionsWindow.visible) return;
+        if (rootWindow.isPlaybackWindowOpen) return;
+        if (layoutWheelDebounce.running) {
+            wheel.accepted = true;
+            return;
+        }
+
+        var delta = wheel.angleDelta.y;
+        if (delta === 0 && wheel.pixelDelta) delta = wheel.pixelDelta.y;
+        if (delta === 0) return;
+
+        var next = stepVisibleLayout(collection, currentIndex, delta > 0 ? 1 : -1);
+        if (next < 0 || next === currentIndex) return;
+
+        layoutWheelDebounce.start();
+        applyIndex(next);
+        showLayoutToast(layoutDisplayName(collection, next));
+        wheel.accepted = true;
+    }
+
+    Timer {
+        id: layoutWheelDebounce
+        interval: 220
+        repeat: false
+    }
+
+    Timer {
+        id: layoutToastHideTimer
+        interval: 900
+        repeat: false
+        onTriggered: layoutToast.opacity = 0.0
+    }
+
 
     Timer {
         id: keepVisibleTimer
@@ -676,7 +775,44 @@ ApplicationWindow {
         openPlaybackWindow(null, -1, "");
     }
 
+    property int savedLayoutIndex: -1
+    property var scratchLayout: null
 
+    function persistedLayoutsJson() {
+        var models = layoutsCollectionModel.toJSValue();
+        if (scratchLayout) {
+            for (var i = models.length - 1; i >= 0; --i) {
+                if (layoutsCollectionModel.get(i) === scratchLayout) {
+                    models.splice(i, 1);
+                    break;
+                }
+            }
+        }
+        return JSON.stringify(models);
+    }
+
+    function showScratchGrid(columns, rows) {
+        if (!scratchLayout) {
+            scratchLayout = layoutsCollectionModel.append();
+            scratchLayout.visible = false;
+            scratchLayout.name = "";
+            scratchLayout.size = Qt.size(columns, rows);
+        } else if (scratchLayout.size.width !== columns || scratchLayout.size.height !== rows) {
+            scratchLayout.size = Qt.size(columns, rows);
+        }
+        var index = -1;
+        for (var i = 0; i < layoutsCollectionModel.count; ++i) {
+            if (layoutsCollectionModel.get(i) === scratchLayout) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0) return;
+        if (stackLayout.currentIndex !== index) {
+            savedLayoutIndex = stackLayout.currentIndex;
+        }
+        stackLayout.currentIndex = index;
+    }
 
     ViewportsLayoutsCollectionModel {
         id: layoutsCollectionModel
@@ -774,8 +910,10 @@ ApplicationWindow {
     Rectangle {
         id: topToolBar
         height: 56
-        width: topRowLayout.implicitWidth + 24
-        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.leftMargin: 8
+        anchors.rightMargin: 8
         color: (rootWindow.visibility === Window.FullScreen) ? "#44121214" : "#99121214"
         z: 9999
         radius: 12
@@ -1310,12 +1448,10 @@ ApplicationWindow {
 
                         // Highlight if this is the current active size!
                         property bool isActive: {
-                            try {
-                                var curr = Utils.currentModel();
-                                return curr && curr.size.width === gridSize && curr.size.height === gridSize;
-                            } catch(e) {
-                                return false;
-                            }
+                            return rootWindow.scratchLayout &&
+                                   stackLayout.currentIndex === layoutsCollectionModel.count - 1 &&
+                                   rootWindow.scratchLayout.size.width === gridSize &&
+                                   rootWindow.scratchLayout.size.height === gridSize;
                         }
 
                         contentItem: Text {
@@ -1336,14 +1472,8 @@ ApplicationWindow {
                         }
 
                         onClicked: {
-                            try {
-                                var curr = Utils.currentModel();
-                                if (curr) {
-                                    curr.size = Qt.size(gridSize, gridSize);
-                                }
-                            } catch(e) {
-                                console.log("[Grid Selector Error] Failed to change grid size:", e);
-                            }
+                            if (generalSettings.lockGridSize) return;
+                            rootWindow.showScratchGrid(gridSize, gridSize);
                         }
                     }
                 }
@@ -1398,76 +1528,88 @@ ApplicationWindow {
                 Layout.rightMargin: 6
             }
 
-            RowLayout {
-                spacing: 4
+            Flickable {
+                id: layoutButtonFlick
+                Layout.fillWidth: true
+                Layout.preferredHeight: 36
+                contentWidth: layoutButtonRow.implicitWidth
+                contentHeight: height
+                flickableDirection: Flickable.HorizontalFlick
+                boundsBehavior: Flickable.StopAtBounds
+                clip: true
 
-                Repeater {
-                    model: layoutsCollectionModel
-                    delegate: Button {
-                        id: viewBtn
-                        property int layoutIndex: model.index
+                Row {
+                    id: layoutButtonRow
+                    spacing: 4
+                    height: parent.height
 
-                        visible: {
-                            try {
-                                var layout = model.layoutModel;
-                                if (layout) {
-                                    return layout.visible;
-                                }
-                            } catch(e) {}
-                            return true;
-                        }
+                    Repeater {
+                        model: layoutsCollectionModel
+                        delegate: Button {
+                            id: viewBtn
+                            property int layoutIndex: model.index
 
-                        text: {
-                            try {
-                                var layout = model.layoutModel;
-                                if (layout) {
-                                    if (layout.name && layout.name.trim() !== "") {
-                                        return layout.name;
+                            visible: {
+                                try {
+                                    var layout = model.layoutModel;
+                                    if (layout) {
+                                        if (rootWindow.scratchLayout && layout === rootWindow.scratchLayout) return false;
+                                        return layout.visible;
                                     }
-                                    if (layout.isNvr) {
-                                        return "📹 " + getRecorderName(layout.nvrIp);
-                                    } else {
-                                        var count = 1;
-                                        for (var i = 0; i < layoutIndex; ++i) {
-                                            var l = layoutsCollectionModel.get(i);
-                                            if (l && !l.isNvr) count++;
-                                        }
-                                        return "Widok " + count;
-                                    }
-                                }
-                            } catch(e) {}
-                            return "Widok " + (layoutIndex + 1);
-                        }
-
-                        Layout.preferredHeight: 30
-                        leftPadding: 12
-                        rightPadding: 12
-
-                        // Highlight if this is the currently active view!
-                        property bool isActive: stackLayout.currentIndex === layoutIndex
-
-                        contentItem: Text {
-                            text: viewBtn.text.toUpperCase()
-                            font.bold: true
-                            font.pixelSize: 10
-                            color: viewBtn.isActive ? "#121214" : (viewBtn.hovered ? "#ffffff" : "#8898a6")
-                            horizontalAlignment: Text.AlignHCenter
-                            verticalAlignment: Text.AlignVCenter
-                        }
-
-                        background: Rectangle {
-                            color: viewBtn.isActive ? "#00f5d4" : (viewBtn.pressed ? "#cc121214" : (viewBtn.hovered ? "#3a4550" : "#1c242c"))
-                            radius: 15
-                            border.color: viewBtn.isActive ? "#00f5d4" : (viewBtn.hovered ? "#8898a6" : "#2a3540")
-                            border.width: 1
-                        }
-
-                        onClicked: {
-                            if (stackLayout.currentIndex === layoutIndex) {
-                                stackLayout.currentIndex = -1;
+                                } catch(e) {}
+                                return true;
                             }
-                            stackLayout.currentIndex = layoutIndex;
+
+                            text: rootWindow.layoutDisplayName(layoutsCollectionModel, layoutIndex)
+
+                            height: 30
+                            anchors.verticalCenter: parent.verticalCenter
+                            leftPadding: 12
+                            rightPadding: 12
+
+                            // Highlight if this is the currently active view!
+                            property bool isActive: stackLayout.currentIndex === layoutIndex
+
+                            contentItem: Text {
+                                text: viewBtn.text.toUpperCase()
+                                font.bold: true
+                                font.pixelSize: 10
+                                color: viewBtn.isActive ? "#121214" : (viewBtn.hovered ? "#ffffff" : "#8898a6")
+                                horizontalAlignment: Text.AlignHCenter
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            background: Rectangle {
+                                color: viewBtn.isActive ? "#00f5d4" : (viewBtn.pressed ? "#cc121214" : (viewBtn.hovered ? "#3a4550" : "#1c242c"))
+                                radius: 15
+                                border.color: viewBtn.isActive ? "#00f5d4" : (viewBtn.hovered ? "#8898a6" : "#2a3540")
+                                border.width: 1
+                            }
+
+                            onClicked: {
+                                if (rootWindow.scratchLayout && layoutsCollectionModel.get(layoutIndex) === rootWindow.scratchLayout) return;
+                                rootWindow.savedLayoutIndex = -1;
+                                if (stackLayout.currentIndex === layoutIndex) {
+                                    stackLayout.currentIndex = -1;
+                                }
+                                stackLayout.currentIndex = layoutIndex;
+                            }
                         }
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.NoButton
+                    onWheel: {
+                        if (layoutButtonFlick.contentWidth <= layoutButtonFlick.width) {
+                            wheel.accepted = true;
+                            return;
+                        }
+                        var delta = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x;
+                        layoutButtonFlick.contentX = Math.max(0, Math.min(layoutButtonFlick.contentWidth - layoutButtonFlick.width,
+                                                                          layoutButtonFlick.contentX - delta));
+                        wheel.accepted = true;
                     }
                 }
             }
@@ -1648,6 +1790,26 @@ ApplicationWindow {
                 }
             }
         }
+
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.NoButton
+            z: 1
+            onWheel: {
+                if (topToolBarMouseArea.containsMouse) {
+                    wheel.accepted = true;
+                    return;
+                }
+                var layout = layoutRepeater.itemAt(stackLayout.currentIndex);
+                if (layout && (layout.fullScreenIndex >= 0 ||
+                               (layout.size && layout.size.width === 1 && layout.size.height === 1))) {
+                    return;
+                }
+                rootWindow.handleLayoutWheel(wheel, layoutsCollectionModel, stackLayout.currentIndex, function(idx) {
+                    stackLayout.currentIndex = idx;
+                });
+            }
+        }
     }
 
     // Separate utility Window for options (SideBar contents)
@@ -1746,7 +1908,7 @@ ApplicationWindow {
         if (saveTimer.running) {
             saveTimer.stop();
         }
-        var modelsJson = JSON.stringify(layoutsCollectionModel.toJSValue());
+        var modelsJson = rootWindow.persistedLayoutsJson();
         rootWindow.lastSavedModelsJson = modelsJson;
         layoutsCollectionSettings.models = modelsJson;
 
@@ -1808,6 +1970,12 @@ ApplicationWindow {
         if (Context.isFirstRun && !Context.isAuxiliary) {
             firstRunHelpTimer.start();
         }
+
+        contentItem.wheel.connect(function(wheel) {
+            handleLayoutWheel(wheel, layoutsCollectionModel, stackLayout.currentIndex, function(idx) {
+                stackLayout.currentIndex = idx;
+            });
+        });
     }
 
 
@@ -1838,7 +2006,7 @@ ApplicationWindow {
             if (saveTimer.running) {
                 saveTimer.stop();
                 if (!rootWindow.isSyncing) {
-                    var json = JSON.stringify(layoutsCollectionModel.toJSValue());
+                    var json = rootWindow.persistedLayoutsJson();
                     rootWindow.lastSavedModelsJson = json;
                     layoutsCollectionSettings.models = json;
                     console.log("[Sync] Emergency immediate layouts save completed on close.");
@@ -2607,6 +2775,35 @@ ApplicationWindow {
                    (!Context.config.fullScreen && viewSettings.hideCursorWhenWindowed))
         autoHideTimeout: 3000
         anchors.fill: parent
+    }
+
+    Rectangle {
+        id: layoutToast
+        z: 1000000
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 28
+        width: layoutToastText.implicitWidth + 36
+        height: layoutToastText.implicitHeight + 16
+        radius: 16
+        color: "#e6121214"
+        border.color: "#00f5d4"
+        border.width: 1
+        opacity: 0.0
+        visible: opacity > 0.01
+
+        Behavior on opacity {
+            NumberAnimation { duration: 160 }
+        }
+
+        Text {
+            id: layoutToastText
+            anchors.centerIn: parent
+            color: "#00f5d4"
+            font.bold: true
+            font.pixelSize: 13
+            font.capitalization: Font.AllUppercase
+        }
     }
 
 }
