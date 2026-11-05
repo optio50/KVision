@@ -2087,7 +2087,10 @@ FocusScope {
                             text: qsTr("Save")
                             enabled: ptzPad.presetEntry !== ""
                             focusPolicy: Qt.NoFocus
-                            onClicked: ptzPad.ptzPresetCommand(8, parseInt(ptzPad.presetEntry))
+                            onClicked: {
+                                ptzPad.ptzPresetCommand(8, parseInt(ptzPad.presetEntry));
+                                ptzPad.presetEntry = "";
+                            }
                         }
                     }
                 }
