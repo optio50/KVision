@@ -30,6 +30,111 @@ void HikvisionISAPI::searchRecordings(const QVariantMap &recorderInfo, int chann
     doSearchRequest(sessionId);
 }
 
+void HikvisionISAPI::searchEvents(const QVariantMap &recorderInfo, int channelId, const QDateTime &start, const QDateTime &end)
+{
+    HikvisionSearchSession session;
+    session.recorderInfo = recorderInfo;
+    session.channelId = channelId;
+    session.startTime = start;
+    session.endTime = end;
+    session.isMonthSearch = false;
+
+    QThread *worker = QThread::create([this, session]() {
+        const QString ip = session.recorderInfo.value("ip").toString();
+        const int port = session.recorderInfo.value("sdkPort").toInt() > 0
+            ? session.recorderInfo.value("sdkPort").toInt()
+            : session.recorderInfo.value("port").toInt();
+        const QString username = session.recorderInfo.value("username").toString();
+        const QString password = session.recorderInfo.value("password").toString();
+
+        NET_DVR_DEVICEINFO_V40 deviceInfo;
+        std::memset(&deviceInfo, 0, sizeof(deviceInfo));
+        const LONG userId = HikvisionManager::instance()->loginShared(ip, port > 0 ? port : 8000, username, password, deviceInfo);
+        QVariantList segments;
+        if (userId >= 0) {
+            int channel = session.channelId;
+            const auto &info = deviceInfo.struDeviceV30;
+            if (info.byChanNum == 0 && info.byIPChanNum > 0)
+                channel = session.channelId + info.byStartDChan - 1;
+            else if (info.byChanNum > 0 && session.channelId > info.byChanNum)
+                channel = info.byStartDChan + (session.channelId - info.byChanNum) - 1;
+            else if (info.byChanNum > 0)
+                channel = session.channelId + info.byStartChan - 1;
+
+            // Continuous files do not carry the red smart marks. Those live in the event log.
+            const WORD majorTypes[] = {EVENT_MOT_DET, EVENT_VCA_DETECTION, EVENT_VCA_BEHAVIOR};
+            for (WORD majorType : majorTypes) {
+                NET_DVR_SEARCH_EVENT_PARAM_V40 param;
+                std::memset(&param, 0, sizeof(param));
+                param.wMajorType = majorType;
+                param.wMinorType = 0xffff;
+                param.byLockType = 0xff;
+                fillSdkTime(param.struStartTime, session.startTime);
+                fillSdkTime(param.struEndTime, session.endTime);
+                if (majorType == EVENT_MOT_DET) {
+                    param.uSeniorParam.struMotionParam.wMotDetChanNo[0] = static_cast<WORD>(channel);
+                } else if (majorType == EVENT_VCA_BEHAVIOR) {
+                    param.uSeniorParam.struVcaParam.wChanNo[0] = static_cast<WORD>(channel);
+                    param.uSeniorParam.struVcaParam.byRuleID = 0xff;
+                } else {
+                    param.uSeniorParam.struVCADetect.wChanNo[0] = static_cast<WORD>(channel);
+                }
+
+                const LONG findHandle = NET_DVR_FindFileByEvent_V40(userId, &param);
+                if (findHandle < 0) {
+                    qWarning() << "[ISAPI] Event search failed for channel" << channel
+                               << "major" << majorType << "error" << NET_DVR_GetLastError();
+                    continue;
+                }
+                int accepted = 0;
+                NET_DVR_SEARCH_EVENT_RET_V40 event;
+                int guard = 0;
+                while (guard++ < 4000) {
+                    const LONG state = NET_DVR_FindNextEvent_V40(findHandle, &event);
+                    if (state == 1000) {
+                        const NET_DVR_TIME &rawStart = event.struStartTime;
+                        const NET_DVR_TIME &rawEnd = event.struEndTime;
+                        QDateTime eventStart(QDate(rawStart.dwYear, rawStart.dwMonth, rawStart.dwDay),
+                                             QTime(rawStart.dwHour, rawStart.dwMinute, rawStart.dwSecond));
+                        QDateTime eventEnd(QDate(rawEnd.dwYear, rawEnd.dwMonth, rawEnd.dwDay),
+                                           QTime(rawEnd.dwHour, rawEnd.dwMinute, rawEnd.dwSecond));
+                        if (!eventStart.isValid())
+                            continue;
+                        if (!eventEnd.isValid() || eventEnd <= eventStart)
+                            eventEnd = eventStart.addSecs(10);
+                        if (accepted < 5) {
+                            qDebug() << "[ISAPI] Event channel" << channel
+                                     << "major" << event.wMajorType << "minor" << event.wMinorType
+                                     << eventStart.toString(Qt::ISODate) << eventEnd.toString(Qt::ISODate);
+                        }
+                        QVariantMap segment;
+                        segment["startTime"] = eventStart.toMSecsSinceEpoch();
+                        segment["endTime"] = eventEnd.toMSecsSinceEpoch();
+                        segment["timeIsLocal"] = true;
+                        segment["event"] = true;
+                        segments.append(segment);
+                        accepted++;
+                    } else if (state == 1002) {
+                        QThread::msleep(10);
+                    } else {
+                        break;
+                    }
+                }
+                NET_DVR_FindClose_V30(findHandle);
+                qDebug() << "[ISAPI] Event search channel" << channel << "major" << majorType << "accepted" << accepted;
+            }
+            qDebug() << "[ISAPI] Event search finished for channel" << channel << "events" << segments.count();
+            HikvisionManager::instance()->logoutShared(ip);
+        }
+
+        QMetaObject::invokeMethod(this, [this, session, segments]() {
+            emit eventsFinished(session.recorderInfo.value("ip").toString(), session.channelId, session.startTime, segments);
+        }, Qt::QueuedConnection);
+    });
+    connect(worker, &QThread::finished, worker, &QThread::deleteLater);
+    worker->start();
+}
+
 void HikvisionISAPI::searchMonthAvailability(const QVariantMap &recorderInfo, int channelId, int year, int month)
 {
     QString sessionId = QUuid::createUuid().toString();

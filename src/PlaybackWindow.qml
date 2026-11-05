@@ -526,6 +526,31 @@ Window {
             // Run initial seek check if pending
             checkInitialSeek(recorderIp, channelId, adjustedSegments);
         }
+        function onEventsFinished(recorderIp, channelId, startTime, segments) {
+            var targetDate = new Date(startTime);
+            targetDate.setDate(targetDate.getDate() + 1);
+            var dateKey = getDateKey(targetDate);
+            var cacheKey = recorderIp + "_" + channelId + "_" + dateKey;
+
+            var adjustedSegments = [];
+            if (segments) {
+                for (var i = 0; i < segments.length; i++) {
+                    var seg = segments[i];
+                    var localOffsetMs = seg.timeIsLocal ? 0 : new Date(seg.startTime).getTimezoneOffset() * 60000;
+                    adjustedSegments.push({
+                        "startTime": seg.startTime + localOffsetMs,
+                        "endTime": seg.endTime + localOffsetMs,
+                        "event": true
+                    });
+                }
+            }
+
+            var tempEvents = Object.assign({}, rootWindow.playbackEventsCache);
+            tempEvents[cacheKey] = adjustedSegments;
+            rootWindow.playbackEventsCache = tempEvents;
+            if (dateKey === getDateKey(currentDate))
+                timeline.requestPaint();
+        }
         function onSearchFailed(recorderIp, channelId, startTime, error) {
             var fastFailedKey = recorderIp + "_" + channelId;
             if (activeFastSearches[fastFailedKey] === true) {
@@ -640,6 +665,7 @@ Window {
         selectedPlayerIndex = -1;
         HikvisionISAPI.cancelAllSearches();
         rootWindow.playbackSegmentsCache = {};
+        rootWindow.playbackEventsCache = {};
         rootWindow.monthAvailabilitiesCache = {};
         // We defer the loader unloading and GC triggering to ensure the close sequence finishes cleanly.
         Qt.callLater(function() {
@@ -1032,6 +1058,7 @@ Window {
                     "password": cam.password
                 };
                 HikvisionISAPI.searchRecordings(recorderInfoForCam, cam.channelId, start, end);
+                HikvisionISAPI.searchEvents(recorderInfoForCam, cam.channelId, start, end);
             }
         }
         
@@ -3335,6 +3362,26 @@ Window {
                                             var drawW = Math.max(1, Math.min(width - drawX, x2 - drawX))
                                             ctx.fillRect(drawX, barY, drawW, 6)
                                         }
+                                    }
+
+                                    var eventSegments = rootWindow.playbackEventsCache[cacheKey]
+                                    if (eventSegments) {
+                                        ctx.fillStyle = "#ff3344"
+                                        for (var e = 0; e < eventSegments.length; e++) {
+                                            var eventSeg = eventSegments[e]
+                                            if (eventSeg.endTime <= dayStartMs || eventSeg.startTime >= dayEndMs)
+                                                continue
+                                            var eventStart = Math.max(eventSeg.startTime, dayStartMs) - sodTime
+                                            var eventEnd = Math.min(eventSeg.endTime, dayEndMs) - sodTime
+                                            var ex1 = (eventStart - panOffsetMs) / msPerPixel
+                                            var ex2 = (eventEnd - panOffsetMs) / msPerPixel
+                                            if (ex2 >= 0 && ex1 <= width) {
+                                                var eventX = Math.max(0, ex1)
+                                                var eventW = Math.max(2, Math.min(width - eventX, ex2 - eventX))
+                                                ctx.fillRect(eventX, barY, eventW, 6)
+                                            }
+                                        }
+                                        ctx.fillStyle = barColor
                                     }
                                 }
                                 

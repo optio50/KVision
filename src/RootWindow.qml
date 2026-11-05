@@ -143,6 +143,7 @@ ApplicationWindow {
     // Permanent caches for NVR searches to avoid constantly reloading from network
     property var monthAvailabilitiesCache: ({})
     property var playbackSegmentsCache: ({})
+    property var playbackEventsCache: ({})
 
     // Multi-stage Deferred Garbage Collection and Memory Trimming to prevent memory accumulation / leaks
     Timer {
