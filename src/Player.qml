@@ -31,6 +31,9 @@ FocusScope {
     property bool ptzPadVisible: false
 
     property bool isSubStream: false
+    property int streamIndex: 1
+    property string directCameraIp: ""
+    property var streamIdCache: ({})
     property bool isOneToOne: false
     property real oneToOneX: 0
     property real oneToOneY: 0
@@ -52,11 +55,7 @@ FocusScope {
     function fittedVideoRect() {
         var frame = videoFrameSize();
         var frameRatio = frame.width / Math.max(1, frame.height);
-        // Only unusually wide panoramic streams keep their exact ratio.
-        // Normal substreams fill the cell even when they are not exactly 16:9.
-        if (frameRatio <= 2.0) {
-            return Qt.rect(0, 0, videoContainer.width, videoContainer.height);
-        }
+        // TEMP: keep every stream at its native ratio so layout aspect can be compared.
         var containerRatio = videoContainer.width / Math.max(1, videoContainer.height);
         if (frameRatio > containerRatio) {
             var fittedHeight = videoContainer.width / frameRatio;
@@ -370,6 +369,10 @@ FocusScope {
         Qt.callLater(updateSource);
     }
 
+    onStreamIndexChanged: {
+        Qt.callLater(updateSource);
+    }
+
     // Shared Hikvision Settings to sync real/mock stream toggle in real-time
     Settings {
         id: hikPlayerSettings
@@ -380,6 +383,37 @@ FocusScope {
         onUseRealStreamsChanged: {
             updateSource();
         }
+    }
+
+    function hikvisionStreamId(channel, index) {
+        var wanted = Math.max(1, index);
+        var fallback = channel * 100 + (wanted === 3 ? 4 : wanted);
+        var cacheKey = recorderIp + ":" + channel;
+        if (!streamIdCache[cacheKey]) {
+            var ids = [];
+            var xml = "";
+            try {
+                xml = HikvisionManager.fetchStreamingChannels(recorderIp, httpPort || 80, username, password);
+            } catch (e) {
+                xml = "";
+            }
+            if (xml && xml.length > 0) {
+                var matches = String(xml).match(/<id>(\d+)<\/id>/g) || [];
+                for (var i = 0; i < matches.length; ++i) {
+                    var id = parseInt(matches[i].replace(/[^0-9]/g, ""));
+                    if (Math.floor(id / 100) === channel && ids.indexOf(id) < 0) {
+                        ids.push(id);
+                    }
+                }
+                ids.sort(function(a, b) { return a - b; });
+            }
+            if (ids.length === 0) {
+                ids = [channel * 100 + 1, channel * 100 + 2, fallback];
+            }
+            streamIdCache[cacheKey] = ids;
+            console.log("[Player] Stream IDs for channel " + channel + ": " + ids.join(","));
+        }
+        return streamIdCache[cacheKey][wanted - 1] || fallback;
     }
 
     function updateSource() {
@@ -404,17 +438,28 @@ FocusScope {
         } else if (!isHikvision) {
             newUrl = source;
             newCameraId = "viewport_" + root.index;
-        } else {
-            if (hikPlayerSettings.useRealStreams) {
-                var streamSuffix = isSubStream ? "02" : "01";
-                var rPort = rtspPort || 554;
-                var creds = "";
-                if (username) {
-                    creds = encodeURIComponent(username) + (password ? (":" + encodeURIComponent(password)) : "") + "@";
+        } else if (hikPlayerSettings.useRealStreams) {
+            var targetIp = recorderIp;
+            var targetChannel = channelId;
+            var targetRtspPort = rtspPort || 554;
+            directCameraIp = "";
+            if (streamIndex > 2) {
+                var proxy = HikvisionManager.proxyCamera(recorderIp, httpPort || 80, username, password, channelId);
+                if (proxy && proxy.ip && proxy.ip !== recorderIp) {
+                    targetIp = proxy.ip;
+                    targetChannel = proxy.channel || 1;
+                    targetRtspPort = 554;
+                    directCameraIp = targetIp;
                 }
-                newUrl = "rtsp://" + creds + recorderIp + ":" + rPort + "/Streaming/Channels/" + channelId + streamSuffix;
-                newCameraId = recorderIp + "_" + channelId;
             }
+            var streamId = targetChannel * 100 + Math.max(1, streamIndex);
+            var creds = "";
+            if (username) {
+                creds = encodeURIComponent(username) + (password ? (":" + encodeURIComponent(password)) : "") + "@";
+            }
+            newUrl = "rtsp://" + creds + targetIp + ":" + targetRtspPort + "/Streaming/Channels/" + streamId;
+            newCameraId = targetIp + "_" + targetChannel + "_" + streamId;
+            console.log("[Player] Selected stream " + streamIndex + " channel " + channelId + " URL " + newUrl);
         }
 
         if (newUrl === "") {
@@ -472,7 +517,7 @@ FocusScope {
             return;
         }
         console.log("[Player] checkSeamlessSwitch checking inactive player " + playerIndex + " status: " + player.status + " hasVideo: " + player.hasVideo + " hasAudio: " + player.hasAudio + " framePresented: " + player.framePresented);
-        if (player.playbackState === MediaPlayer.PlayingState && player.status === MediaPlayer.Buffered && player.hasVideo && player.framePresented) {
+        if (player.playbackState === MediaPlayer.PlayingState && player.status === MediaPlayer.Buffered && player.hasVideo && (player.framePresented || root.streamIndex > 2)) {
             if (seamlessSwitchTimer.running) {
                 if (seamlessSwitchTimer.targetPlayerIndex === playerIndex) return;
                 seamlessSwitchTimer.stop();
@@ -506,7 +551,11 @@ FocusScope {
         }
 
         if (status === MediaPlayer.InvalidMedia) {
-            root.mediaError(String(playerIndex === 1 ? qmlAvPlayer1.source : qmlAvPlayer2.source));
+            var failedUrl = String(playerIndex === 1 ? qmlAvPlayer1.source : qmlAvPlayer2.source);
+            root.mediaError(failedUrl);
+            if (root.directCameraIp !== "" && failedUrl.indexOf(root.directCameraIp) >= 0) {
+                console.log("[Player] Camera " + root.directCameraIp + " rejected the NVR username or password. The camera login differs from recorder " + root.recorderIp + ".");
+            }
         }
 
         if (playerIndex === activePlayerIndex) {
@@ -802,7 +851,7 @@ FocusScope {
                 username: root.username
                 password: root.password
                 channelId: root.channelId
-                streamType: root.isSubStream ? 1 : 0
+                streamType: root.streamIndex === 3 ? 2 : (root.streamIndex === 2 ? 1 : 0)
             }
 
             Component {
@@ -866,7 +915,7 @@ FocusScope {
             border.color: themeColor
             border.width: 1
             radius: 8
-            visible: root.activeStreamUrl !== "" && !root.isQuickPlayback && (!root.isHikvision || hikPlayerSettings.useRealStreams) && activeStatus !== MediaPlayer.Buffered
+            visible: root.activeStreamUrl !== "" && !root.isQuickPlayback && (!root.isHikvision || hikPlayerSettings.useRealStreams) && activeStatus !== MediaPlayer.Buffered && activeStatus !== MediaPlayer.LoadedMedia && !(root.streamIndex === 3 && (activePlayerIndex === 1 ? qmlAvPlayer1.hasVideo : qmlAvPlayer2.hasVideo))
             z: 3
 
             Row {
@@ -1091,7 +1140,7 @@ FocusScope {
                 
                 Text {
                     text: {
-                        var quality = root.isQuickPlayback ? "MAIN" : (root.activeIsSubStream ? "SUB" : "MAIN");
+                        var quality = root.isQuickPlayback ? "MAIN" : (root.streamIndex === 3 ? "THIRD" : (root.streamIndex === 2 ? "SUB" : "MAIN"));
                         var protocol = "RTSP";
                         if (root.isHikvision && typeof hikPlayerSettings !== "undefined" && !hikPlayerSettings.useRealStreams) {
                             protocol = "HikSDK";

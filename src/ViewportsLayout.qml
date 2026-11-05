@@ -92,22 +92,25 @@ FocusScope {
                 }
             });
 
-            player.isSubStream = Qt.binding(function() {
+            player.streamIndex = Qt.binding(function() {
                 if (player.isOneToOne) {
-                    return false;
+                    return 1;
                 }
                 var vItem = root.model.get(index);
-                if (!vItem) return false;
+                if (!vItem) return 1;
                 var d2Failed = viewportItem.d2SecondaryUrlFailed;
                 var isHik = String(vItem.url).indexOf("hikvision://") === 0;
                 if (vItem.streamMode === 1) {
-                    return false;
+                    return 1;
+                } else if (vItem.streamMode === 3) {
+                    return 3;
                 } else if (vItem.streamMode === 2) {
-                    return isHik || (String(vItem.secondaryUrl) !== "" && !d2Failed);
+                    return (isHik || (String(vItem.secondaryUrl) !== "" && !d2Failed)) ? 2 : 1;
                 } else { // Auto (0)
-                    return (root.size.width > 1 || root.size.height > 1) && !viewportItem.fullScreen && (isHik || (String(vItem.secondaryUrl) !== "" && !d2Failed));
+                    return ((root.size.width > 1 || root.size.height > 1) && !viewportItem.fullScreen && (isHik || (String(vItem.secondaryUrl) !== "" && !d2Failed))) ? 2 : 1;
                 }
             });
+            player.isSubStream = Qt.binding(function() { return player.streamIndex === 2; });
 
             player.scale = Qt.binding(function() {
                 return viewportItem.zoomEnabled ? viewportItem.zoomScale : 1.0;
@@ -129,7 +132,7 @@ FocusScope {
             // Connect mediaError signal
             var slot = function(errorSource) {
                 var vItem = root.model.get(index);
-                if (vItem && errorSource === String(vItem.secondaryUrl)) {
+                if (vItem && vItem.streamMode !== 3 && errorSource === String(vItem.secondaryUrl)) {
                     viewportItem.d2SecondaryUrlFailed = true;
                 }
             };
@@ -1459,6 +1462,56 @@ FocusScope {
                                 var item = root.model.get(model.index);
                                 if (item) {
                                     item.streamMode = 2;
+                                }
+                            }
+                        }
+
+                        MenuItem {
+                            id: streamThirdItem
+                            text: qsTr("Third")
+                            visible: String(viewport.url).indexOf("hikvision://") === 0
+                            leftPadding: 12
+
+                            contentItem: RowLayout {
+                                spacing: 8
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: streamThirdItem.text
+                                    font {
+                                        pixelSize: 11
+                                        bold: true
+                                    }
+                                    color: streamThirdItem.hovered ? "#00f5d4" : (viewport.streamMode === 3 ? "#00f5d4" : "#eeeeee")
+                                    horizontalAlignment: Text.AlignLeft
+                                    verticalAlignment: Text.AlignVCenter
+                                }
+                                Text {
+                                    text: "✓"
+                                    visible: viewport.streamMode === 3
+                                    font {
+                                        pixelSize: 11
+                                        bold: true
+                                    }
+                                    color: "#00f5d4"
+                                    horizontalAlignment: Text.AlignRight
+                                    verticalAlignment: Text.AlignVCenter
+                                    rightPadding: 8
+                                }
+                            }
+
+                            background: Rectangle {
+                                implicitWidth: 150
+                                implicitHeight: 32
+                                color: streamThirdItem.hovered ? "#2a3540" : "transparent"
+                                border.color: streamThirdItem.hovered ? "#00f5d4" : "transparent"
+                                border.width: 1
+                                radius: 4
+                            }
+
+                            onTriggered: {
+                                var item = root.model.get(model.index);
+                                if (item) {
+                                    item.streamMode = 3;
                                 }
                             }
                         }

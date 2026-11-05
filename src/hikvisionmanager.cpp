@@ -109,6 +109,47 @@ static QByteArray fetchUrl(const QString &ip, int port, const QString &username,
     return QByteArray();
 }
 
+QString HikvisionManager::fetchStreamingChannels(const QString &ip, int httpPort, const QString &username, const QString &password)
+{
+    QString cleanIp = ip.trimmed();
+    if (cleanIp.startsWith(QStringLiteral("http://"), Qt::CaseInsensitive)) cleanIp = cleanIp.mid(7);
+    if (cleanIp.startsWith(QStringLiteral("https://"), Qt::CaseInsensitive)) cleanIp = cleanIp.mid(8);
+    if (cleanIp.contains(QLatin1Char(':"'))) cleanIp = cleanIp.section(QLatin1Char('":'), 0, 0);
+    if (httpPort <= 0) httpPort = 80;
+    QByteArray xml = fetchUrl(cleanIp, httpPort, username, password, QStringLiteral("/ISAPI/Streaming/channels"));
+    if (xml.isEmpty() && httpPort != 80) {
+        xml = fetchUrl(cleanIp, 80, username, password, QStringLiteral("/ISAPI/Streaming/channels"));
+    }
+    return QString::fromUtf8(xml);
+}
+
+QVariantMap HikvisionManager::proxyCamera(const QString &nvrIp, int httpPort, const QString &username, const QString &password, int channelId)
+{
+    QVariantMap result;
+    QString cleanIp = nvrIp.trimmed();
+    if (cleanIp.contains(QLatin1Char(':"'))) cleanIp = cleanIp.section(QLatin1Char('":'), 0, 0);
+    if (httpPort <= 0) httpPort = 80;
+    QByteArray xml = fetchUrl(cleanIp, httpPort, username, password, QStringLiteral("/ISAPI/ContentMgmt/InputProxy/channels"));
+    if (xml.isEmpty()) return result;
+
+    const QString text = QString::fromUtf8(xml);
+    QRegularExpression blockRx(QStringLiteral("<InputProxyChannel[^>]*>([\\s\\S]*?)</InputProxyChannel>"));
+    QRegularExpression idRx(QStringLiteral("<id>(\\d+)</id>"));
+    QRegularExpression ipRx(QStringLiteral("<ipAddress>([^<]+)</ipAddress>"));
+    QRegularExpression srcRx(QStringLiteral("<srcInputPort>(\\d+)</srcInputPort>"));
+    auto it = blockRx.globalMatch(text);
+    while (it.hasNext()) {
+        const QString block = it.next().captured(1);
+        if (idRx.match(block).captured(1).toInt() != channelId) continue;
+        int sourceChannel = srcRx.match(block).captured(1).toInt();
+        if (sourceChannel <= 0) sourceChannel = 1;
+        result.insert(QStringLiteral("ip"), ipRx.match(block).captured(1).trimmed());
+        result.insert(QStringLiteral("channel"), sourceChannel);
+        return result;
+    }
+    return result;
+}
+
 QVariantList HikvisionManager::discoverCameras(const QString &ip, int port, int httpPort, const QString &username, const QString &password)
 {
     QVariantList cameraList;

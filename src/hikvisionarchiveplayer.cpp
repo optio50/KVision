@@ -276,10 +276,12 @@ void HikvisionArchivePlayer::cleanupPlayback()
     m_playbackSessionId++;
     LONG playHandle = -1;
     LONG port = -1;
+    bool streamOpened = false;
     {
         std::lock_guard<std::mutex> lock(m_stateMutex);
         playHandle = m_lPlayHandle.exchange(-1);
         port = m_nPort.exchange(-1);
+        streamOpened = m_sysHeadReceived.exchange(false);
     }
 
     m_lastAudioStamp = 0;
@@ -324,15 +326,17 @@ void HikvisionArchivePlayer::cleanupPlayback()
             std::lock_guard<std::mutex> lock(s_portMapMutex);
             s_portMap.erase(port);
         }
-        if (!PlayM4_Stop(port)) {
-            qWarning() << "[HikArchive] PlayM4_Stop FAILED. Error:" << PlayM4_GetLastError(port);
-        } else {
-            qDebug() << "[HikArchive] PlayM4_Stop OK";
-        }
-        if (!PlayM4_CloseStream(port)) {
-            qWarning() << "[HikArchive] PlayM4_CloseStream FAILED. Error:" << PlayM4_GetLastError(port);
-        } else {
-            qDebug() << "[HikArchive] PlayM4_CloseStream OK";
+        if (streamOpened) {
+            if (!PlayM4_Stop(port)) {
+                qWarning() << "[HikArchive] PlayM4_Stop FAILED. Error:" << PlayM4_GetLastError(port);
+            } else {
+                qDebug() << "[HikArchive] PlayM4_Stop OK";
+            }
+            if (!PlayM4_CloseStream(port)) {
+                qWarning() << "[HikArchive] PlayM4_CloseStream FAILED. Error:" << PlayM4_GetLastError(port);
+            } else {
+                qDebug() << "[HikArchive] PlayM4_CloseStream OK";
+            }
         }
         if (!PlayM4_FreePort(port)) {
             qWarning() << "[HikArchive] PlayM4_FreePort FAILED. Error:" << PlayM4_GetLastError(port);

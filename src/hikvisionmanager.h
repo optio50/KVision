@@ -43,6 +43,8 @@ public:
 
     // Force I-Frame for seamless switching
     Q_INVOKABLE bool forceIFrame(const QString &ip, int port, const QString &username, const QString &password, int channelId);
+    Q_INVOKABLE QString fetchStreamingChannels(const QString &ip, int httpPort, const QString &username, const QString &password);
+    Q_INVOKABLE QVariantMap proxyCamera(const QString &nvrIp, int httpPort, const QString &username, const QString &password, int channelId);
 
     // Shared session management for playback players
     struct SharedSession {

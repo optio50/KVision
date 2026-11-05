@@ -171,6 +171,13 @@ void QmlAVPlayer::frameHandler(const std::shared_ptr<QmlAVFrame> frame)
                         return;
                     }
 
+                    if (m_videoSurface->present(qvf)) {
+                        m_fpsCounter++;
+                        if (!m_framePresented) {
+                            setFramePresented(true);
+                        }
+                    }
+
                     setHasVideo(true);
                 }
 
