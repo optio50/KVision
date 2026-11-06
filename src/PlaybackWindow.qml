@@ -1098,6 +1098,60 @@ Window {
         playAtTime(currentDate, playheadTimeMs - d.getTime())
     }
 
+    function selectedEventTimes() {
+        var cam = null;
+        if (selectedPlayerIndex >= 0 && selectedPlayerIndex < activePlayersList.length)
+            cam = activePlayersList[selectedPlayerIndex];
+        if (!cam) {
+            var loaded = getLoadedCameras();
+            cam = loaded.length > 0 ? loaded[0] : null;
+        }
+        if (!cam)
+            return [];
+
+        var events = [];
+        var day = new Date(currentDate);
+        day.setHours(0, 0, 0, 0);
+        for (var dayOffset = -1; dayOffset <= 1; dayOffset++) {
+            var probe = new Date(day.getTime() + dayOffset * 86400000);
+            var key = cam.ip + "_" + cam.channelId + "_" + getDateKey(probe);
+            var cached = rootWindow.playbackEventsCache[key];
+            if (cached) {
+                for (var i = 0; i < cached.length; i++)
+                    events.push(cached[i].startTime);
+            }
+        }
+        events.sort(function(a, b) { return a - b; });
+        return events;
+    }
+
+    function jumpToEvent(eventTime) {
+        var dayStart = new Date(eventTime);
+        dayStart.setHours(0, 0, 0, 0);
+        currentDate = dayStart;
+        playAtTime(currentDate, eventTime - dayStart.getTime());
+    }
+
+    function nextEvent() {
+        var events = selectedEventTimes();
+        for (var i = 0; i < events.length; i++) {
+            if (events[i] > playheadTimeMs + 1000) {
+                jumpToEvent(events[i]);
+                return;
+            }
+        }
+    }
+
+    function previousEvent() {
+        var events = selectedEventTimes();
+        for (var i = events.length - 1; i >= 0; i--) {
+            if (events[i] < playheadTimeMs - 1000) {
+                jumpToEvent(events[i]);
+                return;
+            }
+        }
+    }
+
     function normalizePanOffset() {
         var changed = false
         while (panOffsetMs < -43200000) {
@@ -3188,6 +3242,34 @@ Window {
                                 ToolTip.timeout: Compact.toolTipTimeout
                                 ToolTip.visible: hovered
                                 ToolTip.text: qsTr("LNG_00125")
+                            }
+                            CctvButton {
+                                id: previousEventBtn
+                                text: ""
+                                isSmall: true
+                                iconSource: {
+                                    var colorStr = previousEventBtn.hovered ? "%23ff3344" : "%23ff6677"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='5' y1='5' x2='5' y2='19'></line><polygon points='19 4 9 12 19 20 19 4'></polygon></svg>"
+                                }
+                                onClicked: previousEvent()
+                                ToolTip.delay: Compact.toolTipDelay
+                                ToolTip.timeout: Compact.toolTipTimeout
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Previous Event")
+                            }
+                            CctvButton {
+                                id: nextEventBtn
+                                text: ""
+                                isSmall: true
+                                iconSource: {
+                                    var colorStr = nextEventBtn.hovered ? "%23ff3344" : "%23ff6677"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='5 4 15 12 5 20 5 4'></polygon><line x1='19' y1='5' x2='19' y2='19'></line></svg>"
+                                }
+                                onClicked: nextEvent()
+                                ToolTip.delay: Compact.toolTipDelay
+                                ToolTip.timeout: Compact.toolTipTimeout
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Next Event")
                             }
                         }
 
