@@ -133,6 +133,7 @@ FocusScope {
     property int quickPlaybackSpeed: 1
     property bool isQuickPlaybackPaused: false
     property var quickPlaybackSegments: []
+    property var quickPlaybackEvents: []
     property bool pendingQuickPlaybackSeek: false
     property bool isRestoringLiveView: false
 
@@ -227,6 +228,13 @@ FocusScope {
         }
     }
 
+    function updateQuickPlaybackEvents() {
+        if (!isQuickPlayback || !quickPlaybackActivationTime || !rootWindow) return;
+        var cacheKey = recorderIp + "_" + channelId + "_" + getDateKey(quickPlaybackActivationTime);
+        var events = rootWindow.playbackEventsCache[cacheKey];
+        quickPlaybackEvents = events ? events : [];
+    }
+
     onIsQuickPlaybackChanged: {
         if (isQuickPlayback) {
             quickPlaybackActivationTime = new Date();
@@ -252,7 +260,9 @@ FocusScope {
             end.setDate(end.getDate() + 1);
             
             updateQuickPlaybackSegments();
+            updateQuickPlaybackEvents();
             HikvisionISAPI.searchRecordings(recorderInfoForCam, channelId, start, end);
+            HikvisionISAPI.searchEvents(recorderInfoForCam, channelId, start, end);
             
             // Playback will start in quickPlaybackPlayerLoader.onLoaded
             quickPlaybackTimer.start();
@@ -267,6 +277,31 @@ FocusScope {
 
     Connections {
         target: HikvisionISAPI
+        function onEventsFinished(eventRecorderIp, eventChannelId, startTime, segments) {
+            if (!root.isQuickPlayback || eventRecorderIp !== root.recorderIp || eventChannelId !== root.channelId)
+                return;
+            var targetDate = new Date(startTime);
+            targetDate.setDate(targetDate.getDate() + 1);
+            var cacheKey = eventRecorderIp + "_" + eventChannelId + "_" + root.getDateKey(targetDate);
+            var adjustedEvents = [];
+            if (segments) {
+                for (var i = 0; i < segments.length; i++) {
+                    var seg = segments[i];
+                    var localOffsetMs = seg.timeIsLocal ? 0 : new Date(seg.startTime).getTimezoneOffset() * 60000;
+                    adjustedEvents.push({
+                        "startTime": seg.startTime + localOffsetMs,
+                        "endTime": seg.endTime + localOffsetMs,
+                        "event": true
+                    });
+                }
+            }
+            if (typeof rootWindow !== "undefined" && rootWindow) {
+                var tempEvents = Object.assign({}, rootWindow.playbackEventsCache);
+                tempEvents[cacheKey] = adjustedEvents;
+                rootWindow.playbackEventsCache = tempEvents;
+            }
+            root.updateQuickPlaybackEvents();
+        }
         function onSearchFinished(searchRecorderIp, searchChannelId, startTime, segments) {
             if (root.isQuickPlayback && searchRecorderIp === root.recorderIp && searchChannelId === root.channelId) {
                 var targetDate = new Date(startTime);
@@ -892,6 +927,7 @@ FocusScope {
                     port: root.recorderPort
                     muted: root.muted
                     volume: root.volume
+                    playerStatusMessage: qsTr("LNG_00159")
 
                     onVideoSizeChanged: {
                         if (root.isOneToOne && root.isQuickPlayback) {
@@ -2248,6 +2284,23 @@ FocusScope {
                                 }
                             }
 
+                            // 1b. Event markers (motion, line crossing, etc.)
+                            if (root.quickPlaybackActivationTime) {
+                                var evWindowEnd = root.quickPlaybackActivationTime.getTime();
+                                var evWindowStart = evWindowEnd - 1800000;
+                                ctx.fillStyle = "#ff3344";
+                                for (var ei = 0; ei < root.quickPlaybackEvents.length; ei++) {
+                                    var ev = root.quickPlaybackEvents[ei];
+                                    if (!ev) continue;
+                                    var evStart = Math.max(evWindowStart, ev.startTime);
+                                    var evEnd = Math.min(evWindowEnd, ev.endTime);
+                                    if (evStart > evEnd) continue;
+                                    var ex = ((evStart - evWindowStart) / 1800000) * width;
+                                    var ew = Math.max(3, ((evEnd - evStart) / 1800000) * width);
+                                    ctx.fillRect(Math.min(ex, width - ew), 0, ew, height - 8);
+                                }
+                            }
+
                             // 2. Timeline ticks & minute scale
                             var windowStartMs = root.quickPlaybackActivationTime ? (root.quickPlaybackActivationTime.getTime() - 1800000) : 0;
                             var windowEndMs = root.quickPlaybackActivationTime ? root.quickPlaybackActivationTime.getTime() : 0;
@@ -2284,6 +2337,7 @@ FocusScope {
                         Connections {
                             target: root
                             function onQuickPlaybackSegmentsChanged() { qpTimelineCanvas.requestPaint(); }
+                            function onQuickPlaybackEventsChanged() { qpTimelineCanvas.requestPaint(); }
                             function onQuickPlaybackActivationTimeChanged() { qpTimelineCanvas.requestPaint(); }
                         }
                     }
@@ -2318,6 +2372,107 @@ FocusScope {
                 height: 24
                 spacing: 8
 
+                Text {
+                    id: qpTimeDisplay
+                    Layout.minimumWidth: 100
+                    color: "#ffffff"
+                    font.pixelSize: 11
+                    font.bold: true
+                    visible: parent.width > 250
+                    text: {
+                        if (!root.quickPlaybackActivationTime) return "--:--:-- (now)";
+                        var currentD = new Date(root.quickPlaybackActivationTime.getTime() - (1800 - root.quickPlaybackOffset) * 1000);
+                        return root.formatTime(currentD) + " (" + root.formatRelativeTime(root.quickPlaybackOffset) + ")";
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Row {
+                    id: qpSeekRow
+                    Layout.alignment: Qt.AlignVCenter
+                    spacing: 2
+                    visible: qpButtonsRow.width > 400
+
+                    Repeater {
+                        model: [
+                            { label: "-10m", delta: -600, tip: qsTr("Rewind 10 minutes") },
+                            { label: "-2m", delta: -120, tip: qsTr("Rewind 2 minutes") },
+                            { label: "-30s", delta: -30, tip: qsTr("Rewind 30 seconds") },
+                            { label: "-5s", delta: -5, tip: qsTr("Rewind 5 seconds") },
+                            { label: "+5s", delta: 5, tip: qsTr("Forward 5 seconds") },
+                            { label: "+30s", delta: 30, tip: qsTr("Forward 30 seconds") },
+                            { label: "+2m", delta: 120, tip: qsTr("Forward 2 minutes") },
+                            { label: "+10m", delta: 600, tip: qsTr("Forward 10 minutes") }
+                        ]
+                        delegate: CctvButton {
+                            focusPolicy: Qt.NoFocus
+                            text: modelData.label
+                            isMini: true
+                            isTransparent: true
+                            onClicked: root.seekQuickPlayback(modelData.delta)
+                            ToolTip.delay: Compact.toolTipDelay
+                            ToolTip.timeout: Compact.toolTipTimeout
+                            ToolTip.visible: hovered
+                            ToolTip.text: modelData.tip
+                        }
+                    }
+                }
+
+                Item { Layout.fillWidth: true }
+
+                CctvButton {
+                    id: qpPrevEventBtn
+                    focusPolicy: Qt.NoFocus
+                    isMini: true
+                    isTransparent: true
+                    enabled: root.quickPlaybackEvents.length > 0
+                    opacity: enabled ? 1.0 : 0.4
+                    iconSource: {
+                        var colorStr = qpPrevEventBtn.hovered ? "%23ff3344" : "%23ff6677";
+                        return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='5' y1='5' x2='5' y2='19'></line><polygon points='19 4 9 12 19 20 19 4'></polygon></svg>";
+                    }
+                    onClicked: root.jumpQuickPlaybackEvent(-1)
+                    ToolTip.delay: Compact.toolTipDelay
+                    ToolTip.timeout: Compact.toolTipTimeout
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Previous Event")
+                }
+
+                CctvButton {
+                    id: qpFrameStepBtn
+                    focusPolicy: Qt.NoFocus
+                    isMini: true
+                    isTransparent: true
+                    iconSource: {
+                        var colorStr = qpFrameStepBtn.hovered ? "%2300f5d4" : "%23ffffff";
+                        return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='5' width='12' height='14' rx='1'></rect><polygon points='17 8 22 12 17 16' fill='" + colorStr + "' stroke='none'></polygon></svg>";
+                    }
+                    onClicked: root.stepQuickPlaybackFrame()
+                    ToolTip.delay: Compact.toolTipDelay
+                    ToolTip.timeout: Compact.toolTipTimeout
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Next frame")
+                }
+
+                CctvButton {
+                    id: qpNextEventBtn
+                    focusPolicy: Qt.NoFocus
+                    isMini: true
+                    isTransparent: true
+                    enabled: root.quickPlaybackEvents.length > 0
+                    opacity: enabled ? 1.0 : 0.4
+                    iconSource: {
+                        var colorStr = qpNextEventBtn.hovered ? "%23ff3344" : "%23ff6677";
+                        return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='5 4 15 12 5 20 5 4'></polygon><line x1='19' y1='5' x2='19' y2='19'></line></svg>";
+                    }
+                    onClicked: root.jumpQuickPlaybackEvent(1)
+                    ToolTip.delay: Compact.toolTipDelay
+                    ToolTip.timeout: Compact.toolTipTimeout
+                    ToolTip.visible: hovered
+                    ToolTip.text: qsTr("Next Event")
+                }
+
                 CctvButton {
                     id: qpPlayPauseBtn
                     focusPolicy: Qt.NoFocus
@@ -2348,22 +2503,6 @@ FocusScope {
                     ToolTip.visible: hovered
                     ToolTip.text: root.isQuickPlaybackPaused ? qsTr("LNG_00128") : qsTr("LNG_00129")
                 }
-
-                Text {
-                    id: qpTimeDisplay
-                    Layout.minimumWidth: 100
-                    color: "#ffffff"
-                    font.pixelSize: 11
-                    font.bold: true
-                    visible: parent.width > 250
-                    text: {
-                        if (!root.quickPlaybackActivationTime) return "--:--:-- (now)";
-                        var currentD = new Date(root.quickPlaybackActivationTime.getTime() - (1800 - root.quickPlaybackOffset) * 1000);
-                        return root.formatTime(currentD) + " (" + root.formatRelativeTime(root.quickPlaybackOffset) + ")";
-                    }
-                }
-
-                Item { Layout.fillWidth: true }
 
                 CctvButton {
                     id: qpSpeedBtn
@@ -2423,6 +2562,57 @@ FocusScope {
                 }
             }
         }
+    }
+
+    // Jump the quick playback position by deltaSeconds (negative = rewind),
+    // clamped to the 30 minute window (0 = oldest, 1800 = now).
+    function seekQuickPlayback(deltaSeconds) {
+        if (!isQuickPlayback || !quickPlaybackActivationTime) return;
+        var target = Math.max(0, Math.min(1800, quickPlaybackOffset + deltaSeconds));
+        quickPlaybackOffset = target;
+        var item = quickPlaybackPlayerLoader.item;
+        if (!item) return;
+        var seekTime = new Date(quickPlaybackActivationTime.getTime() - (1800 - target) * 1000);
+        item.playAtTime(seekTime);
+        if (quickPlaybackSpeed !== 1) {
+            item.setPlaybackSpeed(quickPlaybackSpeed);
+        }
+        if (target >= 1800) {
+            isQuickPlaybackPaused = true;
+            item.pause();
+        } else if (!isQuickPlaybackPaused) {
+            item.resume();
+        }
+    }
+
+    // Jump to the previous (direction < 0) or next (direction > 0) event inside
+    // the 30 minute quick playback window.
+    function jumpQuickPlaybackEvent(direction) {
+        if (!isQuickPlayback || !quickPlaybackActivationTime) return;
+        var windowEnd = quickPlaybackActivationTime.getTime();
+        var windowStart = windowEnd - 1800000;
+        var currentMs = windowEnd - (1800 - quickPlaybackOffset) * 1000;
+        var targetMs = -1;
+        for (var i = 0; i < quickPlaybackEvents.length; i++) {
+            var ev = quickPlaybackEvents[i];
+            if (!ev) continue;
+            var evMs = Math.max(windowStart, ev.startTime);
+            if (evMs > windowEnd) continue;
+            if (direction > 0 && evMs > currentMs + 1000 && (targetMs < 0 || evMs < targetMs))
+                targetMs = evMs;
+            else if (direction < 0 && evMs < currentMs - 1000 && (targetMs < 0 || evMs > targetMs))
+                targetMs = evMs;
+        }
+        if (targetMs < 0) return;
+        seekQuickPlayback(Math.round((targetMs - currentMs) / 1000));
+    }
+
+    // Pause and advance the quick playback by a single frame.
+    function stepQuickPlaybackFrame() {
+        var item = quickPlaybackPlayerLoader.item;
+        if (!isQuickPlayback || !item) return;
+        isQuickPlaybackPaused = true;
+        item.stepFrame();
     }
 
     function play() {
