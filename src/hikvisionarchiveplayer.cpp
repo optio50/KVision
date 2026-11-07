@@ -1375,7 +1375,7 @@ void HikvisionArchivePlayer::paint(QPainter *painter)
     } else {
         QString msg = m_playerStatusMessage;
         if (msg.isEmpty()) {
-            msg = "Ładowanie archiwum Hikvision...";
+            msg = tr("Loading Hikvision archive...");
         }
 
         bool isError = msg.contains("Brak", Qt::CaseInsensitive);

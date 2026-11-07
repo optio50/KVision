@@ -2115,6 +2115,10 @@
             <source>LNG_00187</source>
             <translation>Close rewind view</translation>
         </message>
+            <message>
+            <source>LNG_00159</source>
+            <translation>Loading Hikvision archive...</translation>
+        </message>
     </context>
     <context>
         <name>RootWindow</name>
