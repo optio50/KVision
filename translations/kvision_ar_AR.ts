@@ -1284,7 +1284,7 @@
     </context>
     <context>
         <name>PlaybackWindow</name>
-        <message>
+        <message><source>LNG_00576</source><translation>الإطار التالي</translation></message><message>
             <source>Kamery</source>
             <translation type="vanished">Cameras</translation>
         </message>
@@ -2397,7 +2397,7 @@
     </context>
     <context>
         <name>SideBar</name>
-        <message>
+        <message><source>LNG_00577</source><translation>اطلب التأكيد قبل الإغلاق</translation></message><message>
             <source>Tools</source>
             <translation type="vanished">Tools</translation>
         </message>
@@ -4785,5 +4785,9 @@
             <source>LNG_00574</source>
             <translation>القناة %1</translation>
         </message>
+        <message>
+            <source>LNG_00575</source>
+            <translation>إغلاق</translation>
+        </message>
     </context>
-</TS>
+<context><name>AddCameraDialog</name><message><source>LNG_00571</source><translation>إضافة كاميرا</translation></message><message><source>LNG_00573</source><translation>لا توجد مسجلات مهيأة. أضف مسجلاً أولاً.</translation></message><message><source>LNG_00574</source><translation>القناة %1</translation></message><message><source>LNG_00575</source><translation>إغلاق</translation></message></context></TS>

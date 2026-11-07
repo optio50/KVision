@@ -7,6 +7,7 @@
 #include <QVideoSurfaceFormat>
 #include <QAudioOutput>
 #include <QTimer>
+#include <atomic>
 
 #include "qmlavframe.h"
 #include "qmlavdemuxer.h"
@@ -69,6 +70,7 @@ protected:
 private:
     bool m_complete;
     QmlAVDemuxer *m_demuxer;
+    std::atomic<bool> m_stopping{false};
     QAbstractVideoSurface *m_videoSurface;
     QTimer m_playTimer;
 

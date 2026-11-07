@@ -228,6 +228,55 @@ FocusScope {
         property real dragStartX: 0
         property real dragStartY: 0
         property bool isDragging: false
+        property string swapInProgressKey: ""
+
+        function swapViewportItems(sourceIndex, targetIndex) {
+            if (sourceIndex === targetIndex || sourceIndex < 0 || targetIndex < 0)
+                return false;
+            if (sourceIndex >= root.model.count || targetIndex >= root.model.count)
+                return false;
+
+            var key = Math.min(sourceIndex, targetIndex) + ":" + Math.max(sourceIndex, targetIndex);
+            if (swapInProgressKey === key)
+                return false;
+            swapInProgressKey = key;
+
+            var sourceItem = root.model.get(sourceIndex);
+            var targetItem = root.model.get(targetIndex);
+            if (!sourceItem || !targetItem) {
+                swapInProgressKey = "";
+                return false;
+            }
+
+            var sourcePlayer = playerPool.activePlayersMap[sourceIndex];
+            var targetPlayer = playerPool.activePlayersMap[targetIndex];
+            if (sourcePlayer && sourcePlayer.prepareForSwap)
+                sourcePlayer.prepareForSwap();
+            if (targetPlayer && targetPlayer.prepareForSwap)
+                targetPlayer.prepareForSwap();
+
+            var tempUrl = sourceItem.url;
+            var tempSecUrl = sourceItem.secondaryUrl;
+            var tempVol = sourceItem.volume;
+            var tempOpts = sourceItem.avFormatOptions;
+            var tempStreamMode = sourceItem.streamMode;
+
+            sourceItem.url = targetItem.url;
+            sourceItem.secondaryUrl = targetItem.secondaryUrl;
+            sourceItem.volume = targetItem.volume;
+            sourceItem.avFormatOptions = targetItem.avFormatOptions;
+            sourceItem.streamMode = targetItem.streamMode;
+
+            targetItem.url = tempUrl;
+            targetItem.secondaryUrl = tempSecUrl;
+            targetItem.volume = tempVol;
+            targetItem.avFormatOptions = tempOpts;
+            targetItem.streamMode = tempStreamMode;
+
+            Utils.log_info("Swapped viewport " + (sourceIndex + 1) + " with " + (targetIndex + 1));
+            Qt.callLater(function() { d.swapInProgressKey = ""; });
+            return true;
+        }
 
         onLayoutRatioChanged: selectionReset()
         onSelectionIndex1Changed: selectionReset()
@@ -859,61 +908,15 @@ FocusScope {
                                 var dx = Math.abs(pt.x - d.dragStartX);
                                 var dy = Math.abs(pt.y - d.dragStartY);
                                 if ((dx > 15 || dy > 15) && generalSettings.allowSwappingViewports) {
-                                // Drag-to-swap: exchange camera URLs between source and target cells
-                                var sourceIndex = d.dragSourceIndex;
-                                var sourceItem = root.model.get(sourceIndex);
-                                var targetItem = root.model.get(targetIndex);
-                                if (sourceItem && targetItem) {
-                                    var tempUrl = sourceItem.url;
-                                    var tempSecUrl = sourceItem.secondaryUrl;
-                                    var tempVol = sourceItem.volume;
-                                    var tempOpts = sourceItem.avFormatOptions;
-                                    var tempStreamMode = sourceItem.streamMode;
-
-                                    sourceItem.url = targetItem.url;
-                                    sourceItem.secondaryUrl = targetItem.secondaryUrl;
-                                    sourceItem.volume = targetItem.volume;
-                                    sourceItem.avFormatOptions = targetItem.avFormatOptions;
-                                    sourceItem.streamMode = targetItem.streamMode;
-
-                                    targetItem.url = tempUrl;
-                                    targetItem.secondaryUrl = tempSecUrl;
-                                    targetItem.volume = tempVol;
-                                    targetItem.avFormatOptions = tempOpts;
-                                    targetItem.streamMode = tempStreamMode;
-
-                                    Utils.log_info("Swapped viewport " + (sourceIndex + 1) + " with " + (targetIndex + 1));
+                                    d.swapViewportItems(d.dragSourceIndex, targetIndex);
                                 }
-                            }
                             } else if (!d.isDragging && d.dragSourceIndex >= 0) {
                                 // Normal click behavior (no drag occurred)
                                 var clickTargetIndex = model.index;
                                 if (root.pendingSwapSourceIndex >= 0 && generalSettings.allowSwappingViewports) {
                                     var sourceIndex = root.pendingSwapSourceIndex;
                                     if (sourceIndex !== clickTargetIndex) {
-                                        var sourceItem = root.model.get(sourceIndex);
-                                        var targetItem = root.model.get(clickTargetIndex);
-                                        if (sourceItem && targetItem) {
-                                            var tempUrl = sourceItem.url;
-                                            var tempSecUrl = sourceItem.secondaryUrl;
-                                            var tempVol = sourceItem.volume;
-                                            var tempOpts = sourceItem.avFormatOptions;
-                                            var tempStreamMode = sourceItem.streamMode;
-
-                                            sourceItem.url = targetItem.url;
-                                            sourceItem.secondaryUrl = targetItem.secondaryUrl;
-                                            sourceItem.volume = targetItem.volume;
-                                            sourceItem.avFormatOptions = targetItem.avFormatOptions;
-                                            sourceItem.streamMode = targetItem.streamMode;
-
-                                            targetItem.url = tempUrl;
-                                            targetItem.secondaryUrl = tempSecUrl;
-                                            targetItem.volume = tempVol;
-                                            targetItem.avFormatOptions = tempOpts;
-                                            targetItem.streamMode = tempStreamMode;
-
-                                            Utils.log_info("Swapped viewport " + (sourceIndex + 1) + " with " + (clickTargetIndex + 1));
-                                        }
+                                        d.swapViewportItems(sourceIndex, clickTargetIndex);
                                     }
                                     root.pendingSwapSourceIndex = -1;
                                 } else {
@@ -1648,32 +1651,8 @@ FocusScope {
                             // Viewport swap
                             if (drop.hasFormat("application/x-cctv-viewport-index")) {
                                 var sourceIndex = parseInt(drop.getDataAsString("application/x-cctv-viewport-index"));
-                                if (sourceIndex !== model.index && sourceIndex >= 0 && sourceIndex < root.model.count) {
-                                    var sourceItem = root.model.get(sourceIndex);
-                                    var targetItem = root.model.get(model.index);
-                                    if (sourceItem && targetItem) {
-                                        var tempUrl = sourceItem.url;
-                                        var tempSecUrl = sourceItem.secondaryUrl;
-                                        var tempVol = sourceItem.volume;
-                                        var tempOpts = sourceItem.avFormatOptions;
-                                        var tempStreamMode = sourceItem.streamMode;
-
-                                        sourceItem.url = targetItem.url;
-                                        sourceItem.secondaryUrl = targetItem.secondaryUrl;
-                                        sourceItem.volume = targetItem.volume;
-                                        sourceItem.avFormatOptions = targetItem.avFormatOptions;
-                                        sourceItem.streamMode = targetItem.streamMode;
-
-                                        targetItem.url = tempUrl;
-                                        targetItem.secondaryUrl = tempSecUrl;
-                                        targetItem.volume = tempVol;
-                                        targetItem.avFormatOptions = tempOpts;
-                                        targetItem.streamMode = tempStreamMode;
-
-                                        drop.accept(Qt.MoveAction);
-                                        Utils.log_info("Swapped viewport " + (sourceIndex + 1) + " with " + (model.index + 1));
-                                    }
-                                }
+                                if (d.swapViewportItems(sourceIndex, model.index))
+                                    drop.accept(Qt.MoveAction);
                                 return;
                             }
                         }

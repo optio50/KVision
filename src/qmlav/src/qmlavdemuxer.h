@@ -103,6 +103,7 @@ private:
     QmlAVThreadLiveController<QmlAVLoopController> m_demuxerThread;
 
     std::atomic<qint64> m_bytesRead{0};
+    std::atomic<bool> m_closing{false};
     std::shared_ptr<QmlAVMediaContextHolder> m_context;
 
     friend class QmlAVDecoder;

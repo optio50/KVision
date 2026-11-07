@@ -487,6 +487,7 @@ The application allows you to quickly capture high-quality snapshots from any ca
 2. Clicking the camera icon captures the frame and saves it as a JPEG image (quality 98 - virtually lossless).
 3. A successful capture is confirmed by the camera icon flashing orange (`#ff7a00`) for exactly 1 second.
 4. **Full Resolution**: In Playback Archive mode, snapshots are saved at the stream's full native source resolution directly from the decoder's frame buffer, regardless of the active viewport size on screen or display scaling.
+5. **Folder and filename**: Snapshots use the same layout as downloaded video. They are saved under the snapshots folder in a `yyyy-MM-dd` directory, named `Recorder_Channel_Camera_yyyy-MM-dd_HHmmss.jpg`. Archive snapshots use the playhead time. Live snapshots use the current time.
 
 ### Saving Path Configurations:
 1. Go to the **Settings** tab (gear icon in the options window).

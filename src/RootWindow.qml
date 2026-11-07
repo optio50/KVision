@@ -33,7 +33,7 @@ ApplicationWindow {
     readonly property bool cursorHidden: cursorShape.hidden
 
     onClosing: {
-        if (!closeAccepted) {
+        if (!closeAccepted && generalSettings.confirmOnClose) {
             close.accepted = false;
             quitConfirmDialog.open();
         }
@@ -215,6 +215,7 @@ ApplicationWindow {
         property int playbackOffsetSeconds: 120
         property int playbackTimelineHours: 2
         property bool enableDiagnosticLogs: false
+        property bool confirmOnClose: true
     }
 
     Settings {

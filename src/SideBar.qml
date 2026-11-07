@@ -2282,6 +2282,13 @@ FocusScope {
                                 Layout.fillWidth: true
                             }
 
+                            CheckBox {
+                                text: qsTr("LNG_00577")
+                                checked: generalSettings.confirmOnClose
+                                onCheckedChanged: generalSettings.confirmOnClose = checked
+                                Layout.fillWidth: true
+                            }
+
                             Rectangle {
                                 Layout.fillWidth: true
                                 height: 1

@@ -19,7 +19,12 @@ Window {
     property bool closeAccepted: false
 
     onClosing: {
-        if (!closeAccepted) {
+        var confirmOnClose = true;
+        if (typeof rootWindow !== "undefined" && rootWindow && rootWindow.generalSettings)
+            confirmOnClose = rootWindow.generalSettings.confirmOnClose;
+        else if (generalSettings)
+            confirmOnClose = generalSettings.confirmOnClose;
+        if (!closeAccepted && confirmOnClose) {
             close.accepted = false;
             quitConfirmDialog.open();
         }

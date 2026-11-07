@@ -779,6 +779,53 @@ void HikvisionArchivePlayer::pause()
     }
 }
 
+void HikvisionArchivePlayer::stepFrame()
+{
+    if (m_lPlayHandle < 0)
+        return;
+
+    QMetaObject::invokeMethod(m_worker, [this]() {
+        LONG port = m_nPort;
+        if (m_lPlayHandle < 0 && port == -1)
+            return;
+
+        if (m_isPlaying) {
+            m_isPlaying = false;
+            QMetaObject::invokeMethod(this, [this]() {
+                emit playingChanged();
+            }, Qt::QueuedConnection);
+        }
+
+        if (port == -1)
+            return;
+
+        if (m_refilling.load())
+            return;
+
+        if (PlayM4_OneByOne(port)) {
+            m_stepping = true;
+            return;
+        }
+
+        DWORD err = PlayM4_GetLastError(port);
+        if (err == PLAYM4_NEED_MORE_DATA) {
+            LONG handle = m_lPlayHandle;
+            m_stepping = true;
+            m_refilling = true;
+            // Leave the decoder running until a real frame arrives. Stopping it
+            // on the first callback drops that frame and makes the next click refill again.
+            PlayM4_Play(port, 0);
+            if (handle >= 0) {
+                NET_DVR_PlayBackControl_V40(handle, NET_DVR_PLAYRESTART, nullptr, 0, nullptr, nullptr);
+                NET_DVR_PlayBackControl_V40(handle, NET_DVR_PLAYNORMAL, nullptr, 0, nullptr, nullptr);
+            }
+            qWarning() << "[HikArchive] Frame step refilling from camera";
+        } else {
+            qWarning() << "[HikArchive] Frame step failed:" << err;
+        }
+    }, Qt::QueuedConnection);
+}
+
 void HikvisionArchivePlayer::resume()
 {
     if (m_lPlayHandle >= 0) {
@@ -786,7 +833,10 @@ void HikvisionArchivePlayer::resume()
             LONG handle = m_lPlayHandle;
             LONG port = m_nPort;
             if (handle >= 0) {
-                if (port != -1) PlayM4_Pause(port, 0);
+                if (port != -1) {
+                    PlayM4_Pause(port, 0);
+                    PlayM4_Play(port, 0);
+                }
                 NET_DVR_PlayBackControl_V40(handle, NET_DVR_PLAYRESTART, nullptr, 0, nullptr, nullptr);
                 NET_DVR_PlayBackControl_V40(handle, NET_DVR_PLAYNORMAL, nullptr, 0, nullptr, nullptr);
                 m_isPlaying = true;
@@ -994,7 +1044,7 @@ void HikvisionArchivePlayer::PlayDataCallBack(LONG lPlayHandle, DWORD dwDataType
                 currentIsPlaying = player->m_isPlaying;
                 currentSessionId = player->m_playbackSessionId.load();
             }
-            if (currentHandle != activeHandle || currentPort != activePort || !currentIsPlaying || currentSessionId != activeSessionId) {
+        if (currentHandle != activeHandle || currentPort != activePort || currentSessionId != activeSessionId) {
                 break;
             }
             DWORD playErr = PlayM4_GetLastError(activePort);
@@ -1076,6 +1126,11 @@ void HikvisionArchivePlayer::DecCallBack(long nPort, char *pBuf, long nSize, FRA
         if (player->m_pendingTasks.load() + player->m_guiPendingTasks.load() >= 5) {
             // Drop frame to prevent thread pools/queues from filling up
             return;
+        }
+
+        if (player->m_stepping.load()) {
+            player->m_stepping = false;
+            player->m_refilling = false;
         }
         
         std::shared_ptr<FrameBuffer> fb = player->getOrCreateFrameBuffer(width, height);

@@ -265,8 +265,8 @@ Dialog {
 
             Button {
                 id: closeBtn
-                text: qsTr("LNG_00019")
-                Layout.preferredWidth: 80
+                text: qsTr("LNG_00575")
+                Layout.preferredWidth: Math.max(80, closeBtn.implicitWidth + 24)
                 Layout.preferredHeight: 30
 
                 contentItem: Text {

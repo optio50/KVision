@@ -834,6 +834,11 @@
     <context>
         <name>PlaybackWindow</name>
         <message>
+            <location filename="../src/PlaybackWindow.qml" line="3307" />
+            <source>LNG_00576</source>
+            <translation>Next frame</translation>
+        </message>
+        <message>
             <source>Ustalanie faktycznego końca nagrania...</source>
             <translation type="vanished">Determining actual end of recording...</translation>
         </message>
@@ -1613,9 +1618,19 @@
             <source>LNG_00574</source>
             <translation>Channel %1</translation>
         </message>
+        <message>
+            <location filename="../src/AddCameraDialog.qml" line="268" />
+            <source>LNG_00575</source>
+            <translation>Close</translation>
+        </message>
     </context>
     <context>
         <name>SideBar</name>
+        <message>
+            <location filename="../src/SideBar.qml" line="2286" />
+            <source>LNG_00577</source>
+            <translation>Ask for confirmation before closing</translation>
+        </message>
         <message>
             <source>Dostępna wersja: %1</source>
             <translation type="vanished">Available version: %1</translation>
@@ -3323,4 +3338,4 @@
             <translation type="vanished">Playback</translation>
         </message>
     </context>
-</TS>
+<context><name>AddCameraDialog</name><message><source>LNG_00571</source><translation>Add camera</translation></message><message><source>LNG_00573</source><translation>No recorders configured. Add a recorder first.</translation></message><message><source>LNG_00574</source><translation>Channel %1</translation></message><message><source>LNG_00575</source><translation>Close</translation></message></context></TS>

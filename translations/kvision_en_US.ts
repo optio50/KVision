@@ -1285,6 +1285,10 @@
     <context>
         <name>PlaybackWindow</name>
         <message>
+            <source>LNG_00576</source>
+            <translation>Next frame</translation>
+        </message>
+        <message>
             <source>Kamery</source>
             <translation type="vanished">Cameras</translation>
         </message>
@@ -2397,6 +2401,10 @@
     </context>
     <context>
         <name>SideBar</name>
+        <message>
+            <source>LNG_00577</source>
+            <translation>Ask for confirmation before closing</translation>
+        </message>
         <message>
             <source>Tools</source>
             <translation type="vanished">Tools</translation>
@@ -4788,5 +4796,9 @@
             <source>LNG_00574</source>
             <translation>Channel %1</translation>
         </message>
+        <message>
+            <source>LNG_00575</source>
+            <translation>Close</translation>
+        </message>
     </context>
-</TS>
+<context><name>AddCameraDialog</name><message><source>LNG_00571</source><translation>Add camera</translation></message><message><source>LNG_00573</source><translation>No recorders configured. Add a recorder first.</translation></message><message><source>LNG_00574</source><translation>Channel %1</translation></message><message><source>LNG_00575</source><translation>Close</translation></message></context></TS>

@@ -1284,7 +1284,7 @@
     </context>
     <context>
         <name>PlaybackWindow</name>
-        <message>
+        <message><source>LNG_00576</source><translation>Volgend frame</translation></message><message>
             <source>Kamery</source>
             <translation type="vanished">Cameras</translation>
         </message>
@@ -2397,7 +2397,7 @@
     </context>
     <context>
         <name>SideBar</name>
-        <message>
+        <message><source>LNG_00577</source><translation>Om bevestiging vragen voor sluiten</translation></message><message>
             <source>Tools</source>
             <translation type="vanished">Tools</translation>
         </message>
@@ -4785,5 +4785,9 @@
             <source>LNG_00574</source>
             <translation>Kanaal %1</translation>
         </message>
+        <message>
+            <source>LNG_00575</source>
+            <translation>Sluiten</translation>
+        </message>
     </context>
-</TS>
+<context><name>AddCameraDialog</name><message><source>LNG_00571</source><translation>Camera toevoegen</translation></message><message><source>LNG_00573</source><translation>Geen recorders geconfigureerd. Voeg eerst een recorder toe.</translation></message><message><source>LNG_00574</source><translation>Kanaal %1</translation></message><message><source>LNG_00575</source><translation>Sluiten</translation></message></context></TS>

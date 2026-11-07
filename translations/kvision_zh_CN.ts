@@ -1259,7 +1259,7 @@
         </message>
         <message>
             <source>LNG_00510</source>
-            <translation>CPU 负载过高（>85%）</translation>
+            <translation>CPU 负载过高（&gt;85%）</translation>
         </message>
         <message>
             <source>LNG_00509</source>
@@ -1284,7 +1284,7 @@
     </context>
     <context>
         <name>PlaybackWindow</name>
-        <message>
+        <message><source>LNG_00576</source><translation>下一帧</translation></message><message>
             <source>Kamery</source>
             <translation type="vanished">Cameras</translation>
         </message>
@@ -2397,7 +2397,7 @@
     </context>
     <context>
         <name>SideBar</name>
-        <message>
+        <message><source>LNG_00577</source><translation>关闭前请求确认</translation></message><message>
             <source>Tools</source>
             <translation type="vanished">Tools</translation>
         </message>
@@ -4187,7 +4187,7 @@
         </message>
         <message>
             <source>LNG_00247</source>
-            <translation>监测 CPU 过载（>85%）</translation>
+            <translation>监测 CPU 过载（&gt;85%）</translation>
         </message>
         <message>
             <source>LNG_00246</source>
@@ -4785,5 +4785,9 @@
             <source>LNG_00574</source>
             <translation>通道 %1</translation>
         </message>
+        <message>
+            <source>LNG_00575</source>
+            <translation>关闭</translation>
+        </message>
     </context>
-</TS>
+<context><name>AddCameraDialog</name><message><source>LNG_00571</source><translation>添加摄像机</translation></message><message><source>LNG_00573</source><translation>未配置录像机。请先添加录像机。</translation></message><message><source>LNG_00574</source><translation>通道 %1</translation></message><message><source>LNG_00575</source><translation>关闭</translation></message></context></TS>

@@ -126,3 +126,41 @@ function log_info(message) {
 function log_error(message) {
     console.log("ERROR: " + message);
 }
+
+function cleanMediaName(name) {
+    var cleaned = String(name || "");
+    cleaned = cleaned.replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, "");
+    cleaned = cleaned.replace(/([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}/g, "");
+    cleaned = cleaned.trim().replace(/^[_-\s]+|[_-\s]+$/g, "");
+    cleaned = cleaned.replace(/ /g, "_").replace(/[^a-zA-Z0-9_\-\.]/g, "");
+    return cleaned;
+}
+
+function snapshotSavePath(recorderName, channelId, cameraName, when) {
+    var stamp = when instanceof Date ? when : new Date();
+    var dayFolder = Qt.formatDateTime(stamp, "yyyy-MM-dd");
+    var timeTag = Qt.formatDateTime(stamp, "hhmmss");
+    var cleanRecName = cleanMediaName(recorderName);
+    var cleanCamName = cleanMediaName(cameraName);
+    if (cleanCamName === "")
+        cleanCamName = "Camera";
+    var channel = channelId !== undefined && channelId !== null && String(channelId) !== "" ? String(channelId) : "1";
+
+    var filename = "";
+    if (cleanRecName !== "")
+        filename = cleanRecName + "_" + channel + "_" + cleanCamName + "_" + dayFolder + "_" + timeTag + ".jpg";
+    else
+        filename = channel + "_" + cleanCamName + "_" + dayFolder + "_" + timeTag + ".jpg";
+
+    var rootPath = "";
+    if (typeof rootWindow !== "undefined" && rootWindow.generalSettings && rootWindow.generalSettings.snapshotPath !== "")
+        rootPath = Context.sanitizePlatformPath(rootWindow.generalSettings.snapshotPath, Context.defaultPicturesPath());
+    else if (typeof generalSettings !== "undefined" && generalSettings.snapshotPath !== "")
+        rootPath = Context.sanitizePlatformPath(generalSettings.snapshotPath, Context.defaultPicturesPath());
+    else
+        rootPath = Context.defaultPicturesPath();
+
+    var folder = rootPath + "/" + dayFolder;
+    Context.mkpath(folder);
+    return folder + "/" + filename;
+}

@@ -79,6 +79,7 @@ public:
     Q_INVOKABLE void playAtTime(const QDateTime &dateTime);
     Q_INVOKABLE void setPlaybackSpeed(int speedMultiplier); // 1, 2, 4, 8, -1, -2, -4, -8
     Q_INVOKABLE void pause();
+    Q_INVOKABLE void stepFrame();
     Q_INVOKABLE void resume();
     Q_INVOKABLE void stop();
     Q_INVOKABLE bool hasActiveStream() const;
@@ -152,6 +153,8 @@ private:
     int m_sampleRateConsecutiveCount = 0;
     std::atomic<bool> m_sysHeadReceived{false};
     std::atomic<bool> m_soundPlaying{false};
+    std::atomic<bool> m_stepping{false};
+    std::atomic<bool> m_refilling{false};
 
     // FPS counter members (accessed on GUI thread in updateImage)
     int m_fps = 0;

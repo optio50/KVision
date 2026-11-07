@@ -1299,6 +1299,10 @@
     <context>
         <name>PlaybackWindow</name>
         <message>
+            <source>LNG_00576</source>
+            <translation>Następna klatka</translation>
+        </message>
+        <message>
             <source>Dzisiaj</source>
             <translation type="vanished">Dzisiaj</translation>
         </message>
@@ -2558,6 +2562,10 @@
     </context>
     <context>
         <name>SideBar</name>
+        <message>
+            <source>LNG_00577</source>
+            <translation>Pytaj o potwierdzenie przed zamknięciem</translation>
+        </message>
         <message>
             <source>Viewport%1</source>
             <translation type="vanished">Viewport%1</translation>
@@ -5005,5 +5013,9 @@
             <source>LNG_00574</source>
             <translation>Kanał %1</translation>
         </message>
+        <message>
+            <source>LNG_00575</source>
+            <translation>Zamknij</translation>
+        </message>
     </context>
-</TS>
+<context><name>AddCameraDialog</name><message><source>LNG_00571</source><translation>Dodaj kamerę</translation></message><message><source>LNG_00573</source><translation>Brak skonfigurowanych rejestratorów. Najpierw dodaj rejestrator.</translation></message><message><source>LNG_00574</source><translation>Kanał %1</translation></message><message><source>LNG_00575</source><translation>Zamknij</translation></message></context></TS>

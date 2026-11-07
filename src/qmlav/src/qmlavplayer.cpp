@@ -65,6 +65,10 @@ void QmlAVPlayer::play()
 
 void QmlAVPlayer::stop()
 {
+    if (m_stopping.exchange(true)) {
+        return;
+    }
+
     setStatus(QMediaPlayer::NoMedia);
     
     bool wasStopped = (m_playbackState == QMediaPlayer::StoppedState);
@@ -79,6 +83,7 @@ void QmlAVPlayer::stop()
     }
     
     if (wasStopped) {
+        m_stopping.store(false);
         return;
     }
 
@@ -113,6 +118,7 @@ void QmlAVPlayer::stop()
     setHasVideo(false);
     setHasAudio(false);
     setFramePresented(false);
+    m_stopping.store(false);
 }
 
 void QmlAVPlayer::setVideoSurface(QAbstractVideoSurface *surface)

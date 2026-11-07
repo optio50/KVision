@@ -7,6 +7,7 @@ import Qt.labs.settings 1.0
 import CCTV_Viewer.Multimedia 1.0
 import CCTV_Viewer.Hikvision 1.0
 import CCTV_Viewer.Core 1.0
+import CCTV_Viewer.Utils 1.0
 import CCTV_Viewer.Themes 1.0
 import Qt.labs.platform 1.1 as Platform
 import QtGraphicalEffects 1.0
@@ -680,25 +681,39 @@ FocusScope {
     }
 
     function captureCurrentFrameAndNotify(typeStr) {
-        var d = new Date();
-        var dateStr = Qt.formatDateTime(d, "yyyy-MM-dd_HH-mm-ss");
+        var stamp = new Date();
         var activeOutput = null;
         var nativeWidth = 1920;
         var nativeHeight = 1080;
-        var rawCamName = root.cameraNameInfo || "Camera";
-        rawCamName = rawCamName.replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, "");
-        rawCamName = rawCamName.replace(/([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}/g, "");
-        rawCamName = rawCamName.trim().replace(/^[_-\s]+|[_-\s]+$/g, "");
-        var camName = rawCamName.replace(/ /g, "_").replace(/[^a-zA-Z0-9_\-\.]/g, "");
 
-        var path = "";
-        if (typeof generalSettings !== "undefined" && generalSettings.snapshotPath !== "") {
-            path = Context.sanitizePlatformPath(generalSettings.snapshotPath, Context.defaultPicturesPath());
+        var recorderLabel = "";
+        var cameraLabel = "Camera";
+        if (root.isHikvision && root.recorderIp) {
+            try {
+                var jsonStr = rootWindow.hikvisionRecordersJson;
+                var recordersList = jsonStr ? JSON.parse(jsonStr) : [];
+                for (var i = 0; i < recordersList.length; ++i) {
+                    if (recordersList[i].ip === root.recorderIp) {
+                        recorderLabel = recordersList[i].name || "";
+                        if (recordersList[i].cameras) {
+                            for (var j = 0; j < recordersList[i].cameras.length; ++j) {
+                                if (parseInt(recordersList[i].cameras[j].channelId) === root.channelId) {
+                                    cameraLabel = recordersList[i].cameras[j].customName || recordersList[i].cameras[j].name || cameraLabel;
+                                    break;
+                                }
+                            }
+                        }
+                        break;
+                    }
+                }
+            } catch (e) {
+                console.log("Error looking up snapshot names:", e);
+            }
         } else {
-            path = Context.defaultPicturesPath();
+            cameraLabel = root.cameraNameInfo || cameraLabel;
         }
-        Context.mkpath(path);
-        path = path + "/" + camName + "_" + typeStr + "_" + dateStr + ".jpg";
+
+        var path = Utils.snapshotSavePath(recorderLabel, root.channelId, cameraLabel, stamp);
 
         snapshotBadge.isSavingSnapshot = true;
         snapshotBadgeTimer.restart();
@@ -731,6 +746,19 @@ FocusScope {
             console.log("Saved snapshot (" + typeStr + ") to", path);
             showSnapshotDialog(path);
         }, Qt.size(nativeWidth, nativeHeight));
+    }
+
+    function prepareForSwap() {
+        autoReconnectTimer.stop();
+        seamlessSwitchTimer.stop();
+        qmlAvPlayer1.stop();
+        qmlAvPlayer2.stop();
+        qmlAvPlayer1.source = "";
+        qmlAvPlayer1.isSubStreamOfPlayer = false;
+        qmlAvPlayer2.source = "";
+        qmlAvPlayer2.isSubStreamOfPlayer = false;
+        activeStreamUrl = "";
+        activeCameraId = "";
     }
 
     function openPlayback() {
@@ -1429,20 +1457,31 @@ FocusScope {
             Component.onCompleted: updateHoverState()
 
             // Symmetrically placed magnifying glass button overlay on the bottom right
-            Row {
+            Item {
+                id: viewportControls
                 anchors {
+                    left: parent.left
                     right: parent.right
                     bottom: parent.bottom
+                    leftMargin: 6
                     rightMargin: 6
                     bottomMargin: root.isQuickPlayback ? (quickPlaybackControlsPanel.height + 12) : 6
                 }
-                spacing: 6
+                height: 24
+                clip: true
                 visible: (root.source !== "") && (!viewSettings.hoverControlIcons || playerHoverArea.isHovered) && !(typeof rootWindow !== "undefined" && rootWindow.cursorHidden)
 
                 Row {
                     id: volumeControl
+                    anchors.right: actionButtons.left
+                    anchors.rightMargin: 6
+                    anchors.verticalCenter: parent.verticalCenter
                     spacing: 4
                     visible: root.hasAudio
+                    clip: true
+
+                    readonly property int availableWidth: Math.max(0, viewportControls.width - actionButtons.width - 6)
+                    property bool showSlider: availableWidth >= 24 + 24 + 4 + 48
 
                     Control {
                         id: muteButton
@@ -1488,8 +1527,9 @@ FocusScope {
 
                     Slider {
                         id: volumeSlider
-                        width: 110
+                        width: volumeControl.showSlider ? Math.min(110, volumeControl.availableWidth - 24 - 24 - 8) : 0
                         height: 24
+                        visible: volumeControl.showSlider
                         padding: 0
                         from: 0.0
                         to: 1.0
@@ -1597,7 +1637,13 @@ FocusScope {
                     }
                 }
 
-                Control {
+                Row {
+                    id: actionButtons
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 6
+
+                    Control {
                     id: snapshotBadge
 
                     property bool isSavingSnapshot: false
@@ -1896,6 +1942,7 @@ FocusScope {
                     ToolTip.text: qsTr("PTZ controls")
                 }
 
+                }
             }
         }
         // --- PTZ CONTROL PAD (pan/tilt/zoom for PTZ-capable Hikvision cameras) ---

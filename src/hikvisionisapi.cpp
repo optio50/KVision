@@ -211,7 +211,12 @@ void HikvisionISAPI::doSearchRequest(const QString &sessionId)
     connect(reply, &QNetworkReply::finished, this, &HikvisionISAPI::onReplyFinished);
 
     const bool standaloneCamera = session.channelId <= 1;
-    QTimer::singleShot(standaloneCamera ? 1200 : 8000, this, [this, sessionId]() {
+    if (standaloneCamera) {
+        qWarning() << "[ISAPI] Standalone camera; using SDK recording search";
+        startSdkSearch(sessionId);
+        return;
+    }
+    QTimer::singleShot(8000, this, [this, sessionId]() {
         if (!m_sessions.contains(sessionId) || m_sessions[sessionId].sdkFallbackStarted)
             return;
         qWarning() << "[ISAPI] Search timed out; falling back to SDK recording search";
@@ -451,8 +456,8 @@ void HikvisionISAPI::startSdkSearch(const QString &sessionId)
             while (true) {
                 int state = NET_DVR_FindNextFile_V50(findHandle, &data);
                 if (state == 1000) {
-                    QDateTime start = fromSdkTime(data.struStartTime).addSecs(-3600);
-                    QDateTime end = fromSdkTime(data.struStopTime).addSecs(-3600);
+                    QDateTime start = fromSdkTime(data.struStartTime);
+                    QDateTime end = fromSdkTime(data.struStopTime);
                     if (start.isValid() && end.isValid() && start < end) {
                         if (session.isMonthSearch) {
                             if (!days.contains(start.date().day()))

@@ -486,9 +486,8 @@ Window {
                 if (fastAdjustedSegments.length > 0) {
                     checkInitialSeek(recorderIp, channelId, fastAdjustedSegments);
                     return; // Return early, let the main search cache full 3-day segments
-                } else {
-                    return; // Return early, fall back to main search
                 }
+                checkInitialSeek(recorderIp, channelId, []);
             }
 
             var targetDate = new Date(startTime);
@@ -561,7 +560,13 @@ Window {
                 var tempFastFailed = Object.assign({}, activeFastSearches);
                 delete tempFastFailed[fastFailedKey];
                 activeFastSearches = tempFastFailed;
-                return; // Return early so fast search errors don't trigger global failures
+                var failedFetchKey = recorderIp + "_" + channelId + "_" + getDateKey(currentDate);
+                var tempFailedFetching = Object.assign({}, activePlayersFetching);
+                delete tempFailedFetching[failedFetchKey];
+                activePlayersFetching = tempFailedFetching;
+                playbackWindow.isSearchingRecordings = isAnyCameraSearching();
+                checkInitialSeek(recorderIp, channelId, []);
+                return;
             }
             var targetDate = new Date(startTime);
             targetDate.setDate(targetDate.getDate() + 1);
@@ -1211,6 +1216,14 @@ Window {
         if (changed) {
             searchRecordingsForDate(currentDate)
         }
+    }
+
+    function stepFrame() {
+        var player = getSelectedPlayer();
+        if (!player || !player.stepFrame)
+            return;
+        isPlaying = false;
+        player.stepFrame();
     }
 
     function togglePlayPause() {
@@ -2494,25 +2507,14 @@ Window {
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    var d = new Date();
-                                                    var dateStr = Qt.formatDateTime(d, "yyyy-MM-dd_HH-mm-ss");
+                                                    var stamp = playheadTimeMs > 0 ? new Date(playheadTimeMs) : new Date();
                                                     var nativeWidth = playerItem.videoWidth > 0 ? playerItem.videoWidth : 1920;
                                                     var nativeHeight = playerItem.videoHeight > 0 ? playerItem.videoHeight : 1080;
-
-                                                    var rawCamName = modelData ? (modelData.cameraName + "_CH" + modelData.channelId) : "Camera";
-                                                    rawCamName = rawCamName.replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, "");
-                                                    rawCamName = rawCamName.replace(/([0-9a-fA-F]{1,4}:){7,7}[0-9a-fA-F]{1,4}/g, "");
-                                                    rawCamName = rawCamName.trim().replace(/^[_-\s]+|[_-\s]+$/g, "");
-                                                    var camName = rawCamName.replace(/ /g, "_").replace(/[^a-zA-Z0-9_\-\.]/g, "");
-
-                                                    var path = "";
-                                                    if (typeof rootWindow !== "undefined" && rootWindow.generalSettings && rootWindow.generalSettings.snapshotPath !== "") {
-                                                        path = Context.sanitizePlatformPath(rootWindow.generalSettings.snapshotPath, Context.defaultPicturesPath());
-                                                    } else {
-                                                        path = Context.defaultPicturesPath();
-                                                    }
-                                                    Context.mkpath(path);
-                                                    path = path + "/" + camName + "_ARCHIVE_" + dateStr + ".jpg";
+                                                    var path = Utils.snapshotSavePath(
+                                                        modelData ? modelData.recorderName : "",
+                                                        modelData ? modelData.channelId : "",
+                                                        modelData ? modelData.cameraName : "Camera",
+                                                        stamp);
 
                                                     snapshotBadge.isSavingSnapshot = true;
                                                     snapshotBadgeTimer.restart();
@@ -3237,7 +3239,7 @@ Window {
                                 isSmall: true
                                 iconSource: {
                                     var colorStr = rw60Btn.hovered ? "%2300f5d4" : "%238898a6"
-                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 6.36 2.64'></path><polyline points='12 7 12 3 8 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>60</text></svg>"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 1-6.36 2.64'></path><polyline points='12 7 12 3 16 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>60</text></svg>"
                                 }
                                 onClicked: jumpTime(-60000)
                                 ToolTip.delay: Compact.toolTipDelay
@@ -3251,7 +3253,7 @@ Window {
                                 isSmall: true
                                 iconSource: {
                                     var colorStr = rw45Btn.hovered ? "%2300f5d4" : "%238898a6"
-                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 6.36 2.64'></path><polyline points='12 7 12 3 8 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>45</text></svg>"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 1-6.36 2.64'></path><polyline points='12 7 12 3 16 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>45</text></svg>"
                                 }
                                 onClicked: jumpTime(-45000)
                                 ToolTip.delay: Compact.toolTipDelay
@@ -3265,7 +3267,7 @@ Window {
                                 isSmall: true
                                 iconSource: {
                                     var colorStr = rw15Btn.hovered ? "%2300f5d4" : "%238898a6"
-                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 6.36 2.64'></path><polyline points='12 7 12 3 8 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>15</text></svg>"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 1-6.36 2.64'></path><polyline points='12 7 12 3 16 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>15</text></svg>"
                                 }
                                 onClicked: jumpTime(-15000)
                                 ToolTip.delay: Compact.toolTipDelay
@@ -3293,12 +3295,26 @@ Window {
                                 ToolTip.text: isPlaying ? qsTr("LNG_00129") : qsTr("LNG_00128")
                             }
                             CctvButton {
+                                id: frameStepBtn
+                                text: ""
+                                isSmall: true
+                                iconSource: {
+                                    var colorStr = frameStepBtn.hovered ? "%2300f5d4" : "%238898a6"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='5' width='12' height='14' rx='1'></rect><polygon points='17 8 22 12 17 16' fill='" + colorStr + "' stroke='none'></polygon></svg>"
+                                }
+                                onClicked: stepFrame()
+                                ToolTip.delay: Compact.toolTipDelay
+                                ToolTip.timeout: Compact.toolTipTimeout
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("LNG_00576")
+                            }
+                            CctvButton {
                                 id: ff15Btn
                                 text: ""
                                 isSmall: true
                                 iconSource: {
                                     var colorStr = ff15Btn.hovered ? "%2300f5d4" : "%238898a6"
-                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 1-6.36 2.64'></path><polyline points='12 7 12 3 16 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>15</text></svg>"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 6.36 2.64'></path><polyline points='12 7 12 3 8 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>15</text></svg>"
                                 }
                                 onClicked: jumpTime(15000)
                                 ToolTip.delay: Compact.toolTipDelay
@@ -3312,7 +3328,7 @@ Window {
                                 isSmall: true
                                 iconSource: {
                                     var colorStr = ff45Btn.hovered ? "%2300f5d4" : "%238898a6"
-                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 1-6.36 2.64'></path><polyline points='12 7 12 3 16 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>45</text></svg>"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 6.36 2.64'></path><polyline points='12 7 12 3 8 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>45</text></svg>"
                                 }
                                 onClicked: jumpTime(45000)
                                 ToolTip.delay: Compact.toolTipDelay
@@ -3326,7 +3342,7 @@ Window {
                                 isSmall: true
                                 iconSource: {
                                     var colorStr = ff60Btn.hovered ? "%2300f5d4" : "%238898a6"
-                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 1-6.36 2.64'></path><polyline points='12 7 12 3 16 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>60</text></svg>"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 6.36 2.64'></path><polyline points='12 7 12 3 8 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>60</text></svg>"
                                 }
                                 onClicked: jumpTime(60000)
                                 ToolTip.delay: Compact.toolTipDelay
@@ -3519,13 +3535,12 @@ Window {
                                     
                                     for (var k = 0; k < camSegments.length; k++) {
                                         var seg = camSegments[k]
-                                        // Only draw segments whose startTime is on this day
-                                        if (seg.startTime < dayStartMs || seg.startTime >= dayEndMs) {
+                                        if (seg.endTime <= dayStartMs || seg.startTime >= dayEndMs) {
                                             continue
                                         }
-                                        
-                                        var startOffset = seg.startTime - sodTime
-                                        var endOffset = seg.endTime - sodTime
+
+                                        var startOffset = Math.max(seg.startTime, dayStartMs) - sodTime
+                                        var endOffset = Math.min(seg.endTime, dayEndMs) - sodTime
                                         
                                         var x1 = (startOffset - panOffsetMs) / msPerPixel
                                         var x2 = (endOffset - panOffsetMs) / msPerPixel

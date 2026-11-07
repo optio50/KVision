@@ -42,7 +42,7 @@ Do not run KVision as root.
 
 - Right-click a cell to add or replace its camera from a recorder picker.
 - Mark a playback timeline range and download that range.
-- Choose which saved layouts appear on the top toolbar.
+- **Snapshot files match downloads.** Pictures stay in the snapshots folder, inside a `yyyy-MM-dd` directory, named `Recorder_Channel_Camera_yyyy-MM-dd_HHmmss.jpg`.
 
 ## Build and run
 
@@ -75,6 +75,7 @@ These are the standout changes in this copy. The original application already ha
 - **Third Hikvision stream** in addition to Main and Sub, with the picture aspect ratio preserved instead of stretching the feed.
 - **Mouse-wheel layout paging.** Scroll over the live view to move between saved layouts. Hold **Ctrl** to zoom that camera instead. Layouts can be chosen for the top toolbar instead of showing every preset.
 - **NVR smart events on the playback timeline**, with previous and next event controls that jump the playhead between them.
+- **Frame advance.** Playback can step one video frame at a time for both Hikvision archive playback and RTSP recordings.
 - **Mark a download range on the timeline.** Click the timeline twice to set the start and end, then download that range. The download dialog can also be closed after a finished transfer.
 - **Standalone camera playback** falls back to the Hikvision SDK when the camera stores recordings on its own SD card.
 - **Windowed cursor auto-hide**, restored per-camera mute and volume controls, and a startup size guard so the main window cannot reopen at a tiny saved size.
@@ -89,7 +90,7 @@ These are the standout changes in this copy. The original application already ha
 - Camera assignment, removal, swapping, and drag-and-drop cell exchange, including merged cells for Panovision cameras.
 - Per-camera audio mute and volume controls.
 - PTZ pan, tilt, zoom, and mouse-driven preset recall/save.
-- Playback, snapshots, downloads, and auxiliary windows.
+- Playback with one-frame advance, snapshots, downloads, and auxiliary windows.
 - Local camera names and layout presets stored in the application settings.
 
 ## Detailed Application Features
@@ -134,6 +135,7 @@ These are the standout changes in this copy. The original application already ha
 * **Instant Snapshot Capturing**: Take high-quality, virtually lossless snapshots (JPEG format, quality 98) directly from any active viewport in both Live View and Playback Archive.
 * **Camera Icon Overlay**: Viewports feature a subtle camera overlay icon in the toolbar. Clicking it flashes the icon orange (`#ff7a00`) for exactly 1 second to confirm successful capture.
 * **High-Resolution Archive Captures**: Playback snapshots are captured at the stream's full native source resolution directly from the decoded frame buffer in memory, bypassing any display scaling or window size constraints.
+* **Snapshot folders match downloads**: Snapshots stay in the pictures folder, but use the same date folder and name as downloaded video: `~/Pictures/CCTV/2026-06-11/Yard_1_Front_Door_2026-06-11_143005.jpg`. Archive snapshots use the playhead time.
 * **Custom Paths Configuration**: Configure default storage paths for snapshots and downloaded videos in the Settings panel. This copy defaults to `~/Pictures/CCTV` and `~/Videos/CCTV`.
 * **Native Directory Browser**: Click the `...` browser buttons to open a native directory selector. The dialog opens at the folder currently shown in the text input, falling back to the user's home folder (`~/`) if the field is empty or points to a non-existent path.
 

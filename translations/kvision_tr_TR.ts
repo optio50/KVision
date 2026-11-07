@@ -1284,7 +1284,7 @@
     </context>
     <context>
         <name>PlaybackWindow</name>
-        <message>
+        <message><source>LNG_00576</source><translation>Sonraki kare</translation></message><message>
             <source>Kamery</source>
             <translation type="vanished">Cameras</translation>
         </message>
@@ -2397,7 +2397,7 @@
     </context>
     <context>
         <name>SideBar</name>
-        <message>
+        <message><source>LNG_00577</source><translation>Kapatmadan önce onay iste</translation></message><message>
             <source>Tools</source>
             <translation type="vanished">Tools</translation>
         </message>
@@ -4785,5 +4785,9 @@
             <source>LNG_00574</source>
             <translation>Kanal %1</translation>
         </message>
+        <message>
+            <source>LNG_00575</source>
+            <translation>Kapat</translation>
+        </message>
     </context>
-</TS>
+<context><name>AddCameraDialog</name><message><source>LNG_00571</source><translation>Kamera ekle</translation></message><message><source>LNG_00573</source><translation>Yapılandırılmış kayıt cihazı yok. Önce bir kayıt cihazı ekleyin.</translation></message><message><source>LNG_00574</source><translation>Kanal %1</translation></message><message><source>LNG_00575</source><translation>Kapat</translation></message></context></TS>
