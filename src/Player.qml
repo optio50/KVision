@@ -2004,6 +2004,8 @@ FocusScope {
                 case "right": body = "<polyline points='9 18 15 12 9 6'></polyline>"; break;
                 case "zoomin": body = "<line x1='12' y1='5' x2='12' y2='19'></line><line x1='5' y1='12' x2='19' y2='12'></line>"; break;
                 case "zoomout": body = "<line x1='5' y1='12' x2='19' y2='12'></line>"; break;
+                case "focusnear": body = "<circle cx='12' cy='12' r='3' fill='%2300f5d4'></circle><circle cx='12' cy='12' r='8'></circle>"; break;
+                case "focusfar": body = "<polyline points='2 19 8 9 13 16 16 12 22 19'></polyline><circle cx='18' cy='6' r='1.5'></circle>"; break;
                 case "stop": body = "<rect x='7' y='7' width='10' height='10' rx='1'></rect>"; break;
                 }
                 return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + stroke + "' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'>" + body + "</svg>";
@@ -2028,9 +2030,12 @@ FocusScope {
                             { type: "empty" },
                             { type: "move", icon: "down", cmd: 22 },
                             { type: "empty" },
-                            { type: "move", icon: "zoomout", cmd: 12 },
+                            { type: "move", icon: "zoomout", cmd: 12, tip: qsTr("Zoom out") },
                             { type: "empty" },
-                            { type: "move", icon: "zoomin", cmd: 11 }
+                            { type: "move", icon: "zoomin", cmd: 11, tip: qsTr("Zoom in") },
+                            { type: "move", icon: "focusnear", cmd: 13, tip: qsTr("Focus near") },
+                            { type: "empty" },
+                            { type: "move", icon: "focusfar", cmd: 14, tip: qsTr("Focus far") }
                         ]
                         delegate: Item {
                             implicitWidth: 30
@@ -2039,6 +2044,8 @@ FocusScope {
                                 anchors.fill: parent
                                 visible: modelData.type !== "empty"
                                 focusPolicy: Qt.NoFocus
+                                ToolTip.visible: modelData.tip !== undefined && moveArea.containsMouse
+                                ToolTip.text: modelData.tip !== undefined ? modelData.tip : ""
                                 background: Rectangle {
                                     radius: 15
                                     color: modelData.type === "stop" ? "#44ff3333" : (moveArea.pressed ? "#44ff7a00" : (moveArea.containsMouse ? "#33ff7a00" : "#cc121214"))
@@ -2058,7 +2065,7 @@ FocusScope {
                                     onPressed: {
                                         ptzPad.pressedCount++;
                                         if (modelData.type === "stop")
-                                            [11, 12, 21, 22, 23, 24].forEach(function(c) { ptzPad.ptzCommand(c, true); });
+                                            [11, 12, 13, 14, 21, 22, 23, 24].forEach(function(c) { ptzPad.ptzCommand(c, true); });
                                         else
                                             ptzPad.ptzCommand(modelData.cmd, false);
                                     }
