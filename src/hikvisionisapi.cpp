@@ -124,7 +124,6 @@ void HikvisionISAPI::searchEvents(const QVariantMap &recorderInfo, int channelId
                 qDebug() << "[ISAPI] Event search channel" << channel << "major" << majorType << "accepted" << accepted;
             }
             qDebug() << "[ISAPI] Event search finished for channel" << channel << "events" << segments.count();
-            HikvisionManager::instance()->logoutShared(ip);
         }
 
         QMetaObject::invokeMethod(this, [this, session, segments]() {

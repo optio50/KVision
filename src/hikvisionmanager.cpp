@@ -5,6 +5,7 @@
 #include <QRegularExpression>
 #include <QRegularExpressionMatchIterator>
 #include <QThread>
+#include <algorithm>
 
 HikvisionManager* HikvisionManager::m_instance = nullptr;
 

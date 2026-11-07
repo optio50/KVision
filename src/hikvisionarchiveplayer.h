@@ -77,7 +77,7 @@ public:
     }
 
     Q_INVOKABLE void playAtTime(const QDateTime &dateTime);
-    Q_INVOKABLE void setPlaybackSpeed(int speedMultiplier); // 1, 2, 4, 8, -1, -2, -4, -8
+    Q_INVOKABLE void setPlaybackSpeed(int speedMultiplier); // 1, 2, 4, 6, -1, -2, -4, -6
     Q_INVOKABLE void pause();
     Q_INVOKABLE void stepFrame();
     Q_INVOKABLE void resume();
@@ -108,6 +108,7 @@ private:
 
     void cleanupPlayback();
     bool ensureLogin(const QString &ip, int port, const QString &user, const QString &pass);
+    void startPlaybackAt(const QDateTime &dateTime);
 
     QString m_recorderIp;
     int m_channelId = 1;

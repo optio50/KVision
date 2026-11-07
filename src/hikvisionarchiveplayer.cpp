@@ -549,135 +549,136 @@ void HikvisionArchivePlayer::playAtTime(const QDateTime &dateTime)
              << "logical channelId=" << m_channelId
              << "username=" << m_username;
 
-    // Capture credentials by value on the GUI thread
+    QMetaObject::invokeMethod(m_worker, [this, dateTime]() {
+        startPlaybackAt(dateTime);
+    }, Qt::QueuedConnection);
+}
+
+void HikvisionArchivePlayer::startPlaybackAt(const QDateTime &dateTime)
+{
     QString ip = m_recorderIp;
     int port = m_port;
     QString user = m_username;
     QString pass = m_password;
     int channelId = m_channelId;
 
-    QMetaObject::invokeMethod(m_worker, [this, dateTime, ip, port, user, pass, channelId]() {
-        cleanupPlayback();
+    cleanupPlayback();
 
-        if (!ensureLogin(ip, port, user, pass)) {
-            qWarning() << "[HikArchive] Cannot play - login failed";
-            return;
-        }
+    if (!ensureLogin(ip, port, user, pass)) {
+        qWarning() << "[HikArchive] Cannot play - login failed";
+        return;
+    }
 
-        qDebug() << "[HikArchive] Requesting playback at" << dateTime << "on channel" << channelId;
+    qDebug() << "[HikArchive] Requesting playback at" << dateTime
+             << "on channel" << channelId;
 
-        NET_DVR_TIME startTime;
-        startTime.dwYear = dateTime.date().year();
-        startTime.dwMonth = dateTime.date().month();
-        startTime.dwDay = dateTime.date().day();
-        startTime.dwHour = dateTime.time().hour();
-        startTime.dwMinute = dateTime.time().minute();
-        startTime.dwSecond = dateTime.time().second();
+    NET_DVR_TIME startTime;
+    startTime.dwYear = dateTime.date().year();
+    startTime.dwMonth = dateTime.date().month();
+    startTime.dwDay = dateTime.date().day();
+    startTime.dwHour = dateTime.time().hour();
+    startTime.dwMinute = dateTime.time().minute();
+    startTime.dwSecond = dateTime.time().second();
 
-        // Default stop time = end of day
-        NET_DVR_TIME stopTime = startTime;
-        stopTime.dwHour = 23;
-        stopTime.dwMinute = 59;
-        stopTime.dwSecond = 59;
+    // Default stop time = end of day
+    NET_DVR_TIME stopTime = startTime;
+    stopTime.dwHour = 23;
+    stopTime.dwMinute = 59;
+    stopTime.dwSecond = 59;
 
-        qDebug() << "[HikArchive] Start:" << startTime.dwYear << "-" << startTime.dwMonth << "-" << startTime.dwDay
-                 << startTime.dwHour << ":" << startTime.dwMinute << ":" << startTime.dwSecond;
-        qDebug() << "[HikArchive] Stop:" << stopTime.dwYear << "-" << stopTime.dwMonth << "-" << stopTime.dwDay
-                 << stopTime.dwHour << ":" << stopTime.dwMinute << ":" << stopTime.dwSecond;
+    qDebug() << "[HikArchive] Start:" << startTime.dwYear << "-" << startTime.dwMonth << "-" << startTime.dwDay
+             << startTime.dwHour << ":" << startTime.dwMinute << ":" << startTime.dwSecond;
+    qDebug() << "[HikArchive] Stop:" << stopTime.dwYear << "-" << stopTime.dwMonth << "-" << stopTime.dwDay
+             << stopTime.dwHour << ":" << stopTime.dwMinute << ":" << stopTime.dwSecond;
 
-        NET_DVR_VOD_PARA vodPara;
-        std::memset(&vodPara, 0, sizeof(NET_DVR_VOD_PARA));
-        vodPara.dwSize = sizeof(NET_DVR_VOD_PARA);
-        vodPara.struIDInfo.dwChannel = m_realSdkChannel;
-        vodPara.struBeginTime = startTime;
-        vodPara.struEndTime = stopTime;
-        vodPara.hWnd = 0;
-        vodPara.byStreamType = 0; // 0-main stream
-        vodPara.byDrawFrame = 0;
+    NET_DVR_VOD_PARA vodPara;
+    std::memset(&vodPara, 0, sizeof(NET_DVR_VOD_PARA));
+    vodPara.dwSize = sizeof(NET_DVR_VOD_PARA);
+    vodPara.struIDInfo.dwChannel = m_realSdkChannel;
+    vodPara.struBeginTime = startTime;
+    vodPara.struEndTime = stopTime;
+    vodPara.hWnd = 0;
+    vodPara.byStreamType = 0; // 0-main stream
+    vodPara.byDrawFrame = 0;
 
-        LONG playHandle = NET_DVR_PlayBackByTime_V40(m_lUserID, &vodPara);
-        if (playHandle < 0) {
-            DWORD err = NET_DVR_GetLastError();
-            qWarning() << "[HikArchive] PlayBackByTime FAILED. Error:" << err << "Channel used:" << m_realSdkChannel;
-            
-            // Auto-recovery: Force a shared logout, recreate session and retry
-            qDebug() << "[HikArchive] Attempting to force shared relogin and retry playback...";
-            LONG oldUserId = m_lUserID.exchange(-1);
-            if (oldUserId >= 0) {
-                if (HikvisionManager::instance()) {
-                    HikvisionManager::instance()->forceLogoutShared(ip);
-                } else {
-                    NET_DVR_Logout(oldUserId);
-                }
-            }
-            
-            if (!ensureLogin(ip, port, user, pass)) {
-                qWarning() << "[HikArchive] Retry login failed, aborting playback.";
-                return;
-            }
-            
-            qDebug() << "[HikArchive] Retry PlayBackByTime on new UserID:" << m_lUserID.load() << "and Channel:" << m_realSdkChannel;
-            playHandle = NET_DVR_PlayBackByTime_V40(m_lUserID, &vodPara);
-            if (playHandle < 0) {
-                qWarning() << "[HikArchive] Retry PlayBackByTime FAILED. Error:" << NET_DVR_GetLastError();
-                return;
-            }
-            qDebug() << "[HikArchive] Retry PlayBackByTime SUCCESS. Handle:" << playHandle;
-        }
-        qDebug() << "[HikArchive] PlayBackByTime SUCCESS. Handle:" << playHandle;
-
-        // Allocate a free port for decoding
-        LONG tempPort = -1;
-        if (!PlayM4_GetPort(&tempPort)) {
-            qWarning() << "[HikArchive] PlayM4_GetPort FAILED.";
-            NET_DVR_StopPlayBack(playHandle);
-            return;
-        }
-        qDebug() << "[HikArchive] PlayM4 port allocated:" << tempPort;
-
-        {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
-            m_lPlayHandle = playHandle;
-            m_nPort = tempPort;
-        }
-
-        if (!PlayM4_SetStreamOpenMode(tempPort, STREAME_FILE)) {
-            qWarning() << "[HikArchive] PlayM4_SetStreamOpenMode FAILED.";
-        }
-
-        // Set network stream callback to pump data into the PlayM4 decoder
-        if (!NET_DVR_SetPlayDataCallBack_V40(playHandle, PlayDataCallBack, this)) {
-            DWORD err = NET_DVR_GetLastError();
-            qWarning() << "[HikArchive] SetPlayDataCallBack_V40 FAILED. Error:" << err;
-            cleanupPlayback();
-            return;
-        }
-        qDebug() << "[HikArchive] PlayDataCallBack registered.";
+    LONG playHandle = NET_DVR_PlayBackByTime_V40(m_lUserID, &vodPara);
+    if (playHandle < 0) {
+        DWORD err = NET_DVR_GetLastError();
+        qWarning() << "[HikArchive] PlayBackByTime FAILED. Error:" << err << "Channel used:" << m_realSdkChannel;
         
-        // Start playback control
-        if (!NET_DVR_PlayBackControl_V40(playHandle, NET_DVR_PLAYSTART, nullptr, 0, nullptr, nullptr)) {
-            DWORD err = NET_DVR_GetLastError();
-            qWarning() << "[HikArchive] NET_DVR_PLAYSTART FAILED. Error:" << err;
-            cleanupPlayback();
+        // Auto-recovery: Force a shared logout, recreate session and retry
+        qDebug() << "[HikArchive] Attempting to force shared relogin and retry playback...";
+        LONG oldUserId = m_lUserID.exchange(-1);
+        if (oldUserId >= 0) {
+            if (HikvisionManager::instance()) {
+                HikvisionManager::instance()->forceLogoutShared(ip);
+            } else {
+                NET_DVR_Logout(oldUserId);
+            }
+        }
+        
+        if (!ensureLogin(ip, port, user, pass)) {
+            qWarning() << "[HikArchive] Retry login failed, aborting playback.";
             return;
         }
-        qDebug() << "[HikArchive] Playback STARTED successfully!";
-
-        // Send PLAYSTARTAUDIO to ensure NVR streams audio to us
-        if (!NET_DVR_PlayBackControl_V40(playHandle, NET_DVR_PLAYSTARTAUDIO, nullptr, 0, nullptr, nullptr)) {
-            qWarning() << "[HikArchive] NET_DVR_PLAYSTARTAUDIO FAILED. Error:" << NET_DVR_GetLastError();
-        } else {
-            qDebug() << "[HikArchive] NET_DVR_PLAYSTARTAUDIO sent successfully!";
+        
+        qDebug() << "[HikArchive] Retry PlayBackByTime on new UserID:" << m_lUserID.load() << "and Channel:" << m_realSdkChannel;
+        playHandle = NET_DVR_PlayBackByTime_V40(m_lUserID, &vodPara);
+        if (playHandle < 0) {
+            qWarning() << "[HikArchive] Retry PlayBackByTime FAILED. Error:" << NET_DVR_GetLastError();
+            return;
         }
+        qDebug() << "[HikArchive] Retry PlayBackByTime SUCCESS. Handle:" << playHandle;
+    }
+    qDebug() << "[HikArchive] PlayBackByTime SUCCESS. Handle:" << playHandle;
 
-        {
-            std::lock_guard<std::mutex> lock(m_stateMutex);
-            m_sysHeadReceived = false;
-            m_isPlaying = true;
-        }
-        QMetaObject::invokeMethod(this, [this]() {
-            emit playingChanged();
-        }, Qt::QueuedConnection);
+    // Allocate a free port for decoding
+    LONG tempPort = -1;
+    if (!PlayM4_GetPort(&tempPort)) {
+        qWarning() << "[HikArchive] PlayM4_GetPort FAILED.";
+        NET_DVR_StopPlayBack(playHandle);
+        return;
+    }
+    qDebug() << "[HikArchive] PlayM4 port allocated:" << tempPort;
+
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        m_lPlayHandle = playHandle;
+        m_nPort = tempPort;
+    }
+
+    if (!PlayM4_SetStreamOpenMode(tempPort, STREAME_FILE)) {
+        qWarning() << "[HikArchive] PlayM4_SetStreamOpenMode FAILED.";
+    }
+
+    // Set network stream callback to pump data into the PlayM4 decoder
+    if (!NET_DVR_SetPlayDataCallBack_V40(playHandle, PlayDataCallBack, this)) {
+        DWORD err = NET_DVR_GetLastError();
+        qWarning() << "[HikArchive] SetPlayDataCallBack_V40 FAILED. Error:" << err;
+        cleanupPlayback();
+        return;
+    }
+    qDebug() << "[HikArchive] PlayDataCallBack registered.";
+    
+    // Start playback control
+    if (!NET_DVR_PlayBackControl_V40(playHandle, NET_DVR_PLAYSTART, nullptr, 0, nullptr, nullptr)) {
+        DWORD err = NET_DVR_GetLastError();
+        qWarning() << "[HikArchive] NET_DVR_PLAYSTART FAILED. Error:" << err;
+        cleanupPlayback();
+        return;
+    }
+    qDebug() << "[HikArchive] Playback STARTED successfully!";
+
+    if (!NET_DVR_PlayBackControl_V40(playHandle, NET_DVR_PLAYSTARTAUDIO, nullptr, 0, nullptr, nullptr))
+        qWarning() << "[HikArchive] NET_DVR_PLAYSTARTAUDIO FAILED. Error:" << NET_DVR_GetLastError();
+
+    {
+        std::lock_guard<std::mutex> lock(m_stateMutex);
+        m_sysHeadReceived = false;
+        m_isPlaying = true;
+    }
+    QMetaObject::invokeMethod(this, [this]() {
+        emit playingChanged();
     }, Qt::QueuedConnection);
 }
 
@@ -685,11 +686,6 @@ void HikvisionArchivePlayer::setPlaybackSpeed(int speedMultiplier)
 {
     m_currentSpeedMultiplier = speedMultiplier;
     if (m_lPlayHandle < 0) return;
-
-    if (std::abs(speedMultiplier) == 8) {
-        qWarning() << "[HikArchive] setPlaybackSpeed: 8x playback speed is disabled because it is never smooth";
-        return;
-    }
 
     QMetaObject::invokeMethod(m_worker, [this, speedMultiplier]() {
         LONG handle = m_lPlayHandle;
@@ -738,16 +734,30 @@ void HikvisionArchivePlayer::setPlaybackSpeed(int speedMultiplier)
 
         // 4. Apply step-by-step fast commands if speed multiplier is > 1
         int absSpeed = std::abs(speedMultiplier);
-        if (absSpeed > 1) {
-            int steps = (absSpeed == 2) ? 1 : ((absSpeed == 4) ? 2 : 3);
-            for (int i = 0; i < steps; ++i) {
-                if (!NET_DVR_PlayBackControl_V40(handle, NET_DVR_PLAYFAST, nullptr, 0, nullptr, nullptr)) {
-                    qWarning() << "[HikArchive] setPlaybackSpeed FAST step" << i << "failed:" << NET_DVR_GetLastError();
-                }
-                if (port != -1) {
-                    PlayM4_Fast(port);
-                }
+        // The recorder only doubles speed, and most stop at 4x. Extra steps
+        // are applied to the local decoder so 6x and 8x stay distinct.
+        int recorderSteps = 0;
+        int decoderSteps = 0;
+        if (absSpeed == 2) {
+            recorderSteps = 1;
+            decoderSteps = 1;
+        } else if (absSpeed == 4) {
+            recorderSteps = 2;
+            decoderSteps = 2;
+        } else if (absSpeed >= 6) {
+            recorderSteps = 2;
+            decoderSteps = 4;
+        }
+        for (int i = 0; i < recorderSteps; ++i) {
+            if (!NET_DVR_PlayBackControl_V40(handle, NET_DVR_PLAYFAST, nullptr, 0, nullptr, nullptr)) {
+                DWORD err = NET_DVR_GetLastError();
+                if (err != 17)
+                    qWarning() << "[HikArchive] setPlaybackSpeed FAST step" << i << "failed:" << err;
             }
+        }
+        if (port != -1) {
+            for (int i = 0; i < decoderSteps; ++i)
+                PlayM4_Fast(port);
         }
     }, Qt::QueuedConnection);
 }

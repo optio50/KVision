@@ -3130,7 +3130,7 @@ Window {
                             Text { text: qsTr("LNG_00135"); color: "white"; font.bold: true; font.pixelSize: 10 }
                             
                             Repeater {
-                                model: [1, 2, 4]
+                                model: [1, 2, 4, 6]
                                 CctvButton {
                                     id: speedBtn
                                     text: ""
@@ -3443,8 +3443,20 @@ Window {
                         
                         onWidthChanged: requestPaint()
                         onHeightChanged: requestPaint()
-                        
+
                         property var segments: []
+
+                        Timer {
+                            id: searchSpinnerTimer
+                            interval: 250
+                            repeat: true
+                            running: playbackWindow.isSearchingRecordings && playbackWindow.visible
+                            property int tick: 0
+                            onTriggered: {
+                                tick = (tick + 1) % 12
+                                timeline.requestPaint()
+                            }
+                        }
                         
                         onPaint: {
                             var ctx = getContext("2d")
@@ -3758,7 +3770,7 @@ Window {
                                 // Loading spinner
                                 ctx.save()
                                 ctx.translate(boxX + (isCompact ? 16 : 24), boxY + boxH / 2)
-                                ctx.rotate(Date.now() / 150)
+                                ctx.rotate((searchSpinnerTimer.tick % 12) * Math.PI / 6)
                                 ctx.beginPath()
                                 ctx.arc(0, 0, isCompact ? 5 : 8, 0, Math.PI * 1.5)
                                 ctx.strokeStyle = "#00f5d4"
@@ -3786,6 +3798,11 @@ Window {
                             property bool isPanning: false
                             property bool isDraggingPlayhead: false
                             property real dragPlayheadMs: 0
+
+                            function msAt(x) {
+                                var viewDurationMs = zoomHours * 3600000
+                                return panOffsetMs + (x * viewDurationMs / width)
+                            }
 
                             onPressed: {
                                 if (mouse.button === Qt.RightButton) {
@@ -3827,11 +3844,7 @@ Window {
                                  if (mouse.button === Qt.LeftButton) {
                                      var isDrag = isPanning || (pressX >= 0 && Math.abs(mouse.x - pressX) > 5)
                                      if (!isDrag && pressX >= 0) {
-                                         // Simple left-click: place the playhead!
-                                         var viewDurationMs = zoomHours * 3600000
-                                         var msPerPixel = viewDurationMs / width
-                                         var clickedMs = panOffsetMs + (mouse.x * msPerPixel)
-                                         
+                                         var clickedMs = msAt(mouse.x)
                                          if (rangeMarkMode) {
                                              markRangeAt(clickedMs)
                                          } else {
