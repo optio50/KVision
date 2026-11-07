@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>确定要从该窗格移除摄像机吗？</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>添加摄像机</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>更换摄像机</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>未配置录像机。请先添加录像机。</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>通道 %1</translation>
+        </message>
     </context>
 </TS>

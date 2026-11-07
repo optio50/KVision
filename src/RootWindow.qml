@@ -277,6 +277,21 @@ ApplicationWindow {
         }
     }
 
+    property var toolbarLayoutModel: []
+
+    function refreshToolbarLayouts() {
+        toolbarLayoutModel = toolbarLayoutIndices(layoutsCollectionModel)
+    }
+
+    function toolbarLayoutIndices(collection) {
+        var indices = [];
+        if (!collection) return indices;
+        for (var i = 0; i < collection.count; ++i) {
+            if (layoutIsPageable(collection, i)) indices.push(i);
+        }
+        return indices;
+    }
+
     // Step through the same visible saved layouts shown on the top bar.
     // direction > 0 moves to the next page (scroll down), < 0 to the previous.
     function stepVisibleLayout(collection, currentIndex, direction) {
@@ -876,8 +891,10 @@ ApplicationWindow {
 
             layoutsCollectionModel.changed.connect(function () {
                 if (rootWindow.isSyncing) return;
+                rootWindow.refreshToolbarLayouts();
                 saveTimer.restart();
             });
+            rootWindow.refreshToolbarLayouts();
 
             if (Context.isAuxiliary) {
                 stackLayout.currentIndex = -1;
@@ -1545,21 +1562,10 @@ ApplicationWindow {
                     height: parent.height
 
                     Repeater {
-                        model: layoutsCollectionModel
+                        model: rootWindow.toolbarLayoutModel
                         delegate: Button {
                             id: viewBtn
-                            property int layoutIndex: model.index
-
-                            visible: {
-                                try {
-                                    var layout = model.layoutModel;
-                                    if (layout) {
-                                        if (rootWindow.scratchLayout && layout === rootWindow.scratchLayout) return false;
-                                        return layout.visible;
-                                    }
-                                } catch(e) {}
-                                return true;
-                            }
+                            property int layoutIndex: modelData
 
                             text: rootWindow.layoutDisplayName(layoutsCollectionModel, layoutIndex)
 
@@ -1797,6 +1803,10 @@ ApplicationWindow {
             acceptedButtons: Qt.NoButton
             z: 1
             onWheel: {
+                if (wheel.modifiers & Qt.ControlModifier) {
+                    wheel.accepted = false;
+                    return;
+                }
                 if (topToolBarMouseArea.containsMouse) {
                     wheel.accepted = true;
                     return;

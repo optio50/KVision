@@ -112,6 +112,7 @@ ColumnLayout {
                 var gridSize = Math.ceil(Math.sqrt(numCams));
                 
                 var newLayout = layoutsCollectionModel.append();
+                newLayout.visible = true;
                 newLayout.size = Qt.size(gridSize, gridSize);
                 newLayout.isNvr = true;
                 newLayout.nvrIp = ip;

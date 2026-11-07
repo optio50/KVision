@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Möchten Sie die Kamera wirklich aus diesem Ansichtsfenster entfernen?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Kamera hinzufügen</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Kamera ersetzen</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Keine Rekorder konfiguriert. Fügen Sie zuerst einen Rekorder hinzu.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Kanal %1</translation>
+        </message>
     </context>
 </TS>

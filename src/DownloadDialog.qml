@@ -29,10 +29,14 @@ Popup {
     property var startDate: new Date()
     property var endDate: new Date()
     property bool isSelectingStart: true
+    // Optional absolute range from the playback timeline. Cleared after open so a plain Download still uses the default hour.
+    property var presetStart: null
+    property var presetEnd: null
 
     // Multi-camera properties
     property var activeCamerasList: []
     property int activeCameraIndex: -1
+    property int downloadUiRevision: 0
 
     ListModel {
         id: downloadModel
@@ -667,17 +671,40 @@ Popup {
 
     onOpened: {
         var baseDate = targetDate || new Date()
-        
-        startDate = new Date(baseDate)
-        startDate.setHours(0, 0, 0, 0)
-        
-        endDate = new Date(baseDate)
-        endDate.setHours(23, 59, 59, 0)
-        
-        startDateField.text = Qt.formatDateTime(startDate, "dd.MM.yyyy")
-        endDateField.text = Qt.formatDateTime(endDate, "dd.MM.yyyy")
-        startTimeField.text = "00:00:00"
-        endTimeField.text = "01:00:00"
+        var rangeStart = null
+        var rangeEnd = null
+        if (presetStart && presetEnd) {
+            rangeStart = new Date(presetStart)
+            rangeEnd = new Date(presetEnd)
+            if (isNaN(rangeStart.getTime()) || isNaN(rangeEnd.getTime()) || rangeStart.getTime() >= rangeEnd.getTime()) {
+                rangeStart = null
+                rangeEnd = null
+            }
+        }
+        presetStart = null
+        presetEnd = null
+
+        if (rangeStart && rangeEnd) {
+            startDate = new Date(rangeStart)
+            endDate = new Date(rangeEnd)
+            startDate.setHours(0, 0, 0, 0)
+            endDate.setHours(0, 0, 0, 0)
+            startDateField.text = Qt.formatDateTime(rangeStart, "dd.MM.yyyy")
+            endDateField.text = Qt.formatDateTime(rangeEnd, "dd.MM.yyyy")
+            startTimeField.text = Qt.formatTime(rangeStart, "hh:mm:ss")
+            endTimeField.text = Qt.formatTime(rangeEnd, "hh:mm:ss")
+        } else {
+            startDate = new Date(baseDate)
+            startDate.setHours(0, 0, 0, 0)
+
+            endDate = new Date(baseDate)
+            endDate.setHours(23, 59, 59, 0)
+
+            startDateField.text = Qt.formatDateTime(startDate, "dd.MM.yyyy")
+            endDateField.text = Qt.formatDateTime(endDate, "dd.MM.yyyy")
+            startTimeField.text = "00:00:00"
+            endTimeField.text = "01:00:00"
+        }
 
         downloadModel.clear();
         for (var i = 0; i < activeCamerasList.length; i++) {
@@ -685,6 +712,10 @@ Popup {
             if (!cam) continue;
             
             var d = Qt.formatDateTime(startDate, "yyyy-MM-dd");
+            var timeTag = "";
+            if (rangeStart && rangeEnd) {
+                timeTag = "_" + Qt.formatDateTime(rangeStart, "hhmmss") + "-" + Qt.formatDateTime(rangeEnd, "hhmmss");
+            }
             var cleanRecName = cam.recorderName || "";
             // Strip IPv4 and IPv6 addresses
             cleanRecName = cleanRecName.replace(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, "");
@@ -693,9 +724,9 @@ Popup {
             
             var filename = "";
             if (cleanRecName !== "") {
-                filename = cleanRecName + "_" + cam.channelId + "_" + cam.cameraName + "_" + d + ".mp4";
+                filename = cleanRecName + "_" + cam.channelId + "_" + cam.cameraName + "_" + d + timeTag + ".mp4";
             } else {
-                filename = cam.channelId + "_" + cam.cameraName + "_" + d + ".mp4";
+                filename = cam.channelId + "_" + cam.cameraName + "_" + d + timeTag + ".mp4";
             }
             filename = filename.replace(/ /g, "_").replace(/[^a-zA-Z0-9_\-\.]/g, "");
             
@@ -705,7 +736,8 @@ Popup {
             } else {
                 moviesPath = Context.defaultMoviesPath();
             }
-            var defaultSavePath = moviesPath + "/" + filename;
+            var dayFolder = Qt.formatDateTime(startDate, "yyyy-MM-dd");
+            var defaultSavePath = moviesPath + "/" + dayFolder + "/" + filename;
             
             downloadModel.append({
                 "cameraIndex": i,
@@ -738,6 +770,17 @@ Popup {
             }
         }
         return false;
+    }
+
+    function isAnyFinished() {
+        if (downloadModel.count === 0 || isAnyDownloading())
+            return false
+        var revision = downloadUiRevision
+        for (var i = 0; i < downloadModel.count; i++) {
+            if (downloadModel.get(i).statusText !== "")
+                return true
+        }
+        return false
     }
 
     function isAnyEnabled() {
@@ -1165,6 +1208,7 @@ Popup {
                                 } else {
                                     model.statusText = qsTr("LNG_00027") + " " + message
                                 }
+                                downloadDialog.downloadUiRevision++
                             }
                         }
                         
@@ -1172,6 +1216,7 @@ Popup {
                             model.downloadSuccess = false
                             model.isDownloading = true
                             model.statusText = qsTr("LNG_00026")
+                            downloadDialog.downloadUiRevision++
                             rowDownloader.startDownload(recInfo, model.channelId, startDt, endDt, model.savePath)
                         }
                         
@@ -1180,6 +1225,7 @@ Popup {
                             model.isDownloading = false
                             model.downloadSuccess = false
                             model.statusText = qsTr("LNG_00025")
+                            downloadDialog.downloadUiRevision++
                         }
                         
                         RowLayout {
@@ -1298,7 +1344,8 @@ Popup {
             Item { Layout.fillWidth: true } // Spacer
 
             CctvButton {
-                text: qsTr("LNG_00023")
+                text: downloadDialog.isAnyFinished() ? qsTr("Close") : qsTr("LNG_00023")
+                isPrimary: downloadDialog.isAnyFinished() && !downloadDialog.isAnyDownloading()
                 onClicked: {
                     downloadDialog.close()
                 }

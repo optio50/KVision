@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Сигурни ли сте, че искате да премахнете камерата от този прозорец?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Добавяне на камера</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Смяна на камера</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Няма конфигурирани рекордери. Първо добавете рекордер.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Канал %1</translation>
+        </message>
     </context>
 </TS>

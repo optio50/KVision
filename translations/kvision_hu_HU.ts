@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Biztosan eltávolítja a kamerát ebből a nézetből?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Kamera hozzáadása</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Kamera cseréje</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Nincs beállított rögzítő. Először adjon hozzá egy rögzítőt.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Csatorna %1</translation>
+        </message>
     </context>
 </TS>

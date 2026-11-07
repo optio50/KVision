@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Êtes-vous sûr de vouloir supprimer la caméra de cette fenêtre ?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Ajouter une caméra</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Remplacer la caméra</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Aucun enregistreur configuré. Ajoutez d'abord un enregistreur.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Canal %1</translation>
+        </message>
     </context>
 </TS>

@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Ви впевнені, що хочете видалити камеру з цього вікна перегляду?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Додати камеру</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Замінити камеру</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Немає налаштованих реєстраторів. Спочатку додайте реєстратор.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Канал %1</translation>
+        </message>
     </context>
 </TS>

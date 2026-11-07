@@ -4772,5 +4772,21 @@
             <source>LNG_00464</source>
             <translation>Are you sure you want to remove the camera from this viewport?</translation>
         </message>
+        <message>
+            <source>LNG_00571</source>
+            <translation>Add camera</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Replace camera</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>No recorders configured. Add a recorder first.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Channel %1</translation>
+        </message>
     </context>
 </TS>

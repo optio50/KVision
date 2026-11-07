@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Er du sikker på, at du vil fjerne kameraet fra denne visningsport?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Tilføj kamera</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Erstat kamera</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Ingen optagere er konfigureret. Tilføj først en optager.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Kanal %1</translation>
+        </message>
     </context>
 </TS>

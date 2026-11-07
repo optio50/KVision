@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Kamerayı bu görünüm alanından kaldırmak istediğinizden emin misiniz?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Kamera ekle</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Kamerayı değiştir</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Yapılandırılmış kayıt cihazı yok. Önce bir kayıt cihazı ekleyin.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Kanal %1</translation>
+        </message>
     </context>
 </TS>

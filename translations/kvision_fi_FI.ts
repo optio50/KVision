@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Haluatko varmasti poistaa kameran tästä kuvaportista?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Lisää kamera</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Vaihda kamera</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Tallentimia ei ole määritetty. Lisää ensin tallennin.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Kanava %1</translation>
+        </message>
     </context>
 </TS>

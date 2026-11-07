@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Weet u zeker dat u de camera uit deze viewport wilt verwijderen?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Camera toevoegen</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Camera vervangen</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Geen recorders geconfigureerd. Voeg eerst een recorder toe.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Kanaal %1</translation>
+        </message>
     </context>
 </TS>

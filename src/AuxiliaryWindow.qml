@@ -184,6 +184,10 @@ Window {
             acceptedButtons: Qt.NoButton
             z: 1
             onWheel: {
+                if (wheel.modifiers & Qt.ControlModifier) {
+                    wheel.accepted = false;
+                    return;
+                }
                 if (topToolBarMouseArea.containsMouse) {
                     wheel.accepted = true;
                     return;
@@ -640,20 +644,10 @@ Window {
                         height: parent.height
 
                         Repeater {
-                            model: layoutsModel
+                            model: rootWindow.toolbarLayoutModel
                             delegate: Button {
                                 id: viewBtn
-                                property int layoutIndex: model.index
-
-                                visible: {
-                                    try {
-                                        var layout = model.layoutModel;
-                                        if (layout) {
-                                            return layout.visible;
-                                        }
-                                    } catch(e) {}
-                                    return true;
-                                }
+                                property int layoutIndex: modelData
 
                                 text: rootWindow.layoutDisplayName(layoutsModel, layoutIndex)
 

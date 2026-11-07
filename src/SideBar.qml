@@ -1800,9 +1800,13 @@ FocusScope {
                                         }
                                     }
 
-                                    // Visible Checkbox
+                                    // Toolbar checkbox
                                     CheckBox {
-                                        text: qsTr("LNG_00278")
+                                        text: qsTr("Toolbar")
+                                        ToolTip.visible: hovered
+                                        ToolTip.delay: Compact.toolTipDelay
+                                        ToolTip.timeout: Compact.toolTipTimeout
+                                        ToolTip.text: qsTr("Show this layout on the top toolbar")
                                         checked: presetRow.layout ? presetRow.layout.visible : true
                                         onCheckedChanged: {
                                             if (presetRow.layout) {
@@ -1883,6 +1887,7 @@ FocusScope {
                                 implicitHeight: 32
                                 onClicked: {
                                     var l = layoutsCollectionModel.append();
+                                    l.visible = true;
                                     l.size = Qt.size(3, 3);
                                 }
                                 background: Rectangle {
@@ -1963,7 +1968,11 @@ FocusScope {
                                     }
 
                                     CheckBox {
-                                        text: qsTr("LNG_00278")
+                                        text: qsTr("Toolbar")
+                                        ToolTip.visible: hovered
+                                        ToolTip.delay: Compact.toolTipDelay
+                                        ToolTip.timeout: Compact.toolTipTimeout
+                                        ToolTip.text: qsTr("Show this layout on the top toolbar")
                                         checked: nvrRow.layout ? nvrRow.layout.visible : true
                                         onCheckedChanged: {
                                             if (nvrRow.layout) {
@@ -2095,7 +2104,11 @@ FocusScope {
                                     }
 
                                     CheckBox {
-                                        text: qsTr("LNG_00278")
+                                        text: qsTr("Toolbar")
+                                        ToolTip.visible: hovered
+                                        ToolTip.delay: Compact.toolTipDelay
+                                        ToolTip.timeout: Compact.toolTipTimeout
+                                        ToolTip.text: qsTr("Show this layout on the top toolbar")
                                         checked: nvrPresetRow.layout ? nvrPresetRow.layout.visible : true
                                         onCheckedChanged: {
                                             if (nvrPresetRow.layout) {

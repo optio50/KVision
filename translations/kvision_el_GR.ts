@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Είστε βέβαιοι ότι θέλετε να αφαιρέσετε την κάμερα από αυτό το παράθυρο προβολής;</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Προσθήκη κάμερας</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Αντικατάσταση κάμερας</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Δεν έχουν ρυθμιστεί καταγραφικά. Προσθέστε πρώτα ένα καταγραφικό.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Κανάλι %1</translation>
+        </message>
     </context>
 </TS>

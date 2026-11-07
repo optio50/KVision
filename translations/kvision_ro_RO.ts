@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Sigur doriți să eliminați camera din această fereastră de vizualizare?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Adaugă cameră</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Înlocuiește camera</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Nu există înregistratoare configurate. Adăugați mai întâi un înregistrator.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Canal %1</translation>
+        </message>
     </context>
 </TS>

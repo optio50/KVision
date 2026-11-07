@@ -81,5 +81,6 @@
         <file>src/SingleInstanceWarning.qml</file>
         <file>src/AuxiliaryLimitWarning.qml</file>
         <file>src/SnapshotSavedDialog.qml</file>
+        <file>src/AddCameraDialog.qml</file>
     </qresource>
 </RCC>

@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Naozaj chcete odstrániť kameru z tohto výrezu?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Pridať kameru</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Nahradiť kameru</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Nie sú nakonfigurované žiadne rekordéry. Najprv pridajte rekordér.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Kanál %1</translation>
+        </message>
     </context>
 </TS>

@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>هل أنت متأكد أنك تريد إزالة الكاميرا من منفذ العرض هذا؟</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>إضافة كاميرا</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>استبدال الكاميرا</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>لا توجد مسجلات مهيأة. أضف مسجلاً أولاً.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>القناة %1</translation>
+        </message>
     </context>
 </TS>

@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Sei sicuro di voler rimuovere la fotocamera da questa finestra?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Aggiungi telecamera</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Sostituisci telecamera</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Nessun registratore configurato. Aggiungi prima un registratore.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Canale %1</translation>
+        </message>
     </context>
 </TS>

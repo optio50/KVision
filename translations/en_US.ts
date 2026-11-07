@@ -1592,6 +1592,27 @@
             <source>LNG_00570</source>
             <translation>View %1</translation>
         </message>
+        <message>
+            <location filename="../src/ViewportsLayout.qml" line="1052" />
+            <location filename="../src/AddCameraDialog.qml" line="20" />
+            <source>LNG_00571</source>
+            <translation>Add camera</translation>
+        </message>
+        <message>
+            <location filename="../src/ViewportsLayout.qml" line="1052" />
+            <source>LNG_00572</source>
+            <translation>Replace camera</translation>
+        </message>
+        <message>
+            <location filename="../src/AddCameraDialog.qml" line="154" />
+            <source>LNG_00573</source>
+            <translation>No recorders configured. Add a recorder first.</translation>
+        </message>
+        <message>
+            <location filename="../src/AddCameraDialog.qml" line="29" />
+            <source>LNG_00574</source>
+            <translation>Channel %1</translation>
+        </message>
     </context>
     <context>
         <name>SideBar</name>

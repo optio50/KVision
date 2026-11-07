@@ -30,6 +30,10 @@ Window {
     property bool autoFollowEnabled: true
     property int playbackSpeed: 1
     property bool playbackStoppedForDownload: false
+    property bool rangeMarkMode: false
+    property var rangeStartMs: null
+    property var rangeEndMs: null
+    readonly property bool hasDownloadRange: rangeStartMs !== null && rangeEndMs !== null && rangeStartMs !== rangeEndMs
 
     property bool sidebarVisible: true
     property bool topBarAutoCollapse: (typeof rootWindow !== "undefined" && rootWindow) ? !rootWindow.viewSettings.showTopBarByDefault : false
@@ -1150,6 +1154,42 @@ Window {
                 return;
             }
         }
+    }
+
+    function clearDownloadRange() {
+        rangeStartMs = null
+        rangeEndMs = null
+        rangeMarkMode = false
+        timeline.requestPaint()
+    }
+
+    function markRangeAt(clickedMs) {
+        var absMs = currentDate.getTime() + clickedMs
+        if (rangeStartMs === null || rangeEndMs !== null) {
+            rangeStartMs = absMs
+            rangeEndMs = null
+        } else if (absMs === rangeStartMs) {
+            return
+        } else {
+            rangeEndMs = absMs
+            rangeMarkMode = false
+        }
+        timeline.requestPaint()
+    }
+
+    function openRangeDownload() {
+        if (!hasDownloadRange)
+            return
+        var loadedCams = getLoadedCameras()
+        if (loadedCams.length === 0)
+            return
+        var startMs = Math.min(rangeStartMs, rangeEndMs)
+        var endMs = Math.max(rangeStartMs, rangeEndMs)
+        downloadDialog.activeCamerasList = loadedCams
+        downloadDialog.targetDate = new Date(startMs)
+        downloadDialog.presetStart = new Date(startMs)
+        downloadDialog.presetEnd = new Date(endMs)
+        downloadDialog.open()
     }
 
     function normalizePanOffset() {
@@ -3115,14 +3155,65 @@ Window {
                             spacing: 3
                             Layout.fillWidth: false
                             CctvButton {
+                                id: rangeMarkBtn
+                                text: ""
+                                isSmall: true
+                                isPrimary: rangeMarkMode || rangeStartMs !== null
+                                iconSource: {
+                                    var colorStr = rangeMarkBtn.hovered || rangeMarkMode ? "%2300f5d4" : (rangeStartMs !== null ? "%23ffb703" : "%238898a6")
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 20V4'></path><path d='M4 6h10l-2 3 2 3H4'></path><path d='M20 20V4'></path></svg>"
+                                }
+                                enabled: getLoadedCameras().length > 0
+                                onClicked: {
+                                    if (rangeMarkMode) {
+                                        rangeMarkMode = false
+                                        timeline.requestPaint()
+                                        return
+                                    }
+                                    if (rangeEndMs !== null) {
+                                        rangeStartMs = null
+                                        rangeEndMs = null
+                                    }
+                                    rangeMarkMode = true
+                                    timeline.requestPaint()
+                                }
+                                ToolTip.delay: Compact.toolTipDelay
+                                ToolTip.timeout: Compact.toolTipTimeout
+                                ToolTip.visible: hovered
+                                ToolTip.text: rangeEndMs === null && rangeStartMs !== null
+                                              ? qsTr("Click the timeline to set the range end")
+                                              : qsTr("Click the timeline twice to mark a download range")
+                            }
+                            CctvButton {
+                                id: rangeClearBtn
+                                text: ""
+                                isSmall: true
+                                visible: rangeStartMs !== null
+                                iconSource: {
+                                    var colorStr = rangeClearBtn.hovered ? "%23ff5c8a" : "%238898a6"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><line x1='18' y1='6' x2='6' y2='18'></line><line x1='6' y1='6' x2='18' y2='18'></line></svg>"
+                                }
+                                onClicked: clearDownloadRange()
+                                ToolTip.delay: Compact.toolTipDelay
+                                ToolTip.timeout: Compact.toolTipTimeout
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Clear marked range")
+                            }
+                            CctvButton {
                                 text: qsTr("LNG_00021")
                                 isSmall: true
                                 isCeladon: true
                                 iconSource: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23121214' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'></path><polyline points='7 10 12 15 17 10'></polyline><line x1='12' y1='15' x2='12' y2='3'></line></svg>"
                                 enabled: getLoadedCameras().length > 0
                                 onClicked: {
+                                    if (hasDownloadRange) {
+                                        openRangeDownload()
+                                        return
+                                    }
                                     var loadedCams = getLoadedCameras();
                                     if (loadedCams.length === 0) return;
+                                    downloadDialog.presetStart = null
+                                    downloadDialog.presetEnd = null
                                     downloadDialog.activeCamerasList = loadedCams;
                                     downloadDialog.targetDate = currentDate;
                                     downloadDialog.open();
@@ -3130,7 +3221,7 @@ Window {
                                 ToolTip.delay: Compact.toolTipDelay
                                 ToolTip.timeout: Compact.toolTipTimeout
                                 ToolTip.visible: hovered
-                                ToolTip.text: qsTr("LNG_00133")
+                                ToolTip.text: hasDownloadRange ? qsTr("Download the marked timeline range") : qsTr("LNG_00133")
                             }
                         }
 
@@ -3553,6 +3644,50 @@ Window {
                                 }
                             }
                             
+                            // Draw download range marks (absolute timestamps, so panning across midnight keeps them)
+                            if (rangeStartMs !== null) {
+                                var markA = rangeStartMs - currentDate.getTime()
+                                var ax = (markA - panOffsetMs) / msPerPixel
+                                ctx.strokeStyle = "#ffb703"
+                                ctx.lineWidth = 2
+                                if (ax >= 0 && ax <= width) {
+                                    ctx.beginPath()
+                                    ctx.moveTo(ax, 0)
+                                    ctx.lineTo(ax, height)
+                                    ctx.stroke()
+                                    ctx.fillStyle = "#ffb703"
+                                    ctx.font = "bold 10px sans-serif"
+                                    ctx.fillText("A", ax + 4, 12)
+                                }
+                                if (rangeEndMs !== null && rangeEndMs !== rangeStartMs) {
+                                    var lo = Math.min(rangeStartMs, rangeEndMs) - currentDate.getTime()
+                                    var hi = Math.max(rangeStartMs, rangeEndMs) - currentDate.getTime()
+                                    var x1 = (lo - panOffsetMs) / msPerPixel
+                                    var x2 = (hi - panOffsetMs) / msPerPixel
+                                    var drawX = Math.max(0, x1)
+                                    var drawW = Math.min(width, x2) - drawX
+                                    if (drawW > 0) {
+                                        ctx.fillStyle = "rgba(255, 183, 3, 0.28)"
+                                        ctx.fillRect(drawX, 0, drawW, height)
+                                    }
+                                    if (x2 >= 0 && x2 <= width) {
+                                        ctx.beginPath()
+                                        ctx.moveTo(x2, 0)
+                                        ctx.lineTo(x2, height)
+                                        ctx.stroke()
+                                        ctx.fillStyle = "#ffb703"
+                                        ctx.fillText("B", Math.max(0, x2 - 12), 12)
+                                    }
+                                    if (drawW > 40) {
+                                        ctx.fillStyle = "white"
+                                        ctx.font = "bold 10px sans-serif"
+                                        var aTime = new Date(Math.min(rangeStartMs, rangeEndMs))
+                                        var bTime = new Date(Math.max(rangeStartMs, rangeEndMs))
+                                        ctx.fillText(Qt.formatDateTime(aTime, "hh:mm:ss") + " – " + Qt.formatDateTime(bTime, "hh:mm:ss"), drawX + 4, height - 4)
+                                    }
+                                }
+                            }
+
                             // Draw playhead
                             var activePlayheadMs = currentPlayheadMs
                             if (mouseArea.isDraggingPlayhead) {
@@ -3682,8 +3817,12 @@ Window {
                                          var msPerPixel = viewDurationMs / width
                                          var clickedMs = panOffsetMs + (mouse.x * msPerPixel)
                                          
-                                         playAtTime(currentDate, clickedMs)
-                                         autoFollowEnabled = true
+                                         if (rangeMarkMode) {
+                                             markRangeAt(clickedMs)
+                                         } else {
+                                             playAtTime(currentDate, clickedMs)
+                                             autoFollowEnabled = true
+                                         }
                                      }
                                      isPanning = false
                                      pressX = -1

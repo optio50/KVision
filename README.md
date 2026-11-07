@@ -40,14 +40,9 @@ Do not run KVision as root.
 
 ## Recent local changes
 
-- Added a scalable, mouse-driven PTZ pad for small and large camera cells.
-- Added double-digit PTZ preset entry using an on-screen keypad, with Go and Save actions.
-- Restored audio mute and volume controls in normal camera cells.
-- Added drag-and-drop swapping of cameras between grid cells.
-- Merging cells now works for Panovision cameras.
-- Added windowed-mode cursor and viewport-button auto-hide.
-- Prevented the main window from reopening at a tiny saved size.
-- Added the root `./kvision` launcher for clone-and-run startup.
+- Right-click a cell to add or replace its camera from a recorder picker.
+- Mark a playback timeline range and download that range.
+- Choose which saved layouts appear on the top toolbar.
 
 ## Build and run
 
@@ -70,6 +65,24 @@ kvision
 
 System installation is optional. `./kvision` from the repository root is the normal way to run this private copy.
 
+## Added since the original clone
+
+These are the standout changes in this copy. The original application already had live grids, playback, snapshots, downloads, auxiliary windows, and layout presets.
+
+- **Add or replace a camera from the cell.** Right-click an empty cell and choose **Add camera**. The picker lists recorders. A standalone camera is a one-channel recorder and assigns immediately. A multi-channel recorder expands so you can pick one channel. A filled cell offers **Replace camera**. The green **+** in the camera list still assigns to the focused cell.
+- **Drag cameras between cells**, including merged Panovision cells. The right-click swap action remains.
+- **Mouse-driven PTZ pad** that stays usable in small and large cells, plus an on-screen keypad for double-digit preset recall and save. The entered preset number clears after a successful save.
+- **Third Hikvision stream** in addition to Main and Sub, with the picture aspect ratio preserved instead of stretching the feed.
+- **Mouse-wheel layout paging.** Scroll over the live view to move between saved layouts. Hold **Ctrl** to zoom that camera instead. Layouts can be chosen for the top toolbar instead of showing every preset.
+- **NVR smart events on the playback timeline**, with previous and next event controls that jump the playhead between them.
+- **Mark a download range on the timeline.** Click the timeline twice to set the start and end, then download that range. The download dialog can also be closed after a finished transfer.
+- **Standalone camera playback** falls back to the Hikvision SDK when the camera stores recordings on its own SD card.
+- **Windowed cursor auto-hide**, restored per-camera mute and volume controls, and a startup size guard so the main window cannot reopen at a tiny saved size.
+- **Clone and run.** `./kvision` configures, builds, and launches the application. The project also builds on Debian 10's GCC 9 and Qt 5.11.
+- **Per-recorder RTSP transport** (Auto, TCP, or UDP), custom HTTP and RTSP ports, and local camera names that do not change the recorder.
+- **Settings import and export** between Linux and Windows, with snapshot and video paths adapted to the current system.
+- **System statistics** for CPU, RAM, GPU, VRAM, and network use, including Windows, without stalling video rendering.
+
 ## Features
 
 - Live multi-camera grids for RTSP and Hikvision recorders.
@@ -83,7 +96,7 @@ System installation is optional. `./kvision` from the repository root is the nor
 
 ### Live View Grid & Viewport Interactions
 
-* **Camera Assignment (Select-and-Click)**: Select a viewport in the main grid layout to focus it, then click the **"+" (Add)** button on any camera in the NVR/DVR list to assign it.
+* **Camera Assignment**: Right-click an empty viewport and choose **Add camera**. The picker lists recorders; a single-channel recorder assigns immediately, and a multi-channel recorder expands so you can pick one camera. Right-click a filled viewport and choose **Replace camera** to change it. The **"+" (Add)** button in the NVR/DVR camera list still assigns to the focused viewport.
 * **Viewport Swapping**: Swap camera feeds between two grid viewports by selecting the **"Swap viewports"** option in the right-click context menu of the source viewport and then clicking on the target viewport. Cameras can also be exchanged by dragging one cell onto another, including merged cells.
 * **Camera Removal**: Quickly clear/remove a camera stream from any grid viewport using the right-click context menu (**"Remove camera"**) with a safety confirmation dialog.
 * **Double-Click to Maximize**: Double-click any camera viewport in the grid to maximize it to full screen. Double-click again to restore the grid layout.

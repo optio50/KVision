@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Är du säker på att du vill ta bort kameran från den här visningsporten?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Lägg till kamera</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Ersätt kamera</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Inga inspelare är konfigurerade. Lägg till en inspelare först.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Kanal %1</translation>
+        </message>
     </context>
 </TS>

@@ -4989,5 +4989,21 @@
             <source>LNG_00464</source>
             <translation>Czy na pewno chcesz usunąć kamerę z tego viewportu?</translation>
         </message>
+        <message>
+            <source>LNG_00571</source>
+            <translation>Dodaj kamerę</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Zamień kamerę</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Brak skonfigurowanych rejestratorów. Najpierw dodaj rejestrator.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Kanał %1</translation>
+        </message>
     </context>
 </TS>

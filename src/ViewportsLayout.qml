@@ -786,13 +786,33 @@ FocusScope {
                         id: viewportMouseArea
                         z: -1
                         anchors.fill: parent
-                        
-                        // Enable wheel events for zooming
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+
+                        // Enable wheel events for zooming, and middle-button drag for panning
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                         hoverEnabled: true
-                        cursorShape: d.isDragging ? Qt.DragMoveCursor : (root.pendingSwapSourceIndex >= 0 ? Qt.DragMoveCursor : Qt.ArrowCursor)
+                        property bool panning: false
+                        property real panLastX: 0
+                        property real panLastY: 0
+                        cursorShape: panning ? Qt.ClosedHandCursor
+                                             : (d.isDragging ? Qt.DragMoveCursor
+                                                             : (root.pendingSwapSourceIndex >= 0 ? Qt.DragMoveCursor : Qt.ArrowCursor))
+
+                        function clampPan() {
+                            var scale = viewport.zoomScale;
+                            viewport.panX = Number(viewport.panX).clamp(viewport.width - viewport.width * scale, 0);
+                            viewport.panY = Number(viewport.panY).clamp(viewport.height - viewport.height * scale, 0);
+                        }
 
                         onPressed: {
+                            if (mouse.button === Qt.MiddleButton) {
+                                if (viewport.zoomEnabled && viewport.zoomScale > 1.0) {
+                                    panning = true;
+                                    panLastX = mouse.x;
+                                    panLastY = mouse.y;
+                                    mouse.accepted = true;
+                                }
+                                return;
+                            }
                             if (mouse.button === Qt.RightButton) {
                                 if (generalSettings.enableContextMenu) {
                                     root.pendingSwapSourceIndex = -1;
@@ -809,6 +829,14 @@ FocusScope {
                             d.dragTargetIndex = -1;
                         }
                         onPositionChanged: {
+                            if (panning) {
+                                viewport.panX += mouse.x - panLastX;
+                                viewport.panY += mouse.y - panLastY;
+                                panLastX = mouse.x;
+                                panLastY = mouse.y;
+                                clampPan();
+                                return;
+                            }
                             if (d.dragSourceIndex >= 0 && !d.isDragging) {
                                 var pt = viewportMouseArea.mapToItem(root, mouse.x, mouse.y);
                                 var dx = Math.abs(pt.x - d.dragStartX);
@@ -820,6 +848,10 @@ FocusScope {
                             }
                         }
                         onReleased: {
+                            if (mouse.button === Qt.MiddleButton || panning) {
+                                panning = false;
+                                return;
+                            }
                             var pt = viewportMouseArea.mapToItem(root, mouse.x, mouse.y);
                             var targetIndex = root.indexAt(pt.x, pt.y);
 
@@ -1016,8 +1048,48 @@ FocusScope {
                         }
                         
                         MenuItem {
+                            id: addCameraMenuItem
+                            text: model.url === "" ? qsTr("LNG_00571") : qsTr("LNG_00572")
+                            visible: true
+                            enabled: true
+                            leftPadding: 12
+
+                            contentItem: Text {
+                                text: addCameraMenuItem.text
+                                font {
+                                    pixelSize: 11
+                                    bold: true
+                                }
+                                color: addCameraMenuItem.hovered ? "#00f5d4" : "#eeeeee"
+                                horizontalAlignment: Text.AlignLeft
+                                verticalAlignment: Text.AlignVCenter
+                            }
+
+                            background: Rectangle {
+                                implicitWidth: 150
+                                implicitHeight: 32
+                                color: addCameraMenuItem.hovered ? "#2a3540" : "transparent"
+                                border.color: addCameraMenuItem.hovered ? "#00f5d4" : "transparent"
+                                border.width: 1
+                                radius: 4
+                            }
+
+                            onHoveredChanged: {
+                                if (hovered) {
+                                    streamSubMenu.close();
+                                }
+                            }
+
+                            onTriggered: {
+                                addCameraDialog.targetIndex = model.index;
+                                addCameraDialog.layoutModel = root.model;
+                                addCameraDialog.open();
+                            }
+                        }
+
+                        MenuItem {
                             text: qsTr("LNG_00475")
-                            visible: generalSettings.allowSwappingViewports
+                            visible: model.url !== "" && generalSettings.allowSwappingViewports
                             enabled: model.url !== ""
                             leftPadding: 12
                             
@@ -1056,7 +1128,7 @@ FocusScope {
                         MenuItem {
                             id: streamSelectMenuItem
                             text: qsTr("LNG_00474")
-                            visible: generalSettings.enableStreamSelection
+                            visible: model.url !== "" && generalSettings.enableStreamSelection
                             enabled: model.url !== ""
                             leftPadding: 12
                             
@@ -1112,7 +1184,7 @@ FocusScope {
                         MenuItem {
                             id: removeCameraMenuItem
                             text: qsTr("LNG_00473")
-                            visible: generalSettings.enableRemoveCamera
+                            visible: model.url !== "" && generalSettings.enableRemoveCamera
                             enabled: model.url !== ""
                             leftPadding: 12
                             
@@ -1151,7 +1223,7 @@ FocusScope {
                         MenuItem {
                             id: changeSettingsMenuItem
                             text: qsTr("LNG_00472")
-                            visible: generalSettings.enableChangeViewportSettings
+                            visible: model.url !== "" && generalSettings.enableChangeViewportSettings
                             enabled: model.url !== ""
                             leftPadding: 12
                             
@@ -1190,6 +1262,7 @@ FocusScope {
                         MenuItem {
                             id: reloadMenuItem
                             text: qsTr("LNG_00471")
+                            visible: model.url !== ""
                             enabled: model.url !== "" && (playerPool.activePlayersMap[model.index] ? !playerPool.activePlayersMap[model.index].isQuickPlayback : true)
                             leftPadding: 12
                             
@@ -1225,6 +1298,7 @@ FocusScope {
                         MenuItem {
                             id: snapshotMenuItem
                             text: qsTr("LNG_00470")
+                            visible: model.url !== ""
                             enabled: model.url !== ""
                             leftPadding: 12
                             
@@ -1262,6 +1336,7 @@ FocusScope {
                         MenuItem {
                             id: playMenuItem
                             text: qsTr("LNG_00469")
+                            visible: model.url !== ""
                             enabled: model.url !== ""
                             leftPadding: 12
                             
@@ -1699,6 +1774,10 @@ FocusScope {
         }
 
         return true;
+    }
+
+    AddCameraDialog {
+        id: addCameraDialog
     }
 
     ConfirmDialog {

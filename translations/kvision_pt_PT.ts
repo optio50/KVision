@@ -4768,5 +4768,22 @@
             <source>LNG_00464</source>
             <translation>Tem certeza de que deseja remover a câmera desta janela de visualização?</translation>
         </message>
+
+        <message>
+            <source>LNG_00571</source>
+            <translation>Adicionar câmara</translation>
+        </message>
+        <message>
+            <source>LNG_00572</source>
+            <translation>Substituir câmara</translation>
+        </message>
+        <message>
+            <source>LNG_00573</source>
+            <translation>Nenhum gravador configurado. Adicione primeiro um gravador.</translation>
+        </message>
+        <message>
+            <source>LNG_00574</source>
+            <translation>Canal %1</translation>
+        </message>
     </context>
 </TS>
