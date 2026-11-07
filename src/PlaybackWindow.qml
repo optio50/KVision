@@ -2642,16 +2642,18 @@ Window {
 
                                         Control {
                                             id: fullScreenBadge
+                                            readonly property bool singleTileGrid: gridLayoutColumns === 1 && gridLayoutRows === 1
+                                            readonly property bool badgeActive: singleTileGrid ? playbackWindow.visibility === Window.FullScreen : tileContainer.fullScreen
                                             implicitWidth: 24
                                             implicitHeight: 24
                                             padding: 5
 
                                             background: Rectangle {
                                                 radius: 12
-                                                color: tileContainer.fullScreen ?
+                                                color: fullScreenBadge.badgeActive ?
                                                     (fullScreenMouseAreaBtn.pressed ? "#4400f5d4" : (fullScreenMouseAreaBtn.containsMouse ? "#3300f5d4" : "#2200f5d4")) :
                                                     (fullScreenMouseAreaBtn.pressed ? "#4a5560" : (fullScreenMouseAreaBtn.containsMouse ? "#3a4550" : "#cc121214"))
-                                                border.color: tileContainer.fullScreen ?
+                                                border.color: fullScreenBadge.badgeActive ?
                                                     "#cc00f5d4" :
                                                     ((fullScreenMouseAreaBtn.containsMouse || fullScreenMouseAreaBtn.pressed) ? "#cc8898a6" : "#802a3540")
                                                 border.width: 1
@@ -2660,7 +2662,7 @@ Window {
                                             contentItem: Image {
                                                 sourceSize: Qt.size(32, 32)
                                                 fillMode: Image.PreserveAspectFit
-                                                source: tileContainer.fullScreen ?
+                                                source: fullScreenBadge.badgeActive ?
                                                     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14h6v6m10-6h-6v6M4 10h6V4m10 6h-6V4'></path></svg>" :
                                                     (fullScreenMouseAreaBtn.containsMouse ?
                                                         "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3'></path></svg>" :
@@ -2675,7 +2677,9 @@ Window {
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
                                                     selectedPlayerIndex = index;
-                                                    if (fullScreenPlayerIndex === index) {
+                                                    if (fullScreenBadge.singleTileGrid) {
+                                                        toggleWindowFullScreen();
+                                                    } else if (fullScreenPlayerIndex === index) {
                                                         fullScreenPlayerIndex = -1;
                                                     } else {
                                                         fullScreenPlayerIndex = index;
@@ -2686,7 +2690,7 @@ Window {
                                             ToolTip.delay: 500
                                             ToolTip.timeout: 5000
                                             ToolTip.visible: fullScreenMouseAreaBtn.containsMouse
-                                            ToolTip.text: tileContainer.fullScreen ? qsTr("LNG_00150") : qsTr("LNG_00149")
+                                            ToolTip.text: fullScreenBadge.singleTileGrid ? (fullScreenBadge.badgeActive ? qsTr("LNG_00118") : qsTr("LNG_00117")) : (fullScreenBadge.badgeActive ? qsTr("LNG_00150") : qsTr("LNG_00149"))
                                         }
 
                                         Control {
