@@ -1372,6 +1372,44 @@ FocusScope {
                                 }
                             }
                         }
+
+                        MenuItem {
+                            id: webUiMenuItem
+                            text: qsTr("Open camera web UI")
+                            visible: model.url !== "" && String(model.url).indexOf("hikvision://") !== -1
+                            enabled: visible
+                            height: visible ? implicitHeight : 0
+                            leftPadding: 12
+
+                            contentItem: Text {
+                                text: webUiMenuItem.text
+                                font { pixelSize: 11; bold: true }
+                                color: webUiMenuItem.enabled ? (webUiMenuItem.hovered ? "#00f5d4" : "#eeeeee") : "#555555"
+                                horizontalAlignment: Text.AlignLeft
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                implicitWidth: 150
+                                implicitHeight: 32
+                                color: webUiMenuItem.hovered ? "#2a3540" : "transparent"
+                                border.color: webUiMenuItem.hovered ? "#00f5d4" : "transparent"
+                                border.width: 1
+                                radius: 4
+                            }
+
+                            onHoveredChanged: {
+                                if (hovered) {
+                                    streamSubMenu.close();
+                                }
+                            }
+
+                            onTriggered: {
+                                var player = playerPool.activePlayersMap[model.index];
+                                if (player) {
+                                    player.openCameraWebUi();
+                                }
+                            }
+                        }
                     }
 
                     Menu {

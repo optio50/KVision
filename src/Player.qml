@@ -816,6 +816,21 @@ FocusScope {
         activeCameraId = "";
     }
 
+    // Opens the camera's own web interface in the default browser. For a camera
+    // behind an NVR the camera's real IP is looked up on the NVR first. A stand
+    // alone camera (or a lookup that finds nothing) uses the recorder address.
+    function openCameraWebUi() {
+        if (!isHikvision || recorderIp === "") return;
+        var host = recorderIp;
+        var port = httpPort || 80;
+        var proxy = HikvisionManager.proxyCamera(recorderIp, httpPort || 80, username, password, channelId);
+        if (proxy && proxy.ip && proxy.ip !== recorderIp) {
+            host = proxy.ip;
+            port = 80;
+        }
+        Qt.openUrlExternally("http://" + host + (port === 80 ? "" : ":" + port));
+    }
+
     function openPlayback() {
         var recInfo = {
             "ip": root.recorderIp,
