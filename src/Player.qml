@@ -712,10 +712,10 @@ FocusScope {
 
     function takeSnapshot(forceHD) {
         var typeStr = root.isQuickPlayback ? "QUICK_PLAYBACK" : "LIVE";
-        captureCurrentFrameAndNotify(typeStr);
+        captureCurrentFrameAndNotify(typeStr, false);
     }
 
-    function captureCurrentFrameAndNotify(typeStr) {
+    function captureCurrentFrameAndNotify(typeStr, zoomedOnly) {
         var stamp = new Date();
         var activeOutput = null;
         var nativeWidth = 1920;
@@ -749,11 +749,31 @@ FocusScope {
         }
 
         var path = Utils.snapshotSavePath(recorderLabel, root.channelId, cameraLabel, stamp);
+        if (zoomedOnly) {
+            path = path.replace(/(\.[^.\/]+)$/, "_zoomed$1");
+        }
 
         snapshotBadge.isSavingSnapshot = true;
         snapshotBadgeTimer.restart();
 
         if (root.isQuickPlayback && quickPlaybackPlayerLoader.item) {
+            if (zoomedOnly) {
+                // Save the zoomed view exactly as it is shown on screen. Scale the grab up
+                // so the visible part keeps roughly the source resolution (capped at 4x).
+                var fr = root.fittedVideoRect();
+                var src = root.videoFrameSize();
+                var gain = Math.max(1, Math.min(4, (src.width * root.zoomWidth) / Math.max(1, fr.width)));
+                var grabSize = Qt.size(Math.round(videoContainer.width * gain), Math.round(videoContainer.height * gain));
+                videoContainer.grabToImage(function(result) {
+                    if (result.saveToFile(path)) {
+                        console.log("Saved zoomed snapshot (" + typeStr + ") to", path);
+                        showSnapshotDialog(path);
+                    } else {
+                        console.log("Failed to save zoomed snapshot (" + typeStr + ")");
+                    }
+                }, grabSize);
+                return;
+            }
             var saved = quickPlaybackPlayerLoader.item.saveCurrentFrame(path);
             if (saved) {
                 console.log("Saved snapshot (" + typeStr + ") to", path);
@@ -1738,7 +1758,24 @@ FocusScope {
                         cursorShape: Qt.PointingHandCursor
                         onContainsMouseChanged: playerHoverArea.updateHoverState()
                         onClicked: {
-                            root.takeSnapshot(false);
+                            // Quick playback + zoomed: let the user pick full or zoomed image.
+                            if (root.isQuickPlayback && root.isZoomed) {
+                                snapshotChoiceMenu.popup();
+                            } else {
+                                root.takeSnapshot(false);
+                            }
+                        }
+                    }
+
+                    Menu {
+                        id: snapshotChoiceMenu
+                        MenuItem {
+                            text: qsTr("Save full image")
+                            onTriggered: root.captureCurrentFrameAndNotify("QUICK_PLAYBACK", false)
+                        }
+                        MenuItem {
+                            text: qsTr("Save zoomed view")
+                            onTriggered: root.captureCurrentFrameAndNotify("QUICK_PLAYBACK", true)
                         }
                     }
 

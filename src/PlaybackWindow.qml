@@ -2506,7 +2506,7 @@ Window {
                                                 anchors.fill: parent
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
+                                                function saveSnapshot(zoomedOnly) {
                                                     var stamp = playheadTimeMs > 0 ? new Date(playheadTimeMs) : new Date();
                                                     var nativeWidth = playerItem.videoWidth > 0 ? playerItem.videoWidth : 1920;
                                                     var nativeHeight = playerItem.videoHeight > 0 ? playerItem.videoHeight : 1080;
@@ -2515,9 +2515,26 @@ Window {
                                                         modelData ? modelData.channelId : "",
                                                         modelData ? modelData.cameraName : "Camera",
                                                         stamp);
+                                                    if (zoomedOnly) {
+                                                        path = path.replace(/(\.[^.\/]+)$/, "_zoomed$1");
+                                                    }
 
                                                     snapshotBadge.isSavingSnapshot = true;
                                                     snapshotBadgeTimer.restart();
+
+                                                    if (zoomedOnly) {
+                                                        // Save the zoomed view exactly as it is shown on screen.
+                                                        var gain = Math.max(1, Math.min(4, (playerItem.videoWidth * tileContainer.zoomWidth) / Math.max(1, videoWrapper.width)));
+                                                        videoWrapper.grabToImage(function(result) {
+                                                            if (result.saveToFile(path)) {
+                                                                console.log("Saved zoomed snapshot to", path);
+                                                                showSnapshotSaved(path);
+                                                            } else {
+                                                                console.log("Failed to save zoomed snapshot");
+                                                            }
+                                                        }, Qt.size(Math.round(videoWrapper.width * gain), Math.round(videoWrapper.height * gain)));
+                                                        return;
+                                                    }
 
                                                     var saved = playerItem.saveCurrentFrame(path);
                                                     if (saved) {
@@ -2530,6 +2547,27 @@ Window {
                                                             console.log("Saved snapshot (viewport fallback) to", path);
                                                             showSnapshotSaved(path);
                                                         }, Qt.size(nativeWidth, nativeHeight));
+                                                    }
+                                                }
+
+                                                onClicked: {
+                                                    // Zoomed: let the user pick the full or the zoomed image.
+                                                    if (tileContainer.isZoomed) {
+                                                        snapshotChoiceMenu.popup();
+                                                    } else {
+                                                        saveSnapshot(false);
+                                                    }
+                                                }
+
+                                                Menu {
+                                                    id: snapshotChoiceMenu
+                                                    MenuItem {
+                                                        text: qsTr("Save full image")
+                                                        onTriggered: snapshotMouseAreaBtn.saveSnapshot(false)
+                                                    }
+                                                    MenuItem {
+                                                        text: qsTr("Save zoomed view")
+                                                        onTriggered: snapshotMouseAreaBtn.saveSnapshot(true)
                                                     }
                                                 }
                                             }
