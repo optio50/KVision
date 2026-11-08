@@ -20,8 +20,10 @@ extern "C" {
 #include <thread>
 #include <chrono>
 
-static constexpr int THUMBNAIL_WIDTH = 160;
-static constexpr int THUMBNAIL_HEIGHT = 90;
+static constexpr int THUMBNAIL_WIDTH = 320;
+static constexpr int THUMBNAIL_HEIGHT = 180;
+// Number of clean frames to decode after the first keyframe before keeping one.
+static constexpr int THUMBNAIL_SETTLE_FRAMES = 3;
 static constexpr int FETCH_TIMEOUT_US = 5000000; // 5 seconds
 
 // --------------- ThumbnailFetchWorker ---------------
@@ -78,6 +80,7 @@ void ThumbnailFetchWorker::fetchFrame(const QString &rtspUrl, const QString &cac
     // Limit stimeout to roughly 80% of total timeout or 5s, whichever is larger
     int connTimeoutMs = qMax(5000, timeoutMs * 80 / 100);
     av_dict_set(&opts, "stimeout", QString::number(connTimeoutMs * 1000LL).toUtf8().constData(), 0);
+    av_dict_set(&opts, "rw_timeout", QString::number(connTimeoutMs * 1000LL).toUtf8().constData(), 0);
     av_dict_set(&opts, "analyzeduration", "1000000", 0); // 1s analyze
     av_dict_set(&opts, "probesize", "500000", 0); // 500KB probe
 
@@ -176,58 +179,97 @@ void ThumbnailFetchWorker::fetchFrame(const QString &rtspUrl, const QString &cac
     av_image_fill_arrays(rgbFrame->data, rgbFrame->linesize, rgbBuffer,
                          AV_PIX_FMT_RGB32, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, 1);
 
-    // Read packets and decode until we get a frame
+    // Joining an RTSP stream mid GOP gives gray, smeared frames until the next
+    // keyframe. Skip everything before the first keyframe, drop corrupt or
+    // featureless frames, and keep the last good one after a few frames settle.
     AVPacket *pkt = av_packet_alloc();
-    bool gotFrame = false;
-    int maxPackets = 150; // Safety limit
+    bool seenKey = false;
+    int goodFrames = 0;
+    int maxPackets = 400; // Safety limit (a keyframe can be seconds away)
+    QImage best;
+    QImage fallback;
 
-    while (!gotFrame && maxPackets-- > 0) {
+    while (goodFrames < THUMBNAIL_SETTLE_FRAMES && maxPackets-- > 0) {
         if (QThread::currentThread()->isInterruptionRequested()) {
             break;
         }
         ret = av_read_frame(fmtCtx, pkt);
         if (ret < 0) break;
 
-        if (pkt->stream_index == videoIdx) {
-            ret = avcodec_send_packet(codecCtx, pkt);
-            if (ret >= 0) {
-                ret = avcodec_receive_frame(codecCtx, frame);
-                if (ret == 0) {
-                    gotFrame = true;
+        if (pkt->stream_index != videoIdx) {
+            av_packet_unref(pkt);
+            continue;
+        }
+        if (!seenKey) {
+            if (!(pkt->flags & AV_PKT_FLAG_KEY)) {
+                av_packet_unref(pkt);
+                continue;
+            }
+            seenKey = true;
+        }
+
+        ret = avcodec_send_packet(codecCtx, pkt);
+        av_packet_unref(pkt);
+        if (ret < 0) continue;
+
+        while (avcodec_receive_frame(codecCtx, frame) == 0) {
+            bool corrupt = frame->decode_error_flags != 0;
+#ifdef AV_FRAME_FLAG_CORRUPT
+            corrupt = corrupt || (frame->flags & AV_FRAME_FLAG_CORRUPT);
+#endif
+            if (corrupt) {
+                continue;
+            }
+
+            swsCtx = sws_getCachedContext(
+                swsCtx, frame->width, frame->height, static_cast<AVPixelFormat>(frame->format),
+                THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, AV_PIX_FMT_RGB32,
+                SWS_BILINEAR, nullptr, nullptr, nullptr);
+            if (!swsCtx) {
+                continue;
+            }
+            sws_scale(swsCtx, frame->data, frame->linesize, 0, frame->height,
+                      rgbFrame->data, rgbFrame->linesize);
+
+            QImage candidate(rgbBuffer, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
+                             rgbFrame->linesize[0], QImage::Format_RGB32);
+            QImage copy = candidate.copy(); // Deep copy, the buffer is reused
+
+            // A flat gray frame has almost no variation in brightness.
+            double sum = 0, sumSq = 0;
+            int n = 0;
+            for (int y = 0; y < copy.height(); y += 4) {
+                const QRgb *line = reinterpret_cast<const QRgb *>(copy.constScanLine(y));
+                for (int x = 0; x < copy.width(); x += 4) {
+                    const int g = qGray(line[x]);
+                    sum += g;
+                    sumSq += static_cast<double>(g) * g;
+                    ++n;
                 }
             }
+            const double mean = n > 0 ? sum / n : 0.0;
+            const double variance = n > 0 ? (sumSq / n - mean * mean) : 0.0;
+            const bool flat = variance < 16.0; // standard deviation below 4
+
+            fallback = copy;
+            if (!flat) {
+                best = copy;
+                ++goodFrames;
+            }
         }
-        av_packet_unref(pkt);
     }
     av_packet_free(&pkt);
 
-    if (!gotFrame) {
-        qWarning() << "[ThumbnailFetch] Failed to decode a frame from" << cacheKey;
+    QImage result = !best.isNull() ? best : fallback;
+    if (result.isNull()) {
+        qWarning() << "[ThumbnailFetch] Failed to decode a usable frame from" << cacheKey;
         cleanup();
         emit fetchFailed(cacheKey);
         return;
     }
-
-    // Scale to thumbnail size
-    swsCtx = sws_getContext(
-        codecCtx->width, codecCtx->height, codecCtx->pix_fmt,
-        THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, AV_PIX_FMT_RGB32,
-        SWS_BILINEAR, nullptr, nullptr, nullptr);
-
-    if (!swsCtx) {
-        qWarning() << "[ThumbnailFetch] Failed to create scaler for" << cacheKey;
-        cleanup();
-        emit fetchFailed(cacheKey);
-        return;
+    if (best.isNull()) {
+        qWarning() << "[ThumbnailFetch] Only flat frames decoded for" << cacheKey << "- keeping the last one";
     }
-
-    sws_scale(swsCtx, frame->data, frame->linesize, 0, codecCtx->height,
-              rgbFrame->data, rgbFrame->linesize);
-
-    // Create QImage from the RGB data
-    QImage thumbnail(rgbBuffer, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT,
-                     rgbFrame->linesize[0], QImage::Format_RGB32);
-    QImage result = thumbnail.copy(); // Deep copy before freeing buffer
 
     cleanup();
 
