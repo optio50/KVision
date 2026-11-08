@@ -170,6 +170,11 @@ Window {
                         delegate: Item {
                             id: tileWrapper
                             Layout.fillWidth: true
+                            // Never grow wider than a tile in a full row. Without this a recorder with
+                            // fewer cameras than columns (e.g. a stand alone camera) stretches its
+                            // tiles across the whole window.
+                            Layout.maximumWidth: Math.max(120, (flowGrid.width - (flowGrid.columns - 1) * flowGrid.columnSpacing) / flowGrid.columns)
+                            Layout.alignment: Qt.AlignLeft | Qt.AlignTop
                             height: 140
 
                             property string cameraUrl: "hikvision://" + recorder.ip + "/" + modelData.channelId
