@@ -39,6 +39,38 @@ ColumnLayout {
         NvrCamerasWindow {}
     }
 
+    // Creates a new, separate layout holding every camera of the given recorder,
+    // in the smallest square-ish grid that fits them all, and switches to it.
+    function generateGridForRecorder(recorderData) {
+        var cams = (recorderData && recorderData.cameras) ? recorderData.cameras : [];
+        if (cams.length === 0) {
+            rootPanel.statusColor = "#ff3333";
+            rootPanel.statusMessage = qsTr("No cameras found on this recorder.");
+            return;
+        }
+
+        var cols = Math.ceil(Math.sqrt(cams.length));
+        var rows = Math.ceil(cams.length / cols);
+
+        var layout = layoutsCollectionModel.append();
+        layout.visible = true;
+        layout.size = Qt.size(cols, rows);
+        layout.name = (recorderData.name ? recorderData.name : recorderData.ip) + " (" + cams.length + ")";
+
+        for (var i = 0; i < cams.length; ++i) {
+            var vp = layout.get(i);
+            if (vp) {
+                vp.url = "hikvision://" + recorderData.ip + "/" + cams[i].channelId;
+                vp.secondaryUrl = vp.url;
+                vp.volume = 0;
+            }
+        }
+
+        stackLayout.currentIndex = layoutsCollectionModel.count - 1;
+        rootPanel.statusColor = "#00f5d4";
+        rootPanel.statusMessage = qsTr("Grid created: %1").arg(layout.name);
+    }
+
     function openCamerasWindow(recorderData) {
         var win = nvrCamerasWindowComponent.createObject(rootWindow);
         win.recorder = JSON.parse(JSON.stringify(recorderData));
@@ -740,6 +772,7 @@ ColumnLayout {
 
                     Button {
                         id: webBtn
+                        hoverEnabled: true
                         implicitWidth: 30
                         implicitHeight: 30
                         Layout.alignment: Qt.AlignVCenter
@@ -774,7 +807,40 @@ ColumnLayout {
                     }
 
                     Button {
+                        id: gridBtn
+                        hoverEnabled: true
+                        implicitWidth: 30
+                        implicitHeight: 30
+                        Layout.alignment: Qt.AlignVCenter
+
+                        contentItem: Image {
+                            anchors.centerIn: parent
+                            width: 16
+                            height: 16
+                            source: {
+                                var colorStr = gridBtn.hovered ? "%2300f5d4" : "%238898a6";
+                                return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='3' width='7' height='7'></rect><rect x='14' y='3' width='7' height='7'></rect><rect x='14' y='14' width='7' height='7'></rect><rect x='3' y='14' width='7' height='7'></rect></svg>";
+                            }
+                        }
+
+                        background: Rectangle {
+                            color: gridBtn.pressed ? "#cc121214" : (gridBtn.hovered ? "#3a4550" : "#1c242c")
+                            radius: 15
+                            border.color: gridBtn.hovered ? "#00f5d4" : "#2a3540"
+                            border.width: 1
+                        }
+
+                        onClicked: rootPanel.generateGridForRecorder(modelData)
+
+                        ToolTip.delay: Compact.toolTipDelay
+                        ToolTip.timeout: Compact.toolTipTimeout
+                        ToolTip.visible: gridBtn.hovered
+                        ToolTip.text: qsTr("Generate Grid: new layout with all cameras of this recorder")
+                    }
+
+                    Button {
                         id: listBtn
+                        hoverEnabled: true
                         implicitWidth: 30
                         implicitHeight: 30
                         Layout.alignment: Qt.AlignVCenter
@@ -808,6 +874,7 @@ ColumnLayout {
 
                     Button {
                         id: editBtn
+                        hoverEnabled: true
                         implicitWidth: 30
                         implicitHeight: 30
                         Layout.alignment: Qt.AlignVCenter
@@ -858,6 +925,7 @@ ColumnLayout {
 
                     Button {
                         id: delBtn
+                        hoverEnabled: true
                         implicitWidth: 30
                         implicitHeight: 30
                         Layout.alignment: Qt.AlignVCenter
