@@ -858,8 +858,8 @@ FocusScope {
             VideoOutput {
                 id: videoOutput1
                 source: qmlAvPlayer1
-                x: root.isOneToOne ? root.oneToOneX : root.fittedVideoRect().x - root.zoomX * root.fittedVideoRect().width
-                y: root.isOneToOne ? root.oneToOneY : root.fittedVideoRect().y - root.zoomY * root.fittedVideoRect().height
+                x: root.isOneToOne ? root.oneToOneX : root.fittedVideoRect().x - root.zoomX * (root.fittedVideoRect().width / Math.max(0.001, root.zoomWidth))
+                y: root.isOneToOne ? root.oneToOneY : root.fittedVideoRect().y - root.zoomY * (root.fittedVideoRect().height / Math.max(0.001, root.zoomHeight))
                 width: root.isOneToOne ? (sourceRect.width > 0 ? sourceRect.width : parent.width) : (root.fittedVideoRect().width / Math.max(0.001, root.zoomWidth))
                 height: root.isOneToOne ? (sourceRect.height > 0 ? sourceRect.height : parent.height) : (root.fittedVideoRect().height / Math.max(0.001, root.zoomHeight))
                 fillMode: VideoOutput.Stretch
@@ -881,8 +881,8 @@ FocusScope {
             VideoOutput {
                 id: videoOutput2
                 source: qmlAvPlayer2
-                x: root.isOneToOne ? root.oneToOneX : root.fittedVideoRect().x - root.zoomX * root.fittedVideoRect().width
-                y: root.isOneToOne ? root.oneToOneY : root.fittedVideoRect().y - root.zoomY * root.fittedVideoRect().height
+                x: root.isOneToOne ? root.oneToOneX : root.fittedVideoRect().x - root.zoomX * (root.fittedVideoRect().width / Math.max(0.001, root.zoomWidth))
+                y: root.isOneToOne ? root.oneToOneY : root.fittedVideoRect().y - root.zoomY * (root.fittedVideoRect().height / Math.max(0.001, root.zoomHeight))
                 width: root.isOneToOne ? (sourceRect.width > 0 ? sourceRect.width : parent.width) : (root.fittedVideoRect().width / Math.max(0.001, root.zoomWidth))
                 height: root.isOneToOne ? (sourceRect.height > 0 ? sourceRect.height : parent.height) : (root.fittedVideoRect().height / Math.max(0.001, root.zoomHeight))
                 fillMode: VideoOutput.Stretch
@@ -943,8 +943,8 @@ FocusScope {
                 z: 3
                 active: root.isQuickPlayback
                 visible: root.isQuickPlayback
-                x: root.isOneToOne ? root.oneToOneX : root.fittedVideoRect().x - root.zoomX * root.fittedVideoRect().width
-                y: root.isOneToOne ? root.oneToOneY : root.fittedVideoRect().y - root.zoomY * root.fittedVideoRect().height
+                x: root.isOneToOne ? root.oneToOneX : root.fittedVideoRect().x - root.zoomX * (root.fittedVideoRect().width / Math.max(0.001, root.zoomWidth))
+                y: root.isOneToOne ? root.oneToOneY : root.fittedVideoRect().y - root.zoomY * (root.fittedVideoRect().height / Math.max(0.001, root.zoomHeight))
                 width: root.isOneToOne ? ((item && item.videoWidth > 0) ? item.videoWidth : root.fittedVideoRect().width) : (root.fittedVideoRect().width / Math.max(0.001, root.zoomWidth))
                 height: root.isOneToOne ? ((item && item.videoHeight > 0) ? item.videoHeight : root.fittedVideoRect().height) : (root.fittedVideoRect().height / Math.max(0.001, root.zoomHeight))
                 sourceComponent: quickPlaybackPlayerComponent
@@ -1400,11 +1400,25 @@ FocusScope {
 
                     // Ignore very small clicks/drags to avoid accidental zoom on clicks
                     if (w > 10 && h > 10) {
-                        root.zoomX = x1 / parent.width;
-                        root.zoomY = y1 / parent.height;
-                        root.zoomWidth = w / parent.width;
-                        root.zoomHeight = h / parent.height;
-                        root.isZoomed = true;
+                        // Convert the selection from tile pixels to fractions of the
+                        // fitted video picture, ignoring any letterbox/pillarbox bars.
+                        var fr = root.fittedVideoRect();
+                        var nx1 = Math.max(0, Math.min(1, (x1 - fr.x) / fr.width));
+                        var ny1 = Math.max(0, Math.min(1, (y1 - fr.y) / fr.height));
+                        var nx2 = Math.max(0, Math.min(1, (x1 + w - fr.x) / fr.width));
+                        var ny2 = Math.max(0, Math.min(1, (y1 + h - fr.y) / fr.height));
+                        var nw = nx2 - nx1;
+                        var nh = ny2 - ny1;
+                        if (nw > 0.01 && nh > 0.01) {
+                            // Equal fractions keep the video aspect ratio, so the picture is
+                            // never stretched. Grow the smaller side so the whole selection stays visible.
+                            var size = Math.max(nw, nh);
+                            root.zoomX = Math.max(0, Math.min(1 - size, (nx1 + nx2) / 2 - size / 2));
+                            root.zoomY = Math.max(0, Math.min(1 - size, (ny1 + ny2) / 2 - size / 2));
+                            root.zoomWidth = size;
+                            root.zoomHeight = size;
+                            root.isZoomed = true;
+                        }
                     }
                     root.isZoomSelectionMode = false;
                 }
@@ -1447,8 +1461,9 @@ FocusScope {
                         root.oneToOneX = Math.min(0, Math.max(parent.width - videoW, root.oneToOneX + dx));
                         root.oneToOneY = Math.min(0, Math.max(parent.height - videoH, root.oneToOneY + dy));
                     } else if (root.isZoomed && parent.width > 0 && parent.height > 0) {
-                        var dZoomX = (dx / parent.width) * root.zoomWidth;
-                        var dZoomY = (dy / parent.height) * root.zoomHeight;
+                        var panRect = root.fittedVideoRect();
+                        var dZoomX = (dx / Math.max(1, panRect.width)) * root.zoomWidth;
+                        var dZoomY = (dy / Math.max(1, panRect.height)) * root.zoomHeight;
 
                         root.zoomX = Math.max(0, Math.min(1.0 - root.zoomWidth, root.zoomX - dZoomX));
                         root.zoomY = Math.max(0, Math.min(1.0 - root.zoomHeight, root.zoomY - dZoomY));
