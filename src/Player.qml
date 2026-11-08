@@ -127,6 +127,32 @@ FocusScope {
     property real zoomWidth: 1
     property real zoomHeight: 1
 
+    // Zoom the ROI (box) zoom in/out with the mouse wheel, keeping the point under the cursor fixed.
+    // px/py are in this item's coordinates. Zooming out to the full picture clears the zoom.
+    function zoomByWheel(angleDeltaY, px, py) {
+        if (!isZoomed || angleDeltaY === 0) return;
+        var fr = fittedVideoRect();
+        var u = Math.max(0, Math.min(1, (px - fr.x) / Math.max(1, fr.width)));
+        var v = Math.max(0, Math.min(1, (py - fr.y) / Math.max(1, fr.height)));
+        var factor = Math.pow(0.75, angleDeltaY / 120); // wheel up => smaller visible region => zoom in
+        var newW = Math.max(0.05, Math.min(1, zoomWidth * factor));
+        var newH = Math.max(0.05, Math.min(1, zoomHeight * factor));
+        if (newW >= 0.999 && newH >= 0.999) {
+            isZoomed = false;
+            zoomX = 0;
+            zoomY = 0;
+            zoomWidth = 1;
+            zoomHeight = 1;
+            return;
+        }
+        var vx = zoomX + u * zoomWidth;
+        var vy = zoomY + v * zoomHeight;
+        zoomWidth = newW;
+        zoomHeight = newH;
+        zoomX = Math.max(0, Math.min(1 - newW, vx - u * newW));
+        zoomY = Math.max(0, Math.min(1 - newH, vy - v * newH));
+    }
+
     property bool isQuickPlayback: false
     property var quickPlaybackActivationTime: null
     property int quickPlaybackOffset: 1740

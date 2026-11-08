@@ -943,7 +943,14 @@ FocusScope {
                         
                         // Handle mousewheel zoom when in fullscreen (requires CTRL modifier)
                         onWheel: {
-                            if (wheel.modifiers & Qt.ControlModifier) {
+                            if (viewport.player && viewport.player.isZoomed &&
+                                !(wheel.modifiers & (Qt.AltModifier | Qt.MetaModifier)) &&
+                                !((wheel.modifiers & Qt.ControlModifier) && wheel.angleDelta.y < 0 && viewport.zoomScale > 1.0)) {
+                                // Box (ROI) zoom active: wheel zooms in/out of the selected region
+                                var pp = viewport.player.mapFromItem(viewportMouseArea, wheel.x, wheel.y);
+                                viewport.player.zoomByWheel(wheel.angleDelta.y, pp.x, pp.y);
+                                wheel.accepted = true;
+                            } else if (wheel.modifiers & Qt.ControlModifier) {
                                 if (!viewport.fullScreen && root.size.width > 1 && root.size.height > 1) {
                                     viewport.fullScreen = true;
                                     viewport.forceActiveFocus();
@@ -1763,6 +1770,25 @@ FocusScope {
         }
 
         return -1;
+    }
+
+    // If the tile under (x, y) (in this layout's coordinates) is box-zoomed, zoom it with the wheel.
+    // Returns true when the wheel event was consumed.
+    function boxZoomWheelAt(x, y, angleDeltaY, modifiers) {
+        if (modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) {
+            return false;
+        }
+        var idx = indexAt(x, y);
+        if (idx < 0) {
+            return false;
+        }
+        var p = playerPool.activePlayersMap[idx];
+        if (!p || !p.isZoomed) {
+            return false;
+        }
+        var pp = p.mapFromItem(root, x, y);
+        p.zoomByWheel(angleDeltaY, pp.x, pp.y);
+        return true;
     }
 
     function mergeCells(testMode) {

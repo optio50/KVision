@@ -1813,6 +1813,13 @@ ApplicationWindow {
                     return;
                 }
                 var layout = layoutRepeater.itemAt(stackLayout.currentIndex);
+                if (layout) {
+                    var lp = mapToItem(layout, wheel.x, wheel.y);
+                    if (layout.boxZoomWheelAt(lp.x, lp.y, wheel.angleDelta.y, wheel.modifiers)) {
+                        wheel.accepted = true;
+                        return;
+                    }
+                }
                 if (layout && (layout.fullScreenIndex >= 0 ||
                                (layout.size && layout.size.width === 1 && layout.size.height === 1))) {
                     return;

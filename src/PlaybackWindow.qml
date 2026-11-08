@@ -2248,6 +2248,40 @@ Window {
                                         }
                                     }
 
+                                    // Mouse wheel zooms in/out while a box (ROI) zoom is active
+                                    MouseArea {
+                                        id: zoomWheelMouseArea
+                                        anchors.fill: parent
+                                        acceptedButtons: Qt.NoButton
+                                        enabled: tileContainer.isZoomed && !tileContainer.isOneToOne
+                                        onWheel: {
+                                            if (parent.width <= 0 || parent.height <= 0 || wheel.angleDelta.y === 0) {
+                                                wheel.accepted = true;
+                                                return;
+                                            }
+                                            var u = Math.max(0, Math.min(1, wheel.x / parent.width));
+                                            var v = Math.max(0, Math.min(1, wheel.y / parent.height));
+                                            var factor = Math.pow(0.75, wheel.angleDelta.y / 120);
+                                            var newW = Math.max(0.05, Math.min(1, tileContainer.zoomWidth * factor));
+                                            var newH = Math.max(0.05, Math.min(1, tileContainer.zoomHeight * factor));
+                                            if (newW >= 0.999 && newH >= 0.999) {
+                                                tileContainer.isZoomed = false;
+                                                tileContainer.zoomX = 0;
+                                                tileContainer.zoomY = 0;
+                                                tileContainer.zoomWidth = 1.0;
+                                                tileContainer.zoomHeight = 1.0;
+                                            } else {
+                                                var vx = tileContainer.zoomX + u * tileContainer.zoomWidth;
+                                                var vy = tileContainer.zoomY + v * tileContainer.zoomHeight;
+                                                tileContainer.zoomWidth = newW;
+                                                tileContainer.zoomHeight = newH;
+                                                tileContainer.zoomX = Math.max(0, Math.min(1 - newW, vx - u * newW));
+                                                tileContainer.zoomY = Math.max(0, Math.min(1 - newH, vy - v * newH));
+                                            }
+                                            wheel.accepted = true;
+                                        }
+                                    }
+
                                     Item {
                                         id: playerHoverArea
                                         property bool isHovered: false
