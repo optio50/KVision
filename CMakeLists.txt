@@ -174,6 +174,7 @@ set(PROJ_FILES
     src/hikvisionisapi.cpp src/hikvisionisapi.h
     src/hikvisionarchiveplayer.cpp src/hikvisionarchiveplayer.h
     src/hikvisiondownloader.cpp src/hikvisiondownloader.h
+    src/hikvisiontalk.cpp src/hikvisiontalk.h src/talkaudio.h
     src/systemstats.cpp src/systemstats.h
     src/nvrstatusmanager.cpp src/nvrstatusmanager.h
     src/DownloadDialog.qml

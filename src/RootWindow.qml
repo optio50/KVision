@@ -213,6 +213,10 @@ ApplicationWindow {
         property string snapshotPath: ""
         property string videoPath: ""
         property bool disableAudio: false
+        property bool disableTalk: false
+        property string talkMicrophone: ""
+        property real talkGain: 2.0
+        property real talkBoostDb: 0.0
         property int auxiliaryLimit: 1
         property int playbackOffsetSeconds: 120
         property int playbackTimelineHours: 2
@@ -486,6 +490,24 @@ ApplicationWindow {
             var diskDisableAudio = Context.readSetting("", "disableAudio", false);
             if (generalSettings.disableAudio !== diskDisableAudio) {
                 generalSettings.disableAudio = diskDisableAudio;
+            }
+            var diskDisableTalk = Context.readSetting("", "disableTalk", false);
+            if (generalSettings.disableTalk !== diskDisableTalk) {
+                generalSettings.disableTalk = diskDisableTalk;
+            }
+            var diskTalkMicrophone = Context.readSetting("", "talkMicrophone", "");
+            if (generalSettings.talkMicrophone !== diskTalkMicrophone) {
+                generalSettings.talkMicrophone = diskTalkMicrophone;
+            }
+            var diskTalkGain = Number(Context.readSetting("", "talkGain", 2.0));
+            if (!(diskTalkGain >= 0.5 && diskTalkGain <= 4)) diskTalkGain = 2.0;
+            if (Math.abs(generalSettings.talkGain - diskTalkGain) > 0.001) {
+                generalSettings.talkGain = diskTalkGain;
+            }
+            var diskTalkBoost = Number(Context.readSetting("", "talkBoostDb", 0.0));
+            if (!(diskTalkBoost >= -6 && diskTalkBoost <= 12)) diskTalkBoost = 0.0;
+            if (Math.abs(generalSettings.talkBoostDb - diskTalkBoost) > 0.001) {
+                generalSettings.talkBoostDb = diskTalkBoost;
             }
             var diskEnableDiagnosticLogs = Context.readSetting("", "enableDiagnosticLogs", false);
             if (generalSettings.enableDiagnosticLogs !== diskEnableDiagnosticLogs) {
@@ -1953,6 +1975,10 @@ ApplicationWindow {
         Context.writeSetting("", "snapshotPath", generalSettings.snapshotPath);
         Context.writeSetting("", "videoPath", generalSettings.videoPath);
         Context.writeSetting("", "disableAudio", generalSettings.disableAudio);
+        Context.writeSetting("", "disableTalk", generalSettings.disableTalk);
+        Context.writeSetting("", "talkMicrophone", generalSettings.talkMicrophone);
+        Context.writeSetting("", "talkGain", generalSettings.talkGain);
+        Context.writeSetting("", "talkBoostDb", generalSettings.talkBoostDb);
         Context.writeSetting("", "auxiliaryLimit", generalSettings.auxiliaryLimit);
         Context.writeSetting("", "playbackOffsetSeconds", generalSettings.playbackOffsetSeconds);
         Context.writeSetting("", "playbackTimelineHours", generalSettings.playbackTimelineHours);

@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+* **Hold-to-talk two-way audio** for Hikvision cameras. A microphone badge on live tiles sends your voice (G.711 u-law, 8 kHz) to the camera speaker while held. Cameras behind an NVR are reached directly using the address the NVR reports for them.
+* Voice processing for small camera speakers: high-pass filter, compression and a soft limiter so peaks never clip.
+* Settings: talk microphone, microphone gain (0.5x-4x), output boost (-6 to +12 dB) and an on/off switch.
+* Right-click the talk badge to read and set the camera's own speaker volume.
+
 ## [3.0.0] - 2026-11-09
 
 First release of this independent Linux-only fork. It starts from upstream KVision 2.7.5 (Arkanista) and is no longer tracking upstream. Earlier entries below are upstream history.

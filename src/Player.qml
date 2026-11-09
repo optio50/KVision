@@ -676,6 +676,21 @@ FocusScope {
 
     property bool muted: false
     property double volume: 1.0
+
+    onTalkActiveHereChanged: {
+        // Silence the camera's own audio on this tile while talking, so its microphone
+        // does not pick up the speaker and howl. The previous state is restored afterwards.
+        var p1 = qmlAvPlayer1, p2 = qmlAvPlayer2;
+        if (talkActiveHere) {
+            talkWasMuted = root.muted;
+            p1.muted = true;
+            p2.muted = true;
+        } else {
+            if (activePlayerIndex === 1) { p1.muted = talkWasMuted; p2.muted = true; }
+            else { p2.muted = talkWasMuted; p1.muted = true; }
+        }
+    }
+    property bool talkWasMuted: false
     readonly property bool hasAudio: (typeof generalSettings !== "undefined" && generalSettings.disableAudio) ? false : (activePlayerIndex === 1 ? qmlAvPlayer1.hasAudio : qmlAvPlayer2.hasAudio)
 
     onMutedChanged: {
@@ -729,6 +744,112 @@ FocusScope {
             timer.start();
         }
         updateSource();
+    }
+
+    // --- Hold-to-talk (two-way audio) ---
+    property string talkMessage: ""
+    readonly property string talkKey: root.recorderIp + "#" + root.channelId + "#" + root.index
+    readonly property bool talkActiveHere: HikvisionTalk.active && HikvisionTalk.activeKey === talkKey
+
+    // Talk goes straight to the camera. A standalone camera is its own recorder. For a camera
+    // behind an NVR, ask the NVR for the camera's address and port (once, cached). The lookup runs
+    // when the pointer reaches the badge, so pressing it does not wait on the NVR.
+    property var talkTarget: null          // { ip, port, channel } once resolved
+    property string talkTargetFor: ""      // which recorder/channel the cache belongs to
+
+    function resolveTalkTarget() {
+        var key = root.recorderIp + "#" + root.channelId;
+        if (root.talkTarget && root.talkTargetFor === key)
+            return root.talkTarget;
+        var target = { ip: root.recorderIp, port: root.sdkPort || root.recorderPort || 8000, channel: 1, viaRecorder: false };
+        if (root.isHikvision && root.recorderIp !== "" && root.username !== "") {
+            var proxy = HikvisionManager.proxyCamera(root.recorderIp, root.httpPort || 80, root.username, root.password, root.channelId);
+            if (proxy && proxy.ip && proxy.ip !== root.recorderIp) {
+                target = { ip: proxy.ip, port: proxy.sdkPort || 8000, channel: 1, viaRecorder: true };
+            }
+        }
+        root.talkTarget = target;
+        root.talkTargetFor = key;
+        return target;
+    }
+
+    function startTalk() {
+        if (!root.isHikvision || root.recorderIp === "" || root.isQuickPlayback)
+            return;
+        root.talkMessage = "";
+        var mic = (typeof generalSettings !== "undefined") ? generalSettings.talkMicrophone : "";
+        var gain = (typeof generalSettings !== "undefined") ? generalSettings.talkGain : 2.0;
+        var boost = (typeof generalSettings !== "undefined") ? generalSettings.talkBoostDb : 0.0;
+        var t = root.resolveTalkTarget();
+        HikvisionTalk.start(root.talkKey, t.ip, t.port, root.username, root.password, mic, gain, boost);
+    }
+
+    onRecorderIpChanged: { talkTarget = null; talkTargetFor = ""; }
+    onChannelIdChanged: { talkTarget = null; talkTargetFor = ""; }
+
+    function stopTalk() {
+        if (root.talkActiveHere)
+            HikvisionTalk.stop();
+    }
+
+    // Camera speaker volume (stored on the camera, 0-100); -1 means not loaded yet.
+    property int talkSpeakerVolume: -1
+    property string talkVolumeStatus: ""
+    property string talkVolumeIp: ""
+
+    function openTalkVolume() {
+        if (!root.isHikvision || root.recorderIp === "")
+            return;
+        root.talkSpeakerVolume = -1;
+        root.talkVolumeStatus = qsTr("Reading the camera...");
+        talkVolumePopup.open();
+        var t = root.resolveTalkTarget();
+        root.talkVolumeIp = t.ip;
+        HikvisionTalk.loadSpeakerVolume(t.ip, t.viaRecorder ? 80 : (root.httpPort || 80), root.username, root.password);
+    }
+
+    Connections {
+        target: HikvisionTalk
+        onSpeakerVolumeLoaded: {
+            if (ip !== root.talkVolumeIp || !talkVolumePopup.opened)
+                return;
+            if (volume >= 0) {
+                root.talkSpeakerVolume = volume;
+                root.talkVolumeStatus = "";
+            } else {
+                root.talkVolumeStatus = qsTr("Could not read the camera's speaker volume.");
+            }
+        }
+        onSpeakerVolumeSaved: {
+            if (ip !== root.talkVolumeIp || !talkVolumePopup.opened)
+                return;
+            root.talkVolumeStatus = ok ? qsTr("Saved on the camera.") : qsTr("Could not save to the camera.");
+        }
+    }
+
+    Timer {
+        id: talkVolumeSaveTimer
+        interval: 600
+        onTriggered: {
+            var t = root.resolveTalkTarget();
+            HikvisionTalk.saveSpeakerVolume(t.ip, t.viaRecorder ? 80 : (root.httpPort || 80),
+                                            root.username, root.password, root.talkSpeakerVolume);
+        }
+    }
+
+    Connections {
+        target: HikvisionTalk
+        onFinished: {
+            if (key === root.talkKey)
+                root.talkMessage = message;
+        }
+    }
+
+    Timer {
+        id: talkMessageTimer
+        interval: 6000
+        running: root.talkMessage !== ""
+        onTriggered: root.talkMessage = ""
     }
 
     function showSnapshotDialog(path) {
@@ -1086,6 +1207,53 @@ FocusScope {
                     font.bold: true
                     font.pixelSize: 14
                     anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+        }
+
+        Rectangle {
+            id: talkBanner
+            z: 12
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: 10
+            width: talkBannerRow.width + 24
+            height: talkBannerRow.height + 12
+            radius: 6
+            color: "#dd000000"
+            border.width: 1
+            border.color: root.talkMessage !== "" ? "#e74c3c" : (HikvisionTalk.live ? "#e74c3c" : "#ff7a00")
+            visible: root.talkActiveHere || root.talkMessage !== ""
+
+            Row {
+                id: talkBannerRow
+                anchors.centerIn: parent
+                spacing: 8
+
+                Text {
+                    id: talkBannerText
+                    anchors.verticalCenter: parent.verticalCenter
+                    font.pixelSize: 12
+                    font.bold: true
+                    color: root.talkMessage !== "" ? "#ff6b5b" : "#ffffff"
+                    text: root.talkMessage !== "" ? root.talkMessage
+                          : (HikvisionTalk.live ? qsTr("Talking...") : qsTr("Connecting..."))
+                }
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 60
+                    height: 6
+                    radius: 3
+                    color: "#33ffffff"
+                    visible: root.talkActiveHere && HikvisionTalk.live
+
+                    Rectangle {
+                        height: parent.height
+                        radius: 3
+                        width: parent.width * Math.min(1, HikvisionTalk.level)
+                        color: HikvisionTalk.level > 0.85 ? "#e74c3c" : "#2ecc71"
+                    }
                 }
             }
         }
@@ -1656,7 +1824,7 @@ FocusScope {
                 }
                 height: 24
                 clip: true
-                visible: (root.source !== "") && (!viewSettings.hoverControlIcons || playerHoverArea.isHovered) && !(typeof rootWindow !== "undefined" && rootWindow.cursorHidden)
+                visible: (root.source !== "") && (root.talkActiveHere || talkVolumePopup.opened || ((!viewSettings.hoverControlIcons || playerHoverArea.isHovered) && !(typeof rootWindow !== "undefined" && rootWindow.cursorHidden)))
 
                 Row {
                     id: volumeControl
@@ -1829,6 +1997,127 @@ FocusScope {
                     anchors.right: parent.right
                     anchors.verticalCenter: parent.verticalCenter
                     spacing: 6
+
+                    Control {
+                        id: talkBadge
+
+                        implicitWidth: 24
+                        implicitHeight: 24
+                        padding: 5
+                        visible: root.source !== "" && root.isHikvision && !root.isQuickPlayback
+                                 && !(typeof generalSettings !== "undefined" && generalSettings.disableTalk)
+                        onVisibleChanged: playerHoverArea.updateHoverState()
+
+                        background: Rectangle {
+                            radius: 12
+                            color: root.talkActiveHere ?
+                                (HikvisionTalk.live ? "#55e74c3c" : "#44ff7a00") :
+                                (talkMouseArea.pressed ? "#4a5560" : (talkMouseArea.containsMouse ? "#3a4550" : "#cc121214"))
+                            border.color: root.talkActiveHere ?
+                                (HikvisionTalk.live ? "#ffe74c3c" : "#ccff7a00") :
+                                ((talkMouseArea.containsMouse || talkMouseArea.pressed) ? "#cc8898a6" : "#802a3540")
+                            border.width: 1
+                        }
+
+                        contentItem: Image {
+                            sourceSize: Qt.size(32, 32)
+                            fillMode: Image.PreserveAspectFit
+                            source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + (root.talkActiveHere ? (HikvisionTalk.live ? "%23ff6b5b" : "%23ff7a00") : (talkMouseArea.containsMouse ? "%2300f5d4" : "%23ffffff")) + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z'></path><path d='M19 10v2a7 7 0 0 1-14 0v-2'></path><line x1='12' y1='19' x2='12' y2='23'></line><line x1='8' y1='23' x2='16' y2='23'></line></svg>"
+                        }
+
+                        MouseArea {
+                            id: talkMouseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onContainsMouseChanged: {
+                                playerHoverArea.updateHoverState();
+                                if (containsMouse)
+                                    root.resolveTalkTarget();
+                            }
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            onPressed: {
+                                if (mouse.button === Qt.RightButton)
+                                    root.openTalkVolume();
+                                else
+                                    root.startTalk();
+                            }
+                            onReleased: {
+                                if (mouse.button === Qt.LeftButton)
+                                    root.stopTalk();
+                            }
+                            onCanceled: root.stopTalk()
+                        }
+
+                        Popup {
+                            id: talkVolumePopup
+                            x: parent.width - width
+                            y: -height - 6
+                            width: 230
+                            padding: 10
+                            closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
+                            onClosed: talkVolumeSaveTimer.stop()
+
+                            background: Rectangle {
+                                color: "#ee141a21"
+                                border.color: "#00f5d4"
+                                border.width: 1
+                                radius: 8
+                            }
+
+                            contentItem: Column {
+                                spacing: 6
+
+                                Text {
+                                    width: parent.width
+                                    color: "#ffffff"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    wrapMode: Text.Wrap
+                                    text: root.talkSpeakerVolume >= 0
+                                          ? qsTr("Camera speaker volume: %1").arg(root.talkSpeakerVolume)
+                                          : qsTr("Camera speaker volume")
+                                }
+
+                                Slider {
+                                    id: talkVolumeSlider
+                                    width: parent.width
+                                    from: 0
+                                    to: 100
+                                    stepSize: 1
+                                    enabled: root.talkSpeakerVolume >= 0
+                                    value: root.talkSpeakerVolume >= 0 ? root.talkSpeakerVolume : 0
+                                    onMoved: {
+                                        root.talkSpeakerVolume = Math.round(value);
+                                        root.talkVolumeStatus = "";
+                                        talkVolumeSaveTimer.restart();
+                                    }
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    visible: text !== ""
+                                    text: root.talkVolumeStatus
+                                    color: "#8898a6"
+                                    font.pixelSize: 10
+                                    wrapMode: Text.Wrap
+                                }
+
+                                Text {
+                                    width: parent.width
+                                    text: qsTr("Right-click the microphone button to open this. The volume is saved on the camera.")
+                                    color: "#5f6e7b"
+                                    font.pixelSize: 9
+                                    wrapMode: Text.Wrap
+                                }
+                            }
+                        }
+
+                        ToolTip.delay: Compact.toolTipDelay
+                        ToolTip.timeout: Compact.toolTipTimeout
+                        ToolTip.visible: talkMouseArea.containsMouse && !root.talkActiveHere
+                        ToolTip.text: qsTr("Hold to talk through the camera speaker. Right-click for the camera speaker volume.")
+                    }
 
                     Control {
                     id: snapshotBadge

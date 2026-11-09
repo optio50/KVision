@@ -2329,6 +2329,75 @@ FocusScope {
                                 onCheckedChanged: viewportSettings.noUnmuteWhenFullScreen = checked
                                 Layout.fillWidth: true
                             }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 1
+                                color: "#2a3540"
+                            }
+
+                            CheckBox {
+                                text: qsTr("Turn off the Talk button (two-way audio)")
+                                checked: generalSettings.disableTalk
+                                onCheckedChanged: generalSettings.disableTalk = checked
+                                Layout.fillWidth: true
+                            }
+
+                            Text {
+                                text: qsTr("Talk microphone")
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                            }
+
+                            ComboBox {
+                                id: talkMicCombo
+                                Layout.fillWidth: true
+                                enabled: !generalSettings.disableTalk
+                                property var mics: []
+                                model: [qsTr("System default")].concat(mics)
+                                Component.onCompleted: {
+                                    mics = HikvisionTalk.microphones();
+                                    var i = mics.indexOf(generalSettings.talkMicrophone);
+                                    currentIndex = i >= 0 ? i + 1 : 0;
+                                }
+                                onActivated: generalSettings.talkMicrophone = index === 0 ? "" : mics[index - 1]
+                            }
+
+                            Text {
+                                text: qsTr("Talk microphone gain: %1x").arg(talkGainSlider.value.toFixed(1))
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                            }
+
+                            Slider {
+                                id: talkGainSlider
+                                Layout.fillWidth: true
+                                from: 0.5
+                                to: 4.0
+                                stepSize: 0.1
+                                enabled: !generalSettings.disableTalk
+                                value: generalSettings.talkGain
+                                onMoved: generalSettings.talkGain = value
+                            }
+
+                            Text {
+                                text: qsTr("Talk output boost: %1 dB (louder at the camera speaker)").arg((talkBoostSlider.value >= 0 ? "+" : "") + talkBoostSlider.value.toFixed(0))
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            Slider {
+                                id: talkBoostSlider
+                                Layout.fillWidth: true
+                                from: -6
+                                to: 12
+                                stepSize: 1
+                                enabled: !generalSettings.disableTalk
+                                value: generalSettings.talkBoostDb
+                                onMoved: generalSettings.talkBoostDb = value
+                            }
                         }
                     }
 

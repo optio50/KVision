@@ -140,10 +140,13 @@ QVariantMap HikvisionManager::proxyCamera(const QString &nvrIp, int httpPort, co
     QRegularExpression idRx(QStringLiteral("<id>(\\d+)</id>"));
     QRegularExpression ipRx(QStringLiteral("<ipAddress>([^<]+)</ipAddress>"));
     QRegularExpression srcRx(QStringLiteral("<srcInputPort>(\\d+)</srcInputPort>"));
+    QRegularExpression mgmtPortRx(QStringLiteral("<managePortNo>(\\d+)</managePortNo>"));
     auto it = blockRx.globalMatch(text);
     while (it.hasNext()) {
         const QString block = it.next().captured(1);
         if (idRx.match(block).captured(1).toInt() != channelId) continue;
+        const int mgmtPort = mgmtPortRx.match(block).captured(1).toInt();
+        result.insert(QStringLiteral("sdkPort"), mgmtPort > 0 ? mgmtPort : 8000);
         int sourceChannel = srcRx.match(block).captured(1).toInt();
         if (sourceChannel <= 0) sourceChannel = 1;
         result.insert(QStringLiteral("ip"), ipRx.match(block).captured(1).trimmed());
