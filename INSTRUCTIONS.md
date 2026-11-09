@@ -114,37 +114,22 @@ If you want to compile the program manually (for example on another Linux distri
    sudo cmake --install build
    ```
 
-### Installing on Ubuntu / Debian (and derivatives)
+### Installing on Ubuntu / Debian / Linux Mint
 
-Install the build and runtime dependencies first. The launcher builds and starts KVision, but it does not install missing packages.
-
-```bash
-sudo apt update
-sudo apt install -y build-essential cmake git pkg-config \
-  qtbase5-dev qtdeclarative5-dev qtmultimedia5-dev \
-  qtquickcontrols2-5-dev qttools5-dev libqt5svg5-dev \
-  qml-module-qtquick-controls qml-module-qtquick-controls2 \
-  qml-module-qtquick-layouts qml-module-qtquick-window2 \
-  qml-module-qtquick-dialogs qml-module-qtqml-models2 \
-  qml-module-qt-labs-settings qml-module-qt-labs-platform \
-  qml-module-qtmultimedia qml-module-qtgraphicaleffects \
-  libqt5multimedia5-plugins \
-  ffmpeg libavcodec-dev libavformat-dev libavutil-dev \
-  libswscale-dev libswresample-dev libavdevice-dev \
-  libva-dev
-```
-
-Then clone and run:
+The installer does everything: it installs the required packages, builds KVision and adds it to your applications menu.
 
 ```bash
 git clone https://github.com/optio50/KVision.git
 cd KVision
-./kvision
+./install.sh
 ```
 
-The first run configures and builds the application in `build/`, then launches it. Later runs start the already built program immediately.
+It asks for your password once, to install packages. The first build takes a few minutes. When it prints "Done", open **KVision** from your applications menu.
 
-Do not run KVision as root.
+* **Update:** `./install.sh --update`
+* **Remove:** `./install.sh --uninstall` (your settings in `~/.config/KVision` are kept)
+* Keep the KVision folder where it is, because the menu entry points to it.
+* Do not run KVision or the installer as root.
 
 ### Launching
 

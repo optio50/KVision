@@ -6,29 +6,36 @@ This repository is a private working copy based on the upstream KVision/cctv-vie
 
 **Version 3.0.0** is an independent, Linux-only fork. It starts from upstream KVision 2.7.5 (Arkanista) and no longer tracks upstream. See `CHANGELOG.md` for what changed.
 
-## Quick start
+## Get it
 
-Install the build dependencies first. `./kvision` builds and launches the application, but it does not install missing packages.
-
-### Ubuntu / Debian
+For Debian, Ubuntu and Linux Mint. Open a terminal and run:
 
 ```bash
-sudo apt update
-sudo apt install -y build-essential cmake git pkg-config \
-  qtbase5-dev qtdeclarative5-dev qtmultimedia5-dev \
-  qtquickcontrols2-5-dev qttools5-dev libqt5svg5-dev \
-  qml-module-qtquick-controls qml-module-qtquick-controls2 \
-  qml-module-qtquick-layouts qml-module-qtquick-window2 \
-  qml-module-qtquick-dialogs qml-module-qtqml-models2 \
-  qml-module-qt-labs-settings qml-module-qt-labs-platform \
-  qml-module-qtmultimedia qml-module-qtgraphicaleffects \
-  libqt5multimedia5-plugins \
-  ffmpeg libavcodec-dev libavformat-dev libavutil-dev \
-  libswscale-dev libswresample-dev libavdevice-dev \
-  libva-dev
+git clone https://github.com/optio50/KVision.git
+cd KVision
+./install.sh
 ```
 
-Then clone and run:
+The installer asks for your password once (to install the packages KVision needs), builds the program, and adds **KVision** to your applications menu. The first build takes a few minutes. When it says "Done", open KVision from the menu.
+
+- **Keep the KVision folder where it is.** The menu entry points to it.
+- **Update:** `cd KVision && ./install.sh --update`. A new release shows as a green notice in the settings window.
+- **Remove:** `./install.sh --uninstall` removes the menu entry and the build. Your settings in `~/.config/KVision` are kept. Delete the folder to remove everything.
+- **Do not run it as root.** Run it as your normal user.
+- Tested on Linux Mint 22.3. Other Debian-family systems with Qt 5 should work. On other distributions, see the manual steps below.
+
+### If something goes wrong
+
+- **The build failed:** the last lines are shown on screen and the full log is saved as `install.log` in the KVision folder.
+- **Packages not found:** enable the Ubuntu `universe` repository (`sudo add-apt-repository universe`), then run `./install.sh` again.
+- **A camera shows no video or stutters:** edit the recorder and set **RTSP Transport** to **TCP**.
+- **Black picture on one camera:** try the camera's other stream (Main, Sub or the third stream) from its right-click menu.
+
+## Manual install
+
+Use this if you prefer to install the packages yourself, or you are not on a Debian-family system. Install the Qt 5 (Quick, Multimedia, Controls 2, SVG, Wayland) and FFmpeg development packages, plus CMake and a C++ compiler. On Debian-family systems the exact list is the `PACKAGES` array at the top of `install.sh`.
+
+Then run it straight from the clone:
 
 ```bash
 git clone https://github.com/optio50/KVision.git
@@ -36,9 +43,7 @@ cd KVision
 ./kvision
 ```
 
-The first run configures and builds the application in `build/`, then launches it. Later runs start the already built program immediately.
-
-Do not run KVision as root.
+The first run configures and builds the application in `build/`, then launches it. Later runs start the already built program immediately. Do not run KVision as root.
 
 ## Recent local changes
 
