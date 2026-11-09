@@ -33,6 +33,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 * Per-recorder RTSP transport, custom HTTP/RTSP ports and local camera names.
 
 ### Build
+* One-command install for Debian, Ubuntu and Linux Mint: `./install.sh` installs the packages, builds KVision and adds it to the applications menu. `./install.sh --update` and `--uninstall` are included.
 * Builds on Debian 10 (GCC 9, Qt 5.11); root `./kvision` launcher configures, builds and starts the app.
 * FFmpeg 4.4: the RTSP timeout option is no longer passed because it enables listen mode.
 
