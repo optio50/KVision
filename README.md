@@ -69,18 +69,41 @@ System installation is optional. `./kvision` from the repository root is the nor
 
 These are the standout changes in this copy. The original application already had live grids, playback, snapshots, downloads, auxiliary windows, and layout presets.
 
-- **Add or replace a camera from the cell.** Right-click an empty cell and choose **Add camera**. The picker lists recorders. A standalone camera is a one-channel recorder and assigns immediately. A multi-channel recorder expands so you can pick one channel. A filled cell offers **Replace camera**. The green **+** in the camera list still assigns to the focused cell.
-- **Drag cameras between cells**, including merged Panovision cells. The right-click swap action remains.
-- **Mouse-driven PTZ pad** that stays usable in small and large cells, plus an on-screen keypad for double-digit preset recall and save. The entered preset number clears after a successful save.
-- **Third Hikvision stream** in addition to Main and Sub, with the picture aspect ratio preserved instead of stretching the feed.
-- **Mouse-wheel layout paging.** Scroll over the live view to move between saved layouts. Hold **Ctrl** to zoom that camera instead. Layouts can be chosen for the top toolbar instead of showing every preset.
-- **NVR smart events on the playback timeline**, with previous and next event controls that jump the playhead between them.
-- **Frame advance.** Playback can step one video frame at a time for both Hikvision archive playback and RTSP recordings.
-- **Mark a download range on the timeline.** Click the timeline twice to set the start and end, then download that range. The download dialog can also be closed after a finished transfer.
-- **Standalone camera playback** falls back to the Hikvision SDK when the camera stores recordings on its own SD card.
-- **Windowed cursor auto-hide**, restored per-camera mute and volume controls, and a startup size guard so the main window cannot reopen at a tiny saved size.
-- **Clone and run.** `./kvision` configures, builds, and launches the application. The project also builds on Debian 10's GCC 9 and Qt 5.11.
+### Live view and PTZ
+
+- **Mouse-driven PTZ:** a pad that stays usable in small and large cells, an on-screen keypad for double-digit preset recall and save, and focus near/far controls with tooltips. The entered preset number clears after a successful save.
+- **Cell drag-and-swap:** drag cameras between cells, including merged Panovision cells. The right-click swap action remains. The cursor hides in windowed mode, and a startup size guard stops the main window reopening at a tiny saved size.
+- **Right-click menu:** right-click an empty cell and choose **Add camera**. The picker lists recorders. A standalone camera is a one-channel recorder and assigns immediately. A multi-channel recorder expands so you can pick one channel. A filled cell offers **Replace camera**, and the green **+** in the camera list still assigns to the focused cell. There is also an **Open camera web UI** entry.
+- **Per-tile fullscreen badge:** in a 1x1 grid it toggles the window to fullscreen.
+- **Mouse-wheel zoom:** zoom in and out of a box-zoomed viewport, in live view and playback. The zoom selection offset and panning for scaled video are fixed.
+- **Third Hikvision stream:** in addition to Main and Sub, with the picture aspect ratio preserved instead of stretching the feed.
+- **Channel resolution badge:** info badges hide when idle.
+- **18x18 grid:** the grid size goes up to 18x18.
+- **Add camera window:** it is always on top and shows added markers.
+- **Merged cells:** resizing is fixed, and Panovision merged-cell support is documented.
+- **Layout paging:** scroll over the live view to move between saved layouts. Hold **Ctrl** to zoom that camera instead. Layouts can be chosen for the top toolbar instead of showing every preset.
+- **Audio:** per-camera mute and volume controls are restored.
+
+### Playback
+
+- **NVR smart events on the timeline:** previous and next event controls jump the playhead between them.
+- **Frame advance and speed:** step one video frame at a time for both Hikvision archive playback and RTSP recordings, and play at 6x.
+- **Quick playback controls:** seek, event markers, previous/next event and frame step.
+- **Timeline range download:** click the timeline twice to set the start and end, then download that range. The download dialog can be closed after a finished transfer. A spinner timer is shown, and the shared session is kept after an event search.
+- **Snapshots:** save the full image or the zoomed view. Files are named `Recorder_Channel_Camera_yyyy-MM-dd_HHmmss.jpg` and stored in per-date folders.
+- **Standalone SD-card playback:** falls back to the Hikvision SDK search when the camera stores recordings on its own SD card, and its timing is fixed.
+- **Fullscreen playback:** improved.
+
+### Recorder and camera management
+
+- **Recorder cards:** a **Generate Grid** button and working hover text.
+- **Recorder cameras window:** tile width is capped.
+- **Thumbnails:** grabbing waits for a keyframe and rejects corrupt or flat frames.
 - **Per-recorder RTSP transport** (Auto, TCP, or UDP), custom HTTP and RTSP ports, and local camera names that do not change the recorder.
+
+### Platform and settings
+
+- **Clone and run:** `./kvision` configures, builds, and launches the application. The project also builds on Debian 10's GCC 9 and Qt 5.11.
 - **Settings import and export** between Linux and Windows, with snapshot and video paths adapted to the current system.
 - **System statistics** for CPU, RAM, GPU, VRAM, and network use, including Windows, without stalling video rendering.
 
