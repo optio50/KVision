@@ -82,7 +82,7 @@ void HikvisionISAPI::searchEvents(const QVariantMap &recorderInfo, int channelId
 
                 const LONG findHandle = NET_DVR_FindFileByEvent_V40(userId, &param);
                 if (findHandle < 0) {
-                    qWarning() << "[ISAPI] Event search failed for channel" << channel
+                    qDebug() << "[ISAPI] Event search failed for channel" << channel
                                << "major" << majorType << "error" << NET_DVR_GetLastError();
                     continue;
                 }
