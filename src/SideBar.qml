@@ -671,25 +671,6 @@ FocusScope {
                         horizontalAlignment: Text.AlignHCenter
                         Layout.fillWidth: true
                     }
-
-                    Text {
-                        text: qsTr("LNG_00318")
-                        color: "#8898a6"
-                        font.pixelSize: 10
-                        horizontalAlignment: Text.AlignHCenter
-                        Layout.fillWidth: true
-                    }
-
-                    Text {
-                        text: qsTr("LNG_00317")
-                        color: "#ff7a00"
-                        font {
-                            pixelSize: 10
-                            bold: true
-                        }
-                        horizontalAlignment: Text.AlignHCenter
-                        Layout.fillWidth: true
-                    }
                 }
 
                 Rectangle {
