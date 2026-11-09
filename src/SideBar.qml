@@ -79,7 +79,7 @@ FocusScope {
             return;
         }
         var xhr = new XMLHttpRequest();
-        xhr.open("GET", "https://api.github.com/repos/Arkanista/KVision/releases/latest", true);
+        xhr.open("GET", "https://api.github.com/repos/optio50/KVision/releases/latest", true);
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
@@ -1122,7 +1122,7 @@ FocusScope {
                     cursorShape: Qt.PointingHandCursor
                     hoverEnabled: true
                     onClicked: {
-                        Qt.openUrlExternally("https://github.com/Arkanista/KVision/releases/latest")
+                        Qt.openUrlExternally("https://github.com/optio50/KVision/releases/latest")
                     }
 
                     ColumnLayout {
@@ -1193,7 +1193,7 @@ FocusScope {
 
                 // Footer version link
                 Text {
-                    text: "<a href=\"https://github.com/arkanista/kvision\" style=\"color: #8898a6; text-decoration: none;\">GitHub Project</a>"
+                    text: "<a href=\"https://github.com/optio50/KVision\" style=\"color: #8898a6; text-decoration: none;\">GitHub Project</a>"
                     font.pixelSize: 11
                     textFormat: Text.RichText
                     horizontalAlignment: Text.AlignHCenter
