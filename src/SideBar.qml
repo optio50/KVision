@@ -2432,6 +2432,20 @@ FocusScope {
                             }
 
                             CheckBox {
+                                text: qsTr("LNG_00578")
+                                checked: viewSettings.showChannelResolution
+                                onCheckedChanged: viewSettings.showChannelResolution = checked
+                                Layout.fillWidth: true
+                            }
+
+                            CheckBox {
+                                text: qsTr("LNG_00579")
+                                checked: viewSettings.hideInfoBadgesWhenIdle
+                                onCheckedChanged: viewSettings.hideInfoBadgesWhenIdle = checked
+                                Layout.fillWidth: true
+                            }
+
+                            CheckBox {
                                 text: qsTr("LNG_00258")
                                 checked: viewSettings.showCameraInfo
                                 onCheckedChanged: viewSettings.showCameraInfo = checked

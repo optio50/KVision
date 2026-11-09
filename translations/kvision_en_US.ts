@@ -2406,6 +2406,14 @@
     <context>
         <name>SideBar</name>
         <message>
+            <source>LNG_00578</source>
+            <translation>Show channel resolution in the top left corner of the viewport</translation>
+        </message>
+        <message>
+            <source>LNG_00579</source>
+            <translation>Hide channel status, resolution and camera name badges when idle</translation>
+        </message>
+        <message>
             <source>LNG_00577</source>
             <translation>Ask for confirmation before closing</translation>
         </message>

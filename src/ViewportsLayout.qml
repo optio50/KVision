@@ -412,8 +412,16 @@ FocusScope {
                 implicitHeight: (layout.height / root.size.height) * Math.max(viewport.rowSpan, 0)
                 visible: root.visible && ((model.visible === ViewportsLayoutItem.Visible) ? true : false)
 
-                Layout.fillHeight: true
-                Layout.fillWidth: true
+                // Fixed size per cell (grid share x span). Letting GridLayout distribute space
+                // with fillWidth/fillHeight resizes already merged cells once several spans exist.
+                Layout.fillHeight: false
+                Layout.fillWidth: false
+                Layout.preferredWidth: (layout.width / root.size.width) * Math.max(viewport.columnSpan, 1)
+                Layout.preferredHeight: (layout.height / root.size.height) * Math.max(viewport.rowSpan, 1)
+                Layout.minimumWidth: Layout.preferredWidth
+                Layout.minimumHeight: Layout.preferredHeight
+                Layout.maximumWidth: Layout.preferredWidth
+                Layout.maximumHeight: Layout.preferredHeight
                 Layout.columnSpan: Math.max(viewport.columnSpan, 1);
                 Layout.rowSpan: Math.max(viewport.rowSpan, 1);
 
@@ -868,6 +876,10 @@ FocusScope {
                                     contextMenu.popup();
                                 }
                                 return;
+                            }
+                            // While the Add camera window is open, a click picks the cell it fills next
+                            if (addCameraDialog.visible && addCameraDialog.layoutModel === root.model) {
+                                addCameraDialog.targetIndex = model.index;
                             }
                             // Left button: record potential drag start in root coordinates
                             var pt = viewportMouseArea.mapToItem(root, mouse.x, mouse.y);
@@ -1821,6 +1833,16 @@ FocusScope {
 
     AddCameraDialog {
         id: addCameraDialog
+    }
+
+    // Keyboard navigation (or any other focus change) also moves the Add camera target
+    Connections {
+        target: d
+        function onFocusIndexChanged() {
+            if (addCameraDialog.visible && addCameraDialog.layoutModel === root.model && d.focusIndex >= 0) {
+                addCameraDialog.targetIndex = d.focusIndex;
+            }
+        }
     }
 
     ConfirmDialog {

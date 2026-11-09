@@ -122,6 +122,7 @@ Window {
                         ListElement { size: "9x9" }
                         ListElement { size: "10x10" }
                         ListElement { size: "15x15" }
+                        ListElement { size: "18x18" }
 
                         Component.onCompleted: {
                             fromJSValue(sideBarSettings.windowDivision);

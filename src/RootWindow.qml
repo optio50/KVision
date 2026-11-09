@@ -31,6 +31,8 @@ ApplicationWindow {
     // True when the auto-hide timer has blanked the mouse cursor (fullscreen inactivity).
     // Viewport overlays (hover buttons, etc.) use this to fade out together with the cursor.
     readonly property bool cursorHidden: cursorShape.hidden
+    // True after a few idle seconds when "hide info badges when idle" is enabled
+    readonly property bool infoBadgesIdleHidden: viewSettings.hideInfoBadgesWhenIdle && infoIdleState.idle
 
     onClosing: {
         if (!closeAccepted && generalSettings.confirmOnClose) {
@@ -515,6 +517,14 @@ ApplicationWindow {
             if (viewSettings.showChannelStatus !== diskShowChannelStatus) {
                 viewSettings.showChannelStatus = diskShowChannelStatus;
             }
+            var diskShowChannelResolution = Context.readSetting("View", "showChannelResolution", false);
+            if (viewSettings.showChannelResolution !== diskShowChannelResolution) {
+                viewSettings.showChannelResolution = diskShowChannelResolution;
+            }
+            var diskHideInfoBadgesWhenIdle = Context.readSetting("View", "hideInfoBadgesWhenIdle", false);
+            if (viewSettings.hideInfoBadgesWhenIdle !== diskHideInfoBadgesWhenIdle) {
+                viewSettings.hideInfoBadgesWhenIdle = diskHideInfoBadgesWhenIdle;
+            }
             var diskShowCameraInfo = Context.readSetting("View", "showCameraInfo", true);
             if (viewSettings.showCameraInfo !== diskShowCameraInfo) {
                 viewSettings.showCameraInfo = diskShowCameraInfo;
@@ -680,6 +690,8 @@ ApplicationWindow {
         property bool hideCursorWhenFullScreen: true
         property bool hideCursorWhenWindowed: true
         property bool showChannelStatus: true
+        property bool showChannelResolution: false
+        property bool hideInfoBadgesWhenIdle: false
         property bool showCameraInfo: true
         property bool hoverControlIcons: true
         property bool showInfoOnHoverOnly: false
@@ -1455,7 +1467,7 @@ ApplicationWindow {
                 }
 
                 Repeater {
-                    model: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15]
+                    model: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 18]
                     delegate: Button {
                         id: gridBtn
                         property int gridSize: modelData
@@ -1955,6 +1967,8 @@ ApplicationWindow {
         Context.writeSetting("View", "hideCursorWhenFullScreen", viewSettings.hideCursorWhenFullScreen);
         Context.writeSetting("View", "hideCursorWhenWindowed", viewSettings.hideCursorWhenWindowed);
         Context.writeSetting("View", "showChannelStatus", viewSettings.showChannelStatus);
+        Context.writeSetting("View", "showChannelResolution", viewSettings.showChannelResolution);
+        Context.writeSetting("View", "hideInfoBadgesWhenIdle", viewSettings.hideInfoBadgesWhenIdle);
         Context.writeSetting("View", "showCameraInfo", viewSettings.showCameraInfo);
         Context.writeSetting("View", "hoverControlIcons", viewSettings.hoverControlIcons);
         Context.writeSetting("View", "showInfoOnHoverOnly", viewSettings.showInfoOnHoverOnly);
@@ -2783,6 +2797,38 @@ ApplicationWindow {
         onLoaded: {
             item.show();
             item.raise();
+        }
+    }
+
+    // Tracks mouse idleness so the viewport info badges can be hidden like the cursor is
+    QtObject {
+        id: infoIdleState
+        property bool idle: false
+    }
+
+    Connections {
+        target: viewSettings
+        function onHideInfoBadgesWhenIdleChanged() {
+            infoIdleState.idle = false;
+            infoIdleTimer.restart();
+        }
+    }
+
+    Timer {
+        id: infoIdleTimer
+        running: viewSettings.hideInfoBadgesWhenIdle
+        interval: 3000
+        onTriggered: infoIdleState.idle = true
+    }
+
+    EventFilter {
+        enabled: viewSettings.hideInfoBadgesWhenIdle
+        scope: EventFilter.Application
+        eventTypes: [ "MouseMove", "MouseButtonPress" ]
+        eventProperties: false
+        onEventFiltered: {
+            infoIdleState.idle = false;
+            infoIdleTimer.restart();
         }
     }
 

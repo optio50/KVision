@@ -1246,7 +1246,7 @@ FocusScope {
                 margins: 6
             }
             
-            visible: (!viewSettings.showInfoOnHoverOnly || playerHoverArea.containsMouse) && viewSettings.showChannelStatus && (root.isQuickPlayback ? true : ((root.source !== "") && (root.isHikvision ? (root.recorderIp !== "") : (playbackState === MediaPlayer.PlayingState || status === MediaPlayer.Buffered || status === MediaPlayer.Buffering || status === MediaPlayer.Loading))))
+            visible: !(typeof rootWindow !== "undefined" && rootWindow.infoBadgesIdleHidden) && (!viewSettings.showInfoOnHoverOnly || playerHoverArea.containsMouse) && viewSettings.showChannelStatus && (root.isQuickPlayback ? true : ((root.source !== "") && (root.isHikvision ? (root.recorderIp !== "") : (playbackState === MediaPlayer.PlayingState || status === MediaPlayer.Buffered || status === MediaPlayer.Buffering || status === MediaPlayer.Loading))))
             
             color: "#66121214"
             border {
@@ -1351,6 +1351,54 @@ FocusScope {
 
 
         Rectangle {
+            id: resolutionBadge
+
+            readonly property size frameSize: {
+                // Re-evaluate when the active output reports a new size
+                var w = 0, h = 0;
+                if (root.isQuickPlayback && quickPlaybackPlayerLoader.item) {
+                    w = quickPlaybackPlayerLoader.item.videoWidth;
+                    h = quickPlaybackPlayerLoader.item.videoHeight;
+                } else {
+                    var out = root.activePlayerIndex === 1 ? videoOutput1 : videoOutput2;
+                    w = out.sourceRect.width;
+                    h = out.sourceRect.height;
+                }
+                return Qt.size(w, h);
+            }
+
+            anchors {
+                left: parent.left
+                top: streamInfoBadge.visible ? streamInfoBadge.bottom : parent.top
+                topMargin: streamInfoBadge.visible ? 4 : 6
+                leftMargin: 6
+            }
+
+            visible: !(typeof rootWindow !== "undefined" && rootWindow.infoBadgesIdleHidden) && (!viewSettings.showInfoOnHoverOnly || playerHoverArea.containsMouse) && viewSettings.showChannelResolution && frameSize.width > 0 && frameSize.height > 0 && (root.isQuickPlayback ? true : ((root.source !== "") && (root.isHikvision ? (root.recorderIp !== "") : true)))
+
+            color: "#66121214"
+            border {
+                color: root.isQuickPlayback ? "#00f5d4" : (root.activeIsSubStream ? "#ff7a00" : "#00f5d4")
+                width: 1
+            }
+            radius: 4
+
+            implicitWidth: resolutionText.implicitWidth + 8
+            implicitHeight: resolutionText.implicitHeight + 4
+
+            Text {
+                id: resolutionText
+                anchors.centerIn: parent
+                text: Math.round(resolutionBadge.frameSize.width) + "x" + Math.round(resolutionBadge.frameSize.height)
+                color: "#eeeeee"
+                font {
+                    pixelSize: 8
+                    bold: true
+                }
+            }
+        }
+
+        Rectangle {
             id: cameraInfoBadge
             
             anchors {
@@ -1360,7 +1408,7 @@ FocusScope {
                 bottomMargin: root.isQuickPlayback ? (quickPlaybackControlsPanel.height + 12) : 6
             }
             
-            visible: (!viewSettings.showInfoOnHoverOnly || playerHoverArea.containsMouse) && viewSettings.showCameraInfo && root.isHikvision && root.cameraNameInfo !== ""
+            visible: !(typeof rootWindow !== "undefined" && rootWindow.infoBadgesIdleHidden) && (!viewSettings.showInfoOnHoverOnly || playerHoverArea.containsMouse) && viewSettings.showCameraInfo && root.isHikvision && root.cameraNameInfo !== ""
             
             color: "#66121214"
             border {
