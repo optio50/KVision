@@ -4,6 +4,8 @@ Personal Linux CCTV client for live Hikvision and RTSP camera walls, playback, a
 
 This repository is a private working copy based on the upstream KVision/cctv-viewer project. It keeps the original application and adds the local fixes used on this system.
 
+**Version 3.0.0** is an independent, Linux-only fork. It starts from upstream KVision 2.7.5 (Arkanista) and no longer tracks upstream. See `CHANGELOG.md` for what changed.
+
 ## Quick start
 
 Install the build dependencies first. `./kvision` builds and launches the application, but it does not install missing packages.

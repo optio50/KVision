@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.14)
 
-set(VER_MAJ 2)
-set(VER_MIN 7)
-set(VER_PAT 5)
+set(VER_MAJ 3)
+set(VER_MIN 0)
+set(VER_PAT 0)
 if(NOT DEFINED VER_REL)
     set(VER_REL 0)
 endif()
@@ -14,7 +14,7 @@ set(ORG_DOMAIN "kvision.org")
 
 set(VERSION "${VER_MAJ}.${VER_MIN}.${VER_PAT}")
 
-project(kvision VERSION ${VERSION} HOMEPAGE_URL "https://github.com/arkanista/kvision" LANGUAGES C CXX)
+project(kvision VERSION ${VERSION} HOMEPAGE_URL "https://github.com/optio50/KVision" LANGUAGES C CXX)
 
 include(GNUInstallDirs)
 

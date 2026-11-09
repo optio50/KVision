@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [3.0.0] - 2026-11-09
+
+First release of this independent Linux-only fork. It starts from upstream KVision 2.7.5 (Arkanista) and is no longer tracking upstream. Earlier entries below are upstream history.
+
+### Removed
+* **Windows support:** the Windows build, CI workflow, `BUILD_WINDOWS.md`, icon resources and all `_WIN32` code paths. Hikvision's own client already covers Windows.
+* **Packaging recipes:** `debian/`, `packaging/arch/` and `snap/`. Run with `./kvision`.
+* **Other languages:** English is the only language and the language picker is gone.
+
+### Live view and PTZ
+* Mouse-driven PTZ pad, double-digit presets, focus near/far controls with tooltips, and the preset number clears after saving.
+* Drag cameras between cells (including merged Panovision cells); cursor auto-hide in windowed mode and a startup size guard.
+* Right-click menu: add or replace a camera from a recorder picker, and open the camera web UI.
+* Per-tile fullscreen badge toggles window fullscreen in a 1x1 grid.
+* Mouse-wheel zoom inside a box-zoomed viewport (live and playback); fixed zoom selection offset and panning for scaled video.
+* Third Hikvision stream with the picture aspect ratio preserved.
+* Channel resolution badge, info badges hide when idle, grids up to 18x18, always-on-top Add camera window, merged-cell resize fix.
+* Mouse-wheel paging through saved layouts.
+
+### Playback
+* NVR smart events on the timeline with previous/next event controls, one-frame advance and 6x speed.
+* Mark a range on the timeline and download it; quick playback gets seek, event markers and frame step.
+* Snapshots can save the full image or the zoomed view. **File names now use the camera/NVR time of the frame shown** (decoder frame timestamp in playback, the recorder's clock in live view), not the PC clock.
+* Standalone SD-card playback falls back to the SDK search; improved fullscreen playback.
+
+### Recorder and camera management
+* Generate Grid button on recorder cards, capped tile width in the recorder cameras window.
+* Thumbnails wait for a keyframe and reject corrupt or flat frames.
+* Per-recorder RTSP transport, custom HTTP/RTSP ports and local camera names.
+
+### Build
+* Builds on Debian 10 (GCC 9, Qt 5.11); root `./kvision` launcher configures, builds and starts the app.
+* FFmpeg 4.4: the RTSP timeout option is no longer passed because it enables listen mode.
+
 ## [2.7.5] - 2026-10-29
 
 ### EN: Features, Improvements & Bug Fixes

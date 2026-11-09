@@ -133,6 +133,16 @@ FocusScope {
 
     property var changelogData: [
         {
+            version: "v3.0.0",
+            date: "09.11.2026",
+            changes: [
+                qsTr("Independent Linux-only fork of KVision 2.7.5. Windows, packaging recipes and extra languages removed."),
+                qsTr("Live view: mouse PTZ with double-digit presets and focus, drag-and-swap cells, right-click camera picker, wheel zoom, third Hikvision stream, 18x18 grid."),
+                qsTr("Playback: NVR smart events on the timeline, event and frame stepping, 6x speed, timeline range download, SD-card playback fallback."),
+                qsTr("Snapshots are named with the camera/NVR time of the frame shown, not the PC clock.")
+            ]
+        },
+        {
             version: "v2.7.5",
             date: "29.10.2026",
             changes: [
