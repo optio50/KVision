@@ -741,8 +741,35 @@ FocusScope {
         captureCurrentFrameAndNotify(typeStr, false);
     }
 
+    // Time used to name snapshots. It always comes from the camera/NVR clock,
+    // never from the PC, whenever the source provides one:
+    //  - playback: the timestamp of the frame being displayed (SDK decoder),
+    //    falling back to the NVR timeline position of the player
+    //  - live Hikvision: the recorder's own clock
+    // Plain RTSP/HTTP sources expose no camera clock, so the PC clock is the only option.
+    function cameraSnapshotTime() {
+        if (root.isQuickPlayback) {
+            var item = quickPlaybackPlayerLoader.item;
+            if (item && item.currentFrameTimeMs) {
+                var frameMs = item.currentFrameTimeMs();
+                if (frameMs > 0)
+                    return new Date(frameMs);
+            }
+            if (root.quickPlaybackActivationTime)
+                return new Date(root.quickPlaybackActivationTime.getTime() - (1800 - root.quickPlaybackOffset) * 1000);
+        } else if (root.isHikvision && root.recorderIp !== "" && typeof HikvisionManager !== "undefined") {
+            var devMs = HikvisionManager.deviceTimeMs(root.recorderIp, root.recorderPort || 8000, root.username, root.password);
+            if (devMs > 0)
+                return new Date(devMs);
+            console.log("Snapshot: recorder clock unavailable for", root.recorderIp);
+        } else {
+            console.log("Snapshot: source has no camera clock, using PC time for the file name");
+        }
+        return new Date();
+    }
+
     function captureCurrentFrameAndNotify(typeStr, zoomedOnly) {
-        var stamp = new Date();
+        var stamp = root.cameraSnapshotTime();
         var activeOutput = null;
         var nativeWidth = 1920;
         var nativeHeight = 1080;

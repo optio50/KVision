@@ -42,6 +42,8 @@ public:
     Q_INVOKABLE bool ptzPreset(const QString &ip, int port, const QString &username, const QString &password, int channelId, int command, int presetIndex);
 
     // Force I-Frame for seamless switching
+    // Current clock of the recorder/camera (local wall clock, epoch ms), or -1 on failure.
+    Q_INVOKABLE qint64 deviceTimeMs(const QString &ip, int port, const QString &username, const QString &password);
     Q_INVOKABLE bool forceIFrame(const QString &ip, int port, const QString &username, const QString &password, int channelId);
     Q_INVOKABLE QString fetchStreamingChannels(const QString &ip, int httpPort, const QString &username, const QString &password);
     Q_INVOKABLE QVariantMap proxyCamera(const QString &nvrIp, int httpPort, const QString &username, const QString &password, int channelId);

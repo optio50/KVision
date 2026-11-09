@@ -2541,7 +2541,10 @@ Window {
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
                                                 function saveSnapshot(zoomedOnly) {
-                                                    var stamp = playheadTimeMs > 0 ? new Date(playheadTimeMs) : new Date();
+                                                    // Name the file after the camera/NVR time of the frame shown,
+                                                    // falling back to the NVR timeline position (never the PC clock).
+                                                    var frameMs = playerItem.currentFrameTimeMs();
+                                                    var stamp = frameMs > 0 ? new Date(frameMs) : (playheadTimeMs > 0 ? new Date(playheadTimeMs) : new Date());
                                                     var nativeWidth = playerItem.videoWidth > 0 ? playerItem.videoWidth : 1920;
                                                     var nativeHeight = playerItem.videoHeight > 0 ? playerItem.videoHeight : 1080;
                                                     var path = Utils.snapshotSavePath(

@@ -90,7 +90,7 @@ These are the standout changes in this copy. The original application already ha
 - **Frame advance and speed:** step one video frame at a time for both Hikvision archive playback and RTSP recordings, and play at 6x.
 - **Quick playback controls:** seek, event markers, previous/next event and frame step.
 - **Timeline range download:** click the timeline twice to set the start and end, then download that range. The download dialog can be closed after a finished transfer. A spinner timer is shown, and the shared session is kept after an event search.
-- **Snapshots:** save the full image or the zoomed view. Files are named `Recorder_Channel_Camera_yyyy-MM-dd_HHmmss.jpg` and stored in per-date folders.
+- **Snapshots:** save the full image or the zoomed view. Files are named `Recorder_Channel_Camera_yyyy-MM-dd_HHmmss.jpg` and stored in per-date folders. The time in the name is the camera/NVR time of the frame shown (the recorder's clock in live view), not the PC clock, so it matches the on-screen camera time even when that text is zoomed out of view.
 - **Standalone SD-card playback:** falls back to the Hikvision SDK search when the camera stores recordings on its own SD card, and its timing is fixed.
 - **Fullscreen playback:** improved.
 

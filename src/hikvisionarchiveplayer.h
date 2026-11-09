@@ -85,6 +85,8 @@ public:
     Q_INVOKABLE bool hasActiveStream() const;
     Q_INVOKABLE bool hasReceivedFrames() const;
     Q_INVOKABLE bool saveCurrentFrame(const QString &path) const;
+    // Camera/NVR timestamp (local wall clock, epoch ms) of the frame being displayed, or -1.
+    Q_INVOKABLE qint64 currentFrameTimeMs() const;
 
 
 signals:

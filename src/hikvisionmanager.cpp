@@ -1,6 +1,8 @@
 #include "hikvisionmanager.h"
 #include "context.h"
 #include <QDebug>
+#include <QDateTime>
+#include <cstring>
 #include <QProcess>
 #include <QRegularExpression>
 #include <QRegularExpressionMatchIterator>
@@ -513,6 +515,26 @@ LONG HikvisionManager::getSession(const QString &ip, int port, const QString &us
     }
 
     return lUserID;
+}
+
+qint64 HikvisionManager::deviceTimeMs(const QString &ip, int port, const QString &username, const QString &password)
+{
+    LONG lUserID = getSession(ip, port, username, password);
+    if (lUserID < 0) {
+        qWarning() << "[Hikvision] deviceTimeMs failed to get session for IP:" << ip;
+        return -1;
+    }
+    NET_DVR_TIME t;
+    std::memset(&t, 0, sizeof(t));
+    DWORD returned = 0;
+    if (!NET_DVR_GetDVRConfig(lUserID, NET_DVR_GET_TIMECFG, 0, &t, sizeof(t), &returned)) {
+        qWarning() << "[Hikvision] NET_DVR_GET_TIMECFG failed for" << ip << "error" << NET_DVR_GetLastError();
+        return -1;
+    }
+    QDateTime dt(QDate(static_cast<int>(t.dwYear), static_cast<int>(t.dwMonth), static_cast<int>(t.dwDay)),
+                 QTime(static_cast<int>(t.dwHour), static_cast<int>(t.dwMinute), static_cast<int>(t.dwSecond)),
+                 Qt::LocalTime);
+    return dt.isValid() ? dt.toMSecsSinceEpoch() : -1;
 }
 
 bool HikvisionManager::forceIFrame(const QString &ip, int port, const QString &username, const QString &password, int channelId)

@@ -1448,6 +1448,23 @@ bool HikvisionArchivePlayer::saveCurrentFrame(const QString &path) const
     return m_currentImage.save(path, "JPG", 98);
 }
 
+qint64 HikvisionArchivePlayer::currentFrameTimeMs() const
+{
+    LONG port = m_nPort.load();
+    if (port < 0) {
+        return -1;
+    }
+    PLAYM4_SYSTEM_TIME t;
+    std::memset(&t, 0, sizeof(t));
+    if (!PlayM4_GetSystemTime(port, &t) || t.dwYear < 2000) {
+        return -1;
+    }
+    QDateTime dt(QDate(static_cast<int>(t.dwYear), static_cast<int>(t.dwMon), static_cast<int>(t.dwDay)),
+                 QTime(static_cast<int>(t.dwHour), static_cast<int>(t.dwMin), static_cast<int>(t.dwSec), static_cast<int>(t.dwMs)),
+                 Qt::LocalTime);
+    return dt.isValid() ? dt.toMSecsSinceEpoch() : -1;
+}
+
 void HikvisionArchivePlayer::initAudioOutput(int sampleRate, int channels, uint64_t sessionId)
 {
     if (QThread::currentThread() != qApp->thread()) {
