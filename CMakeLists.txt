@@ -40,16 +40,6 @@ execute_process(COMMAND git -C ${CMAKE_SOURCE_DIR} log --pretty=format:%h -n 1
     ERROR_QUIET
 )
 
-if (EXISTS "${CMAKE_SOURCE_DIR}/debian/git-build-recipe.manifest")
-    set(PACKAGER "PPA")
-
-    if ("${GIT_COMMIT}" STREQUAL "")
-        file(READ "${CMAKE_SOURCE_DIR}/debian/git-build-recipe.manifest" PPA_MANIFEST)
-        string(REGEX MATCH "lp:cctv-viewer git-commit:(.......)" _ ${PPA_MANIFEST})
-        set(GIT_COMMIT ${CMAKE_MATCH_1})
-    endif()
-endif()
-
 if(NOT DEFINED PACKAGER)
     if ("${GIT_COMMIT}" STREQUAL "")
         set(PACKAGER "SRC")
