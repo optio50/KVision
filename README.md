@@ -104,8 +104,8 @@ These are the standout changes in this copy. The original application already ha
 ### Platform and settings
 
 - **Clone and run:** `./kvision` configures, builds, and launches the application. The project also builds on Debian 10's GCC 9 and Qt 5.11.
-- **Settings import and export** between Linux and Windows, with snapshot and video paths adapted to the current system.
-- **System statistics** for CPU, RAM, GPU, VRAM, and network use, including Windows, without stalling video rendering.
+- **Settings import and export** from the side panel, for backing up or moving your configuration to another Linux machine.
+- **System statistics** for CPU, RAM, GPU, VRAM, and network use, without stalling video rendering.
 
 ## Features
 
@@ -190,7 +190,7 @@ These are the standout changes in this copy. The original application already ha
   * `Alt + Left` / `Alt + Right`: Switch layouts.
   * `Alt + 1` to `Alt + 9`: Instant preset switching.
 * **Multilingual UI**: Live translation switching across 22 languages.
-* **Cross-Platform Settings Import / Export**: Dedicated **Import / Export** tab in the side panel (below Settings) allowing one-click backup and migration of configuration files (`*.conf` / `*.ini`) between Linux (`~/.config/KVision/KVision.conf`) and Windows (`%APPDATA%\KVision\KVision.ini`), with automatic OS path adaptation for snapshot and video directories.
+* **Settings Import / Export**: Dedicated **Import / Export** tab in the side panel (below Settings) allowing one-click backup and migration of configuration files (`*.conf` / `*.ini`) for Linux (`~/.config/KVision/KVision.conf`).
 * **Cursor Auto-Hide**: In windowed mode, the cursor and viewport buttons hide automatically and return when the mouse moves.
 
 ## Upstream

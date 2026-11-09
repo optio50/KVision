@@ -34,17 +34,10 @@ static qint64 getActualFileSize(const QString &filePath)
 static QString resolveFfmpegExecutable()
 {
     const QString appDir = QCoreApplication::applicationDirPath();
-#ifdef _WIN32
-    const QString bundledExe = QDir(appDir).filePath(QStringLiteral("ffmpeg.exe"));
-    if (QFileInfo::exists(bundledExe)) {
-        return bundledExe;
-    }
-#else
     const QString bundledBin = QDir(appDir).filePath(QStringLiteral("ffmpeg"));
     if (QFileInfo::exists(bundledBin)) {
         return bundledBin;
     }
-#endif
     const QString fromPath = QStandardPaths::findExecutable(QStringLiteral("ffmpeg"));
     if (!fromPath.isEmpty()) {
         return fromPath;
@@ -178,11 +171,6 @@ HikvisionDownloader::HikvisionDownloader(QObject *parent)
 
     m_ffmpegProcess = new QProcess(this);
     m_ffmpegProcess->setWorkingDirectory(QCoreApplication::applicationDirPath());
-#ifdef _WIN32
-    m_ffmpegProcess->setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *args) {
-        args->flags |= CREATE_NO_WINDOW;
-    });
-#endif
     connect(m_ffmpegProcess, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished), this, &HikvisionDownloader::onFfmpegFinished);
     connect(m_ffmpegProcess, &QProcess::errorOccurred, this, &HikvisionDownloader::onFfmpegError);
 }

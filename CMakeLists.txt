@@ -18,14 +18,6 @@ project(kvision VERSION ${VERSION} HOMEPAGE_URL "https://github.com/arkanista/kv
 
 include(GNUInstallDirs)
 
-if(WIN32)
-    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
-    add_compile_options(
-        $<$<COMPILE_LANGUAGE:C,CXX>:/FIwindows.h>
-        $<$<COMPILE_LANGUAGE:C,CXX>:/Zc:__cplusplus>
-    )
-endif()
-
 if(DEFINED VER_REL AND ${VER_REL} GREATER 0)
     set(VERSION "${VERSION}-${VER_REL}")
 endif()
@@ -72,9 +64,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Fix build on LP for Ubuntu 20.04
-if(NOT WIN32)
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-endif()
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug" AND NOT ANDROID)
     add_compile_options(
@@ -134,21 +124,16 @@ if (ANDROID)
         "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/lib/libavfilter.so"
         )
 else()
-    if(WIN32)
-        include_directories(${FFMPEG_INC})
-        link_directories(${FFMPEG_LIB})
-    else()
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(LIBAV REQUIRED
-            libavformat
-            libavcodec
-            libavutil
-            libswscale
-            libswresample
-            libavdevice
-        )
-        include_directories(${LIBAV_INCLUDE_DIRS})
-    endif()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(LIBAV REQUIRED
+        libavformat
+        libavcodec
+        libavutil
+        libswscale
+        libswresample
+        libavdevice
+    )
+    include_directories(${LIBAV_INCLUDE_DIRS})
 endif()
 
 find_package(QT NAMES Qt5 COMPONENTS ${QT_LINK_DEPENDENCIES} QuickCompiler LinguistTools REQUIRED)
@@ -208,13 +193,7 @@ if (ANDROID)
     target_include_directories(kvision PRIVATE "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/include")
     target_link_directories(kvision PRIVATE "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/lib")
 else()
-    if(WIN32)
-        list(APPEND PROJ_FILES kvision.rc)
-    endif()
     add_executable(kvision ${PROJ_FILES} ${QMLAV_FILES})
-    if(WIN32)
-        set_target_properties(kvision PROPERTIES WIN32_EXECUTABLE TRUE)
-    endif()
 endif()
 
 target_include_directories(kvision PRIVATE ${QMLAV_INCLUDE})

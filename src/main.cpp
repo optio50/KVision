@@ -9,14 +9,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QSettings>
-#ifdef _WIN32
-  #include <process.h>
-  typedef unsigned long uid_t;
-  #define getpid _getpid
-  #define getuid() 0UL
-#else
-  #include <unistd.h>
-#endif
+#include <unistd.h>
 #include <sys/types.h>
 #include <cstdarg>
 #include <QStandardPaths>
@@ -339,9 +332,6 @@ int main(int argc, char *argv[])
 #endif
 #if defined(ORG_DOMAIN)
     QCoreApplication::setOrganizationDomain(QLatin1String(ORG_DOMAIN));
-#endif
-#ifdef _WIN32
-    QSettings::setDefaultFormat(QSettings::IniFormat);
 #endif
     QApplication::setDesktopFileName(QStringLiteral("kvision"));
 

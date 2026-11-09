@@ -33,10 +33,6 @@ private:
 
     struct NvmlContext;
     NvmlContext *m_nvml = nullptr;
-#ifdef _WIN32
-    struct WinPdhContext;
-    WinPdhContext *m_winPdh = nullptr;
-#endif
 
     QHash<QString, qint64> m_prevDrmEngineTimes;
     QElapsedTimer m_gpuTimer;

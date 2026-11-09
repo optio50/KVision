@@ -132,26 +132,6 @@ void Context::init()
                 qWarning() << "Failed to migrate configuration file from" << oldConfigPath << "to" << newConfigPath;
             }
         }
-#ifdef _WIN32
-        if (!QFile::exists(newConfigPath)) {
-            QFileInfo newFileInfo(newConfigPath);
-            QString siblingConf = newFileInfo.absolutePath() + QStringLiteral("/KVision.conf");
-            QString legacyWinFile = QStringLiteral("\\HKEY_CURRENT_USER\\Software\\KVision\\KVision");
-            if (QFile::exists(siblingConf)) {
-                QDir().mkpath(newFileInfo.absolutePath());
-                if (QFile::copy(siblingConf, newConfigPath)) {
-                    qInfo() << "Migrated sibling KVision.conf to" << newConfigPath;
-                    m_isFirstRun = false;
-                }
-            } else if (QFile::exists(legacyWinFile)) {
-                QDir().mkpath(newFileInfo.absolutePath());
-                if (QFile::copy(legacyWinFile, newConfigPath)) {
-                    qInfo() << "Migrated legacy Windows configuration file to" << newConfigPath;
-                    m_isFirstRun = false;
-                }
-            }
-        }
-#endif
         m_config = new Config();
     }
 
@@ -387,12 +367,6 @@ QString Context::urlToLocalFile(const QString &urlOrPath) const
             p = p.mid(7);
         }
     }
-#ifdef _WIN32
-    // Strip leading slash before Windows drive letter (e.g. "/C:/Users/..." -> "C:/Users/...")
-    if (p.length() >= 3 && (p[0] == '/' || p[0] == '\\') && p[1].isLetter() && p[2] == ':') {
-        p = p.mid(1);
-    }
-#endif
     return QDir::fromNativeSeparators(p);
 }
 
@@ -427,30 +401,18 @@ bool Context::openLocalFolder(const QString &fileOrDirPath) const
     if (QDesktopServices::openUrl(QUrl::fromLocalFile(dirPath))) {
         return true;
     }
-#ifdef _WIN32
-    return QProcess::startDetached(QStringLiteral("explorer.exe"), { QDir::toNativeSeparators(dirPath) });
-#else
     return false;
-#endif
 }
 
 bool Context::isValidPlatformPath(const QString &path) const
 {
     if (path.trimmed().isEmpty())
         return false;
-#ifdef _WIN32
-    // Reject Unix-style paths or broken "/C:/..." paths on Windows
-    if (path.startsWith('/') || path.startsWith('\\'))
-        return false;
-    if (path.length() < 2 || !path[0].isLetter() || path[1] != ':')
-        return false;
-#else
     // Reject Windows drive-letter paths (e.g. "C:/Users/...") on Linux/Unix
     if (path.length() >= 2 && path[0].isLetter() && path[1] == ':')
         return false;
     if (!path.startsWith('/'))
         return false;
-#endif
     return true;
 }
 
