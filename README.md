@@ -1,6 +1,10 @@
-# KVision
+<p align="center">
+  <img src="images/512.png" width="320" alt="KVision logo">
+</p>
 
-Personal Linux CCTV client for live Hikvision and RTSP camera walls, playback, and PTZ control.
+<h1 align="center">KVision</h1>
+
+<p align="center">Personal Linux CCTV client for live Hikvision and RTSP camera walls, playback, and PTZ control.</p>
 
 This repository is a private working copy based on the upstream KVision/cctv-viewer project. It keeps the original application and adds the local fixes used on this system.
 
