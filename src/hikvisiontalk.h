@@ -15,6 +15,7 @@
 #include <vector>
 #include "hcnetsdk_compat.h"
 #include "talkaudio.h"
+#include "talkaacencoder.h"
 
 class QAudioInput;
 class QIODevice;
@@ -83,9 +84,10 @@ private:
 
     void workerMain(std::shared_ptr<Job> job);
     void onAudioReady();
-    void onWorkerLive(const std::shared_ptr<Job> &job);
+    void onWorkerLive(const std::shared_ptr<Job> &job, int format, int outRate);
     void onWorkerFailed(const std::shared_ptr<Job> &job, const QString &message);
     void endSession(const QString &message);
+    bool configureAudioChain(int format, int outRate);
     void releaseCapture();
     static QString sdkLibDir();
     QNetworkReply *sendTalkRequest(const QByteArray &verb, const QString &ip, int httpPort,
@@ -97,6 +99,14 @@ private:
     QAudioInput *m_input = nullptr;
     QIODevice *m_io = nullptr;
     int m_inputRate = 48000;
+    // Audio format the camera asked for, set when its talk session opens.
+    enum Format { FormatUlaw = 0, FormatAlaw = 1, FormatAac = 2 };
+    Format m_format = FormatUlaw;
+    int m_outRate = 8000;
+    double m_gain = 1.0;
+    double m_boostDb = 0.0;
+    size_t m_maxQueued = 50;
+    std::unique_ptr<TalkAacEncoder> m_aac;
     TalkAudio::Resampler m_resampler;
     TalkAudio::VoiceProcessor m_processor;
     std::vector<uint8_t> m_pending;

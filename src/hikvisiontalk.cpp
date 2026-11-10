@@ -160,11 +160,9 @@ bool HikvisionTalk::start(const QString &key, const QString &ip, int port, const
     }
 
     m_inputRate = fmt.sampleRate();
-    m_resampler = TalkAudio::Resampler(m_inputRate, 8000);
-    m_processor = TalkAudio::VoiceProcessor(8000);
-    m_processor.setGain(std::max(0.1, std::min(8.0, gain)));
-    m_processor.setOutputBoostDb(boostDb);
-    m_pending.clear();
+    m_gain = std::max(0.1, std::min(8.0, gain));
+    m_boostDb = boostDb;
+    configureAudioChain(FormatUlaw, 8000); // until the camera tells us what it wants
 
     m_input = new QAudioInput(device, fmt, this);
     m_input->setBufferSize(m_inputRate / 10 * 2); // about 100 ms
@@ -230,6 +228,31 @@ void HikvisionTalk::endSession(const QString &message)
     qDebug() << "[Talk] Ended" << (message.isEmpty() ? QStringLiteral("normally") : message);
 }
 
+// Sets up resampling, levelling and encoding for the format the camera asked for.
+bool HikvisionTalk::configureAudioChain(int format, int outRate)
+{
+    m_format = static_cast<Format>(format);
+    m_outRate = outRate;
+    m_resampler = TalkAudio::Resampler(m_inputRate, outRate);
+    m_processor = TalkAudio::VoiceProcessor(outRate);
+    m_processor.setGain(m_gain);
+    m_processor.setOutputBoostDb(m_boostDb);
+    m_pending.clear();
+    m_aac.reset();
+
+    int frameMs = 20; // G.711 is sent in 20 ms frames
+    if (m_format == FormatAac) {
+        m_aac.reset(new TalkAacEncoder());
+        if (!m_aac->open(outRate, 32000)) {
+            m_aac.reset();
+            return false;
+        }
+        frameMs = std::max(1, m_aac->frameSize() * 1000 / outRate);
+    }
+    m_maxQueued = static_cast<size_t>(std::max(8, 1000 / frameMs)); // about one second at most
+    return true;
+}
+
 void HikvisionTalk::releaseCapture()
 {
     if (m_input) {
@@ -258,7 +281,7 @@ void HikvisionTalk::onAudioReady()
         in[static_cast<size_t>(i)] = src[i] / 32768.0f;
 
     std::vector<float> out;
-    out.reserve(static_cast<size_t>(count) * 8000 / static_cast<size_t>(m_inputRate) + 2);
+    out.reserve(static_cast<size_t>(count) * static_cast<size_t>(m_outRate) / static_cast<size_t>(m_inputRate) + 2);
     m_resampler.process(in.data(), count, out);
     if (out.empty())
         return;
@@ -276,12 +299,35 @@ void HikvisionTalk::onAudioReady()
     if (!m_live || !m_job)
         return;
 
+    if (m_format == FormatAac) {
+        if (!m_aac)
+            return;
+        std::vector<int16_t> pcm(out.size());
+        for (size_t i = 0; i < out.size(); ++i)
+            pcm[i] = static_cast<int16_t>(std::max(-32768, std::min(32767, static_cast<int>(std::lrintf(out[i] * 32767.0f)))));
+        std::vector<std::vector<uint8_t>> frames;
+        m_aac->encode(pcm.data(), static_cast<int>(pcm.size()), frames);
+        if (frames.empty())
+            return;
+        {
+            std::lock_guard<std::mutex> lock(m_job->m);
+            for (auto &f : frames)
+                m_job->frames.push_back(std::move(f));
+            while (m_job->frames.size() > m_maxQueued)
+                m_job->frames.pop_front();
+        }
+        m_job->cv.notify_one();
+        return;
+    }
+
+    // G.711, sent in 20 ms (160 byte) frames.
     for (float s : out) {
         int v = static_cast<int>(std::lrintf(s * 32767.0f));
         v = std::max(-32768, std::min(32767, v));
-        m_pending.push_back(TalkAudio::linearToUlaw(static_cast<int16_t>(v)));
+        m_pending.push_back(m_format == FormatAlaw ? TalkAudio::linearToAlaw(static_cast<int16_t>(v))
+                                                   : TalkAudio::linearToUlaw(static_cast<int16_t>(v)));
     }
-    const size_t frame = 160; // 20 ms
+    const size_t frame = 160;
     size_t offset = 0;
     {
         std::lock_guard<std::mutex> lock(m_job->m);
@@ -290,7 +336,7 @@ void HikvisionTalk::onAudioReady()
                                        m_pending.begin() + static_cast<long>(offset + frame));
             offset += frame;
         }
-        while (m_job->frames.size() > 50) // never queue more than about one second
+        while (m_job->frames.size() > m_maxQueued)
             m_job->frames.pop_front();
     }
     if (offset > 0)
@@ -298,10 +344,14 @@ void HikvisionTalk::onAudioReady()
     m_job->cv.notify_one();
 }
 
-void HikvisionTalk::onWorkerLive(const std::shared_ptr<Job> &job)
+void HikvisionTalk::onWorkerLive(const std::shared_ptr<Job> &job, int format, int outRate)
 {
     if (!m_active || job != m_job || m_live)
         return;
+    if (!configureAudioChain(format, outRate)) {
+        endSession(tr("KVision could not start the audio encoder this camera needs."));
+        return;
+    }
     m_connectTimeout.stop();
     m_live = true;
     emit liveChanged();
@@ -338,6 +388,48 @@ void HikvisionTalk::workerMain(std::shared_ptr<Job> job)
         return;
     }
 
+    // Ask the camera which audio format it wants. Most cameras take G.711 u-law at 8 kHz, but
+    // some (older doorbells, for instance) want AAC at 16 kHz.
+    int format = FormatUlaw;
+    int outRate = 8000;
+    {
+        NET_DVR_COMPRESSION_AUDIO ca;
+        std::memset(&ca, 0, sizeof(ca));
+        NET_DVR_AUDIO_CHANNEL ac;
+        std::memset(&ac, 0, sizeof(ac));
+        ac.dwChannelNum = 1;
+        BOOL ok = NET_DVR_GetCurrentAudioCompress_V50(userId, &ac, &ca);
+        if (!ok) {
+            std::memset(&ca, 0, sizeof(ca));
+            ok = NET_DVR_GetCurrentAudioCompress(userId, &ca);
+        }
+        if (ok) {
+            static const int rates[] = {8000, 16000, 32000, 48000, 44100, 8000};
+            const int rateCode = ca.byAudioSamplingRate;
+            switch (ca.byAudioEncType) {
+            case AUDIOTALKTYPE_G711_MU:
+                format = FormatUlaw;
+                outRate = 8000;
+                break;
+            case AUDIOTALKTYPE_G711_A:
+                format = FormatAlaw;
+                outRate = 8000;
+                break;
+            case AUDIOTALKTYPE_AAC:
+                format = FormatAac;
+                outRate = (rateCode >= 1 && rateCode <= 5) ? rates[rateCode] : 16000;
+                break;
+            default:
+                qWarning() << "[Talk] Unsupported camera audio format" << ca.byAudioEncType;
+                fail(tr("This camera wants an audio format KVision cannot send (code %1).").arg(ca.byAudioEncType));
+                return;
+            }
+            qDebug() << "[Talk] Camera audio format" << ca.byAudioEncType << "rate" << outRate;
+        } else {
+            qWarning() << "[Talk] Could not read the camera audio format; assuming G.711 u-law 8 kHz";
+        }
+    }
+
     // Open the talk session from inside the SDK folder (see g_cwdMutex above).
     LONG handle = -1;
     DWORD err = 0;
@@ -367,7 +459,7 @@ void HikvisionTalk::workerMain(std::shared_ptr<Job> job)
         job->done = true;
         return;
     }
-    post([job](HikvisionTalk *t) { t->onWorkerLive(job); });
+    post([job, format, outRate](HikvisionTalk *t) { t->onWorkerLive(job, format, outRate); });
 
     std::vector<uint8_t> frame;
     int failedSends = 0;

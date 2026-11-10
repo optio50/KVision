@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 * **Hold-to-talk two-way audio** for Hikvision cameras. A microphone badge on live tiles sends your voice (G.711 u-law, 8 kHz) to the camera speaker while held. Cameras behind an NVR are reached directly using the address the NVR reports for them.
+* Talk audio follows the format each camera requests: G.711 u-law, G.711 A-law, or AAC-LC with ADTS framing (needed by some older Hikvision doorbells). Unsupported formats are refused with a clear message.
 * Voice processing for small camera speakers: high-pass filter, compression and a soft limiter so peaks never clip.
 * Settings: talk microphone, microphone gain (0.5x-4x), output boost (-6 to +12 dB) and an on/off switch.
 * Right-click the talk badge to read and set the camera's own speaker volume.

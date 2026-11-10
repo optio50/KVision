@@ -29,6 +29,28 @@ inline uint8_t linearToUlaw(int16_t pcm)
     return static_cast<uint8_t>(~(sign | (exponent << 4) | mantissa));
 }
 
+// ITU-T G.711 A-law encoder for one 16-bit sample.
+inline uint8_t linearToAlaw(int16_t pcm)
+{
+    static const int segEnd[8] = {0x1F, 0x3F, 0x7F, 0xFF, 0x1FF, 0x3FF, 0x7FF, 0xFFF};
+    int v = pcm >> 3; // 13-bit magnitude range
+    int mask;
+    if (v >= 0) {
+        mask = 0xD5;
+    } else {
+        mask = 0x55;
+        v = -v - 1;
+    }
+    int seg = 0;
+    while (seg < 8 && v > segEnd[seg])
+        ++seg;
+    if (seg >= 8)
+        return static_cast<uint8_t>(0x7F ^ mask);
+    int aval = seg << 4;
+    aval |= (seg < 2) ? ((v >> 1) & 0x0F) : ((v >> seg) & 0x0F);
+    return static_cast<uint8_t>(aval ^ mask);
+}
+
 // Streaming sample-rate converter (box filter average) to a lower rate, mono, float samples.
 class Resampler
 {
