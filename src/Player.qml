@@ -752,6 +752,7 @@ FocusScope {
     // seconds after each report. Only standalone cameras are watched for now; a camera behind a
     // recorder is reached through the recorder, which does not stream these events per camera.
     property string targetType: ""
+    property string targetSource: "" // LINE, INTRUSION, ENTER or EXIT while a smart-event frame is showing
     property bool targetWatching: false
     readonly property bool targetWanted: (typeof generalSettings !== "undefined") && generalSettings.showTargetIndicator
                                           && root.isHikvision && !root.isQuickPlayback && root.recorderIp !== ""
@@ -889,7 +890,7 @@ FocusScope {
             var login = root.savedLoginFor(root.recorderIp);
             if (!cam || !login)
                 return;
-            HikvisionEvents.watch(cam.ip, cam.http, login.user, login.pass);
+            HikvisionEvents.watch(cam.ip, cam.http, login.user, login.pass, root.cameraNameInfo, Context.configDirPath());
             root.targetWatching = true;
             root.watchedIp = cam.ip;
         } else if (!root.targetWanted && root.targetWatching) {
@@ -899,6 +900,7 @@ FocusScope {
             HikvisionEvents.unwatch(root.watchedIp);
             root.targetWatching = false;
             root.targetType = "";
+            root.targetSource = "";
         }
     }
     property string watchedIp: ""
@@ -911,8 +913,18 @@ FocusScope {
                 console.debug("[Target] tile " + root.index + " got " + targetType + " for " + ip + " watching=" + root.targetWatching
                             + " watchedIp=" + root.watchedIp + " hold=" + root.targetHoldMs + " ms");
             if (root.targetWatching && ip === root.watchedIp) {
+                // A smart event names itself on the frame. A labelled motion report after it keeps
+                // the name while the frame is still up; a new frame from motion alone has none.
+                if (source !== "")
+                    root.targetSource = source;
+                else if (root.targetType === "")
+                    root.targetSource = "";
                 root.targetType = targetType;
                 root.lastTargetReport = Date.now();
+                var shownAs = (targetType === "human" ? "HUMAN" : (targetType === "vehicle" ? "VEHICLE"
+                              : (targetType === "animal" ? "ANIMAL" : "MOTION")))
+                              + (root.targetSource !== "" ? " - " + root.targetSource : "");
+                HikvisionEvents.logFrame(ip, shownAs, root.index);
             }
         }
     }
@@ -942,6 +954,7 @@ FocusScope {
             if (age >= root.targetHoldMs) {
                 console.debug("[Target] tile " + root.index + " frame cleared after " + age + " ms (hold " + root.targetHoldMs + " ms)");
                 root.targetType = "";
+                root.targetSource = "";
             }
         }
     }
@@ -1438,9 +1451,10 @@ FocusScope {
                     color: "#ffffff"
                     font.pixelSize: 13
                     font.bold: true
-                    text: root.targetType === "human" ? qsTr("HUMAN")
-                          : (root.targetType === "vehicle" ? qsTr("VEHICLE")
-                          : (root.targetType === "animal" ? qsTr("ANIMAL") : qsTr("MOTION")))
+                    text: (root.targetType === "human" ? qsTr("HUMAN")
+                           : (root.targetType === "vehicle" ? qsTr("VEHICLE")
+                           : (root.targetType === "animal" ? qsTr("ANIMAL") : qsTr("MOTION"))))
+                          + (root.targetSource !== "" ? " \u2013 " + root.targetSource : "")
                 }
             }
         }

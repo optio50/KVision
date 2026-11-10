@@ -1,7 +1,12 @@
 #include "hikvisionevents.h"
 
 #include <QAuthenticator>
+#include <QDateTime>
 #include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QLocale>
+#include <QTextStream>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -12,6 +17,38 @@ namespace {
 const int kMaxFailures = 3;       // after this many failed attempts in a row, stop trying
 const int kRetryMs = 15000;       // wait between attempts
 const int kMaxBuffer = 256 * 1024; // pictures can ride along in an event; never keep more than this
+
+// Smart (VCA) event types a camera can stream, and the words used for them in the detection log.
+QString vcaKind(const QString &type)
+{
+    static const QHash<QString, QString> kinds = {
+        { QStringLiteral("linedetection"), QStringLiteral("Line crossing") },
+        { QStringLiteral("fielddetection"), QStringLiteral("Intrusion") },
+        { QStringLiteral("regionEntrance"), QStringLiteral("Region entrance") },
+        { QStringLiteral("regionExiting"), QStringLiteral("Region exit") },
+        { QStringLiteral("loitering"), QStringLiteral("Loitering") },
+        { QStringLiteral("group"), QStringLiteral("People gathering") },
+        { QStringLiteral("rapidMove"), QStringLiteral("Rapid movement") },
+        { QStringLiteral("parking"), QStringLiteral("Parking") },
+        { QStringLiteral("unattendedBaggage"), QStringLiteral("Unattended object") },
+        { QStringLiteral("attendedBaggage"), QStringLiteral("Object removed") },
+    };
+    return kinds.value(type);
+}
+
+// The short word shown after the target on a tile, for example "HUMAN - LINE".
+QString vcaShort(const QString &type)
+{
+    if (type == QLatin1String("linedetection"))
+        return QStringLiteral("LINE");
+    if (type == QLatin1String("fielddetection"))
+        return QStringLiteral("INTRUSION");
+    if (type == QLatin1String("regionEntrance"))
+        return QStringLiteral("ENTER");
+    if (type == QLatin1String("regionExiting"))
+        return QStringLiteral("EXIT");
+    return QStringLiteral("SMART");
+}
 }
 
 HikvisionEvents::HikvisionEvents(QObject *parent)
@@ -38,10 +75,13 @@ HikvisionEvents::~HikvisionEvents()
         close(ip);
 }
 
-void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user, const QString &pass)
+void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user, const QString &pass,
+                            const QString &name, const QString &configDir)
 {
     if (ip.isEmpty() || user.isEmpty() || pass.isEmpty())
         return; // never send a login we know is incomplete: a wrong login counts toward a camera lockout
+    if (m_logDir.isEmpty() && !configDir.isEmpty())
+        m_logDir = configDir + QStringLiteral("/logs");
     Conn *c = m_conns.value(ip, nullptr);
     if (!c) {
         c = new Conn;
@@ -49,6 +89,7 @@ void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user
         c->httpPort = httpPort > 0 ? httpPort : 80;
         c->user = user;
         c->pass = pass;
+        c->name = name;
         c->retry = new QTimer(this);
         c->retry->setSingleShot(true);
         c->retry->setInterval(kRetryMs);
@@ -59,6 +100,8 @@ void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user
         m_conns.insert(ip, c);
     }
     ++c->watchers;
+    if (c->name.isEmpty() && !name.isEmpty())
+        c->name = name;
     if (!c->reply && !c->retry->isActive() && c->failures < kMaxFailures && !c->authFailed)
         open(ip);
 }
@@ -126,6 +169,9 @@ void HikvisionEvents::onReadyRead(const QString &ip)
         QRegularExpression::DotMatchesEverythingOption);
     static const QRegularExpression typeRx(QStringLiteral("<eventType>([^<]*)</eventType>"));
     static const QRegularExpression targetRx(QStringLiteral("<targetType>([^<]*)</targetType>"));
+    static const QRegularExpression timeRx(QStringLiteral("<dateTime>([^<]*)</dateTime>"));
+    static const QRegularExpression stateRx(QStringLiteral("<eventState>([^<]*)</eventState>"));
+    static const QRegularExpression vcaTargetRx(QStringLiteral("<detectionTarget>([^<]*)</detectionTarget>"));
 
     int consumed = 0;
     const QString text = QString::fromLatin1(c->buffer);
@@ -135,8 +181,24 @@ void HikvisionEvents::onReadyRead(const QString &ip)
         consumed = m.capturedEnd();
         const QString body = m.captured(0);
         const QString type = typeRx.match(body).captured(1);
-        if (type != QLatin1String("VMD")) // only motion events carry a target type
+        const QString camTime = timeRx.match(body).captured(1);
+        if (type != QLatin1String("VMD")) {
+            // A smart event (line crossing, intrusion, region entrance or exit...). The camera names
+            // the target inside the rule. All of them go to the detection log and show the tile's
+            // detection frame with that target, like a labelled motion report.
+            const QString kind = vcaKind(type);
+            if (!kind.isEmpty() && stateRx.match(body).captured(1) == QLatin1String("active")) {
+                QString t = vcaTargetRx.match(body).captured(1).trimmed().toLower();
+                if (!t.isEmpty() && t != QLatin1String("human") && t != QLatin1String("vehicle") && t != QLatin1String("animal"))
+                    t = QStringLiteral("other");
+                logDetection(c, t, kind, camTime);
+                if (t.isEmpty())
+                    t = QStringLiteral("other");
+                qDebug() << "[Events]" << kind << "from" << ip << ":" << t;
+                emit targetDetected(ip, t, vcaShort(type));
+            }
             continue;
+        }
         QString target = targetRx.match(body).captured(1).trimmed().toLower();
         if (target.isEmpty()) {
             emit motionDetected(ip);
@@ -145,7 +207,8 @@ void HikvisionEvents::onReadyRead(const QString &ip)
         if (target != QLatin1String("human") && target != QLatin1String("vehicle") && target != QLatin1String("animal"))
             target = QStringLiteral("other");
         qDebug() << "[Events] report from" << ip << ":" << target;
-        emit targetDetected(ip, target);
+        logDetection(c, target, QStringLiteral("Motion"), camTime);
+        emit targetDetected(ip, target, QString());
     }
     if (consumed > 0)
         c->buffer.remove(0, consumed);
@@ -184,4 +247,50 @@ void HikvisionEvents::onFinished(const QString &ip, QNetworkReply *reply)
         return;
     }
     c->retry->start();
+}
+
+// One line per labelled report, in the order they arrive:
+//   10 Nov 2026 08:52:24, Human detected, Motion, Camera_Name, 192.0.0.3
+//   10 Nov 2026 08:53:10, Vehicle detected, Line crossing, Camera_Name, 192.0.0.3
+// The time is the camera's own time for the event, shown in this computer's time zone. When KVision
+// only read the report 10 seconds or more after the camera made it (for example after a stall), the
+// line ends with ", received HH:mm:ss". Plain motion reports carry no target type and are not logged.
+void HikvisionEvents::logDetection(const Conn *c, const QString &target, const QString &kind, const QString &cameraTime)
+{
+    if (m_logDir.isEmpty())
+        return;
+    QDir().mkpath(m_logDir);
+    QFile f(m_logDir + QStringLiteral("/Detection.log"));
+    if (!f.open(QIODevice::Append | QIODevice::Text)) {
+        qWarning() << "[Events] cannot write" << f.fileName() << f.errorString();
+        return;
+    }
+    const QString what = target.isEmpty() ? QStringLiteral("Object") : target.left(1).toUpper() + target.mid(1);
+    const QDateTime now = QDateTime::currentDateTime();
+    QDateTime eventTime = QDateTime::fromString(cameraTime, Qt::ISODate);
+    QString late;
+    if (eventTime.isValid()) {
+        eventTime = eventTime.toLocalTime();
+        if (eventTime.secsTo(now) >= 10)
+            late = QStringLiteral(", received ") + QLocale::c().toString(now, QStringLiteral("HH:mm:ss"));
+    } else {
+        eventTime = now;
+    }
+    const QString when = QLocale::c().toString(eventTime, QStringLiteral("dd MMM yyyy HH:mm:ss"));
+    QTextStream(&f) << when << ", " << what << " detected, " << kind << ", " << (c->name.isEmpty() ? c->ip : c->name) << ", " << c->ip << late << "\n";
+}
+
+// One line each time a tile shows a detection frame (a camera shown on two tiles gives two lines):
+//   10 Nov 2026 08:52:24, Frame shown, HUMAN - LINE, tile 19, Camera_Name, 192.0.0.3
+void HikvisionEvents::logFrame(const QString &ip, const QString &text, int tile)
+{
+    if (m_logDir.isEmpty())
+        return;
+    QDir().mkpath(m_logDir);
+    QFile f(m_logDir + QStringLiteral("/Frames.log"));
+    if (!f.open(QIODevice::Append | QIODevice::Text))
+        return;
+    const Conn *c = m_conns.value(ip, nullptr);
+    const QString when = QLocale::c().toString(QDateTime::currentDateTime(), QStringLiteral("dd MMM yyyy HH:mm:ss"));
+    QTextStream(&f) << when << ", Frame shown, " << text << ", tile " << tile << ", " << (c && !c->name.isEmpty() ? c->name : ip) << ", " << ip << "\n";
 }
