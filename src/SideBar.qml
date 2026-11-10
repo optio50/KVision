@@ -133,6 +133,15 @@ FocusScope {
 
     property var changelogData: [
         {
+            version: "v3.1.0",
+            date: "09.11.2026",
+            changes: [
+                qsTr("Hold-to-talk two-way audio: hold the microphone badge on a live Hikvision tile to speak through the camera speaker. Works for standalone cameras and cameras behind an NVR."),
+                qsTr("Follows the audio format each camera asks for: G.711 u-law, G.711 A-law or AAC (older doorbells)."),
+                qsTr("Settings for the talk microphone, microphone gain, output boost and an off switch. Right-click the badge to set the camera speaker volume.")
+            ]
+        },
+        {
             version: "v3.0.0",
             date: "09.11.2026",
             changes: [
