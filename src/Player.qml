@@ -756,7 +756,11 @@ FocusScope {
     readonly property bool targetWanted: (typeof generalSettings !== "undefined") && generalSettings.showTargetIndicator
                                           && root.isHikvision && !root.isQuickPlayback && root.recorderIp !== ""
                                           && root.visible && root.source !== ""
-                                          && root.isStandaloneCamera && !root.targetOffFor(root.recorderIp) && root.savedLoginFor(root.recorderIp) !== null
+                                          && root.targetSwitchedOn() && root.savedLoginFor(root.recorderIp) !== null
+    // The camera this tile is looking at: for a camera behind a recorder (NVR) it is looked up from
+    // the recorder, once, and remembered.
+    property var targetCam: null
+    property string targetCamFor: ""
     // A standalone camera is its own recorder with one or two channels (a dual-lens camera has two).
     // Anything with more channels is treated as an NVR and is not watched.
     function standaloneFor(ip) {
@@ -792,7 +796,49 @@ FocusScope {
 
     // True when the indicator is on for the camera this tile shows (used by the right-click menu).
     function targetEnabledHere() {
-        return !targetOffFor(root.recorderIp);
+        return root.targetSwitchedOn();
+    }
+
+    // Cameras behind a recorder start OFF and are switched on one at a time with the right-click menu,
+    // because each one is a separate login that the recorder's password may or may not open.
+    function nvrKey() {
+        return root.recorderIp + "#" + root.channelId;
+    }
+
+    function nvrOnList() {
+        if (typeof generalSettings === "undefined")
+            return [];
+        try {
+            var l = JSON.parse(generalSettings.targetNvrOnCameras || "[]");
+            return Array.isArray(l) ? l : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function targetSwitchedOn() {
+        if (root.isStandaloneCamera)
+            return !root.targetOffFor(root.recorderIp);
+        return root.nvrOnList().indexOf(root.nvrKey()) >= 0;
+    }
+
+    // The address to listen to. A standalone camera is its own recorder; a camera behind a recorder
+    // is looked up once from the recorder and cached.
+    function resolveTargetCam() {
+        if (root.isStandaloneCamera)
+            return { ip: root.recorderIp, http: (root.savedLoginFor(root.recorderIp) || { http: 80 }).http };
+        var key = root.nvrKey();
+        if (root.targetCam && root.targetCamFor === key)
+            return root.targetCam;
+        var login = root.savedLoginFor(root.recorderIp);
+        if (!login)
+            return null;
+        var p = HikvisionManager.proxyCameraCached(root.recorderIp, login.http, login.user, login.pass, root.channelId);
+        if (!p || !p.ip || p.ip === root.recorderIp)
+            return null;
+        root.targetCam = { ip: p.ip, http: 80 };
+        root.targetCamFor = key;
+        return root.targetCam;
     }
 
     // Flip the switch for the camera this tile shows. Every tile of that camera follows, and the
@@ -800,13 +846,23 @@ FocusScope {
     function toggleTargetHere() {
         if (root.recorderIp === "" || typeof generalSettings === "undefined")
             return;
-        var l = offList().slice();
-        var i = l.indexOf(root.recorderIp);
-        if (i >= 0)
-            l.splice(i, 1);
-        else
-            l.push(root.recorderIp);
-        generalSettings.targetOffCameras = JSON.stringify(l);
+        if (root.isStandaloneCamera) {
+            var l = offList().slice();
+            var i = l.indexOf(root.recorderIp);
+            if (i >= 0)
+                l.splice(i, 1);
+            else
+                l.push(root.recorderIp);
+            generalSettings.targetOffCameras = JSON.stringify(l);
+        } else {
+            var n = nvrOnList().slice();
+            var k = n.indexOf(root.nvrKey());
+            if (k >= 0)
+                n.splice(k, 1);
+            else
+                n.push(root.nvrKey());
+            generalSettings.targetNvrOnCameras = JSON.stringify(n);
+        }
     }
 
     // The login for a camera, read from the saved recorder list. A tile's own username and
@@ -829,13 +885,16 @@ FocusScope {
 
     function updateTargetWatch() {
         if (root.targetWanted && !root.targetWatching) {
+            var cam = root.resolveTargetCam();
             var login = root.savedLoginFor(root.recorderIp);
-            HikvisionEvents.watch(root.recorderIp, login.http, login.user, login.pass);
+            if (!cam || !login)
+                return;
+            HikvisionEvents.watch(cam.ip, cam.http, login.user, login.pass);
             root.targetWatching = true;
-            root.watchedIp = root.recorderIp;
+            root.watchedIp = cam.ip;
         } else if (!root.targetWanted && root.targetWatching) {
             console.debug("[Target] tile " + root.index + " STOPPED watching: visible=" + root.visible + " source=" + (root.source !== "")
-                        + " standalone=" + root.isStandaloneCamera + " off=" + root.targetOffFor(root.recorderIp)
+                        + " standalone=" + root.isStandaloneCamera + " on=" + root.targetSwitchedOn()
                         + " login=" + (root.savedLoginFor(root.recorderIp) !== null) + " setting=" + generalSettings.showTargetIndicator);
             HikvisionEvents.unwatch(root.watchedIp);
             root.targetWatching = false;
@@ -855,6 +914,16 @@ FocusScope {
                 root.targetType = targetType;
                 root.lastTargetReport = Date.now();
             }
+        }
+    }
+
+    Connections {
+        target: HikvisionEvents
+        onMotionDetected: {
+            // Some cameras say what they saw only once per target (the first report), then send plain
+            // motion while it moves. Plain motion never starts a frame, but it keeps one alive.
+            if (root.targetWatching && ip === root.watchedIp && root.targetType !== "")
+                root.lastTargetReport = Date.now();
         }
     }
 

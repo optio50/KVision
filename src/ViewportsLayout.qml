@@ -1047,7 +1047,7 @@ FocusScope {
                         property bool targetAvailable: false
                         onAboutToShow: {
                             var p = playerPool.activePlayersMap[model.index];
-                            targetAvailable = !!p && p.isStandaloneCamera;
+                            targetAvailable = !!p && p.isHikvision && !p.isQuickPlayback;
                             targetOn = !!p && p.targetEnabledHere();
                         }
                         

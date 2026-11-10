@@ -46,6 +46,10 @@ public:
     Q_INVOKABLE qint64 deviceTimeMs(const QString &ip, int port, const QString &username, const QString &password);
     Q_INVOKABLE bool forceIFrame(const QString &ip, int port, const QString &username, const QString &password, int channelId);
     Q_INVOKABLE QString fetchStreamingChannels(const QString &ip, int httpPort, const QString &username, const QString &password);
+    // Same answer as proxyCamera() (ip, channel, sdkPort of the camera behind a recorder channel), but
+    // the recorder's whole camera list is fetched once and remembered, so many tiles do not each wait
+    // for the recorder. A failed fetch is not retried for 30 seconds.
+    Q_INVOKABLE QVariantMap proxyCameraCached(const QString &nvrIp, int httpPort, const QString &username, const QString &password, int channelId);
     Q_INVOKABLE QVariantMap proxyCamera(const QString &nvrIp, int httpPort, const QString &username, const QString &password, int channelId);
 
     // Shared session management for playback players
@@ -76,6 +80,8 @@ private:
 
     static HikvisionManager* m_instance;
     QHash<QString, SessionInfo> m_sessions; // Maps IP to SessionInfo
+    QHash<QString, QHash<int, QVariantMap>> m_proxyCache; // recorder ip -> channel -> camera
+    QHash<QString, qint64> m_proxyFailedAt;                // recorder ip -> ms since epoch of the last failed fetch
     QHash<QString, SharedSession> m_sharedSessions;
     std::mutex m_sharedSessionsMutex;
     bool m_initialized;

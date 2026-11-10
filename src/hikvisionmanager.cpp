@@ -126,6 +126,52 @@ QString HikvisionManager::fetchStreamingChannels(const QString &ip, int httpPort
     return QString::fromUtf8(xml);
 }
 
+QVariantMap HikvisionManager::proxyCameraCached(const QString &nvrIp, int httpPort, const QString &username, const QString &password, int channelId)
+{
+    QString cleanIp = nvrIp.trimmed();
+    if (cleanIp.contains(QLatin1Char(':')))
+        cleanIp = cleanIp.section(QLatin1Char(':'), 0, 0);
+    if (httpPort <= 0)
+        httpPort = 80;
+
+    if (!m_proxyCache.contains(cleanIp)) {
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        if (m_proxyFailedAt.contains(cleanIp) && now - m_proxyFailedAt.value(cleanIp) < 30000)
+            return QVariantMap();
+        const QByteArray xml = fetchUrl(cleanIp, httpPort, username, password, QStringLiteral("/ISAPI/ContentMgmt/InputProxy/channels"));
+        const QString text = QString::fromUtf8(xml);
+        QHash<int, QVariantMap> channels;
+        QRegularExpression blockRx(QStringLiteral("<InputProxyChannel[^>]*>([\\s\\S]*?)</InputProxyChannel>"));
+        QRegularExpression idRx(QStringLiteral("<id>(\\d+)</id>"));
+        QRegularExpression ipRx(QStringLiteral("<ipAddress>([^<]+)</ipAddress>"));
+        QRegularExpression srcRx(QStringLiteral("<srcInputPort>(\\d+)</srcInputPort>"));
+        QRegularExpression mgmtPortRx(QStringLiteral("<managePortNo>(\\d+)</managePortNo>"));
+        auto it = blockRx.globalMatch(text);
+        while (it.hasNext()) {
+            const QString block = it.next().captured(1);
+            const int id = idRx.match(block).captured(1).toInt();
+            if (id <= 0)
+                continue;
+            QVariantMap cam;
+            int sourceChannel = srcRx.match(block).captured(1).toInt();
+            if (sourceChannel <= 0)
+                sourceChannel = 1;
+            const int mgmtPort = mgmtPortRx.match(block).captured(1).toInt();
+            cam.insert(QStringLiteral("ip"), ipRx.match(block).captured(1).trimmed());
+            cam.insert(QStringLiteral("channel"), sourceChannel);
+            cam.insert(QStringLiteral("sdkPort"), mgmtPort > 0 ? mgmtPort : 8000);
+            channels.insert(id, cam);
+        }
+        if (channels.isEmpty()) {
+            m_proxyFailedAt.insert(cleanIp, now);
+            return QVariantMap();
+        }
+        m_proxyFailedAt.remove(cleanIp);
+        m_proxyCache.insert(cleanIp, channels);
+    }
+    return m_proxyCache.value(cleanIp).value(channelId);
+}
+
 QVariantMap HikvisionManager::proxyCamera(const QString &nvrIp, int httpPort, const QString &username, const QString &password, int channelId)
 {
     QVariantMap result;

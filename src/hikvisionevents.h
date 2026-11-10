@@ -29,6 +29,9 @@ public:
 signals:
     // targetType is what the camera reported: "human", "vehicle", "animal" or "other".
     void targetDetected(const QString &ip, const QString &targetType);
+    // A motion report with no target type. Some cameras send the type only once per target, so a
+    // tile uses these to keep a frame it is already showing alive.
+    void motionDetected(const QString &ip);
     // The connection failed and will not be retried until a tile watches again.
     void listenFailed(const QString &ip, const QString &message);
 

@@ -217,6 +217,7 @@ ApplicationWindow {
         property bool showTargetIndicator: false
         property int targetHoldSeconds: 10
         property string targetOffCameras: "[]" // JSON list of camera addresses with the indicator switched off
+        property string targetNvrOnCameras: "[]" // JSON list of "recorderIp#channel" entries switched on for cameras behind a recorder
         property string talkMicrophone: ""
         property real talkGain: 2.0
         property real talkBoostDb: 0.0
@@ -498,6 +499,10 @@ ApplicationWindow {
             if (!(diskTargetHold >= 3 && diskTargetHold <= 30)) diskTargetHold = 10;
             if (generalSettings.targetHoldSeconds !== diskTargetHold) {
                 generalSettings.targetHoldSeconds = diskTargetHold;
+            }
+            var diskTargetNvrOn = String(Context.readSetting("", "targetNvrOnCameras", "[]"));
+            if (generalSettings.targetNvrOnCameras !== diskTargetNvrOn) {
+                generalSettings.targetNvrOnCameras = diskTargetNvrOn;
             }
             var diskTargetOff = String(Context.readSetting("", "targetOffCameras", "[]"));
             if (generalSettings.targetOffCameras !== diskTargetOff) {
@@ -1995,6 +2000,7 @@ ApplicationWindow {
         Context.writeSetting("", "showTargetIndicator", generalSettings.showTargetIndicator);
         Context.writeSetting("", "targetHoldSeconds", generalSettings.targetHoldSeconds);
         Context.writeSetting("", "targetOffCameras", generalSettings.targetOffCameras);
+        Context.writeSetting("", "targetNvrOnCameras", generalSettings.targetNvrOnCameras);
         Context.writeSetting("", "talkMicrophone", generalSettings.talkMicrophone);
         Context.writeSetting("", "talkGain", generalSettings.talkGain);
         Context.writeSetting("", "talkBoostDb", generalSettings.talkBoostDb);

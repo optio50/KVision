@@ -138,8 +138,10 @@ void HikvisionEvents::onReadyRead(const QString &ip)
         if (type != QLatin1String("VMD")) // only motion events carry a target type
             continue;
         QString target = targetRx.match(body).captured(1).trimmed().toLower();
-        if (target.isEmpty())
+        if (target.isEmpty()) {
+            emit motionDetected(ip);
             continue;
+        }
         if (target != QLatin1String("human") && target != QLatin1String("vehicle") && target != QLatin1String("animal"))
             target = QStringLiteral("other");
         qDebug() << "[Events] report from" << ip << ":" << target;
