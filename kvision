@@ -25,5 +25,9 @@ if [ "$verbose" -eq 1 ]; then
     exec "$binary" "$@"
 fi
 
+# libva prints three routine "info" lines for every video stream that opens. They are only shown
+# with --verbose, and a value set by the user is left alone.
+export LIBVA_MESSAGING_LEVEL="${LIBVA_MESSAGING_LEVEL:-0}"
+
 # libhpr prints a routine discovery line directly to the console.
 exec "$binary" "$@" 2>&1 | grep -v --line-buffered 'find .* mac and .* ip'
