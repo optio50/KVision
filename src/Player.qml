@@ -756,7 +756,7 @@ FocusScope {
     readonly property bool targetWanted: (typeof generalSettings !== "undefined") && generalSettings.showTargetIndicator
                                           && root.isHikvision && !root.isQuickPlayback && root.recorderIp !== ""
                                           && root.visible && root.source !== ""
-                                          && root.isStandaloneCamera && root.savedLoginFor(root.recorderIp) !== null
+                                          && root.isStandaloneCamera && !root.targetOffFor(root.recorderIp) && root.savedLoginFor(root.recorderIp) !== null
     // A standalone camera is its own recorder with one or two channels (a dual-lens camera has two).
     // Anything with more channels is treated as an NVR and is not watched.
     function standaloneFor(ip) {
@@ -772,6 +772,42 @@ FocusScope {
         return false;
     }
     readonly property bool isStandaloneCamera: standaloneFor(root.recorderIp)
+
+    // Per-camera switch for the indicator. It is kept in its own list, not in the saved recorders,
+    // because saving the recorder list makes every Hikvision tile reload its source.
+    function offList() {
+        if (typeof generalSettings === "undefined")
+            return [];
+        try {
+            var l = JSON.parse(generalSettings.targetOffCameras || "[]");
+            return Array.isArray(l) ? l : [];
+        } catch (e) {
+            return [];
+        }
+    }
+
+    function targetOffFor(ip) {
+        return offList().indexOf(ip) >= 0;
+    }
+
+    // True when the indicator is on for the camera this tile shows (used by the right-click menu).
+    function targetEnabledHere() {
+        return !targetOffFor(root.recorderIp);
+    }
+
+    // Flip the switch for the camera this tile shows. Every tile of that camera follows, and the
+    // camera's connection closes at once when it is switched off.
+    function toggleTargetHere() {
+        if (root.recorderIp === "" || typeof generalSettings === "undefined")
+            return;
+        var l = offList().slice();
+        var i = l.indexOf(root.recorderIp);
+        if (i >= 0)
+            l.splice(i, 1);
+        else
+            l.push(root.recorderIp);
+        generalSettings.targetOffCameras = JSON.stringify(l);
+    }
 
     // The login for a camera, read from the saved recorder list. A tile's own username and
     // password properties are not always filled in when this runs, and a blank password sent to a
@@ -798,6 +834,9 @@ FocusScope {
             root.targetWatching = true;
             root.watchedIp = root.recorderIp;
         } else if (!root.targetWanted && root.targetWatching) {
+            console.debug("[Target] tile " + root.index + " STOPPED watching: visible=" + root.visible + " source=" + (root.source !== "")
+                        + " standalone=" + root.isStandaloneCamera + " off=" + root.targetOffFor(root.recorderIp)
+                        + " login=" + (root.savedLoginFor(root.recorderIp) !== null) + " setting=" + generalSettings.showTargetIndicator);
             HikvisionEvents.unwatch(root.watchedIp);
             root.targetWatching = false;
             root.targetType = "";
@@ -809,17 +848,33 @@ FocusScope {
     Connections {
         target: HikvisionEvents
         onTargetDetected: {
+            if (ip === root.recorderIp || ip === root.watchedIp)
+                console.debug("[Target] tile " + root.index + " got " + targetType + " for " + ip + " watching=" + root.targetWatching
+                            + " watchedIp=" + root.watchedIp + " hold=" + root.targetHoldMs + " ms");
             if (root.targetWatching && ip === root.watchedIp) {
                 root.targetType = targetType;
-                targetHideTimer.restart();
+                root.lastTargetReport = Date.now();
             }
         }
     }
 
+    // The frame is hidden by comparing the clock with the time of the last report, so it does not
+    // depend on one long timer interval. (A 30 s one-shot timer was seen to fire after about 19 s.)
+    property double lastTargetReport: 0
+    readonly property int targetHoldMs: ((typeof generalSettings !== "undefined") ? generalSettings.targetHoldSeconds : 10) * 1000
+
     Timer {
         id: targetHideTimer
-        interval: ((typeof generalSettings !== "undefined") ? generalSettings.targetHoldSeconds : 10) * 1000
-        onTriggered: root.targetType = ""
+        interval: 500
+        repeat: true
+        running: root.targetType !== ""
+        onTriggered: {
+            var age = Date.now() - root.lastTargetReport;
+            if (age >= root.targetHoldMs) {
+                console.debug("[Target] tile " + root.index + " frame cleared after " + age + " ms (hold " + root.targetHoldMs + " ms)");
+                root.targetType = "";
+            }
+        }
     }
 
     // --- Hold-to-talk (two-way audio) ---

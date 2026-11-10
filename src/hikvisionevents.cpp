@@ -142,6 +142,7 @@ void HikvisionEvents::onReadyRead(const QString &ip)
             continue;
         if (target != QLatin1String("human") && target != QLatin1String("vehicle") && target != QLatin1String("animal"))
             target = QStringLiteral("other");
+        qDebug() << "[Events] report from" << ip << ":" << target;
         emit targetDetected(ip, target);
     }
     if (consumed > 0)

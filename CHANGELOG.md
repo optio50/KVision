@@ -5,8 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-* **Detected-target indicator.** A tile shows a frame and a HUMAN, VEHICLE or ANIMAL label when its camera reports one. It reads the camera's motion events (`/ISAPI/Event/notification/alertStream`), one shared connection per camera, and only for standalone cameras. Off by default, with a setting for how long the frame stays (default 10 s).
-* The listener sends the saved login once and stops for the session if the camera refuses it, so a wrong password cannot lock a camera.
+* **Detected-target indicator.** A tile shows a frame and a HUMAN, VEHICLE or ANIMAL label when its camera reports one. It reads the camera's motion events (`/ISAPI/Event/notification/alertStream`), one shared connection per camera, and only for standalone cameras. Off by default.
+* **Per-camera switch.** Right-click a tile and choose "Detection frame" to turn the indicator off or on for that camera. Switching it off closes that camera's detection connection at once.
+* **Hold time setting** (3 to 30 s, default 10) for how long the frame stays after the last report. The settings are under User Interface Settings.
+
+### Fixed
+* The frame is hidden by comparing the clock with the last report, not with one long timer: a 30 s one-shot timer was seen to fire after about 19 s.
+* A tile takes the camera's login from the saved recorder list. Using the tile's own password could send a blank one, which counts as a failed login and can lock a camera. The listener also stops for the session if a camera refuses its login.
 
 ## [3.1.0] - 2026-11-09
 

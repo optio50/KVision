@@ -1041,6 +1041,15 @@ FocusScope {
                         // for triggered items) which would instantly kill the submenu via
                         // onClosed. This flag lets the submenu survive that specific close.
                         property bool keepSubMenuOpen: false
+
+                        // State of the per-camera detection indicator, read when the menu opens.
+                        property bool targetOn: false
+                        property bool targetAvailable: false
+                        onAboutToShow: {
+                            var p = playerPool.activePlayersMap[model.index];
+                            targetAvailable = !!p && p.isStandaloneCamera;
+                            targetOn = !!p && p.targetEnabledHere();
+                        }
                         
                         topPadding: 5
                         bottomPadding: 5
@@ -1426,6 +1435,48 @@ FocusScope {
                                 var player = playerPool.activePlayersMap[model.index];
                                 if (player) {
                                     player.openCameraWebUi();
+                                }
+                            }
+                        }
+
+                        MenuItem {
+                            id: targetMenuItem
+                            text: (contextMenu.targetOn ? "\u2713 " : "    ") + qsTr("Detection frame")
+                            visible: model.url !== "" && String(model.url).indexOf("hikvision://") !== -1 && contextMenu.targetAvailable
+                            enabled: visible && generalSettings.showTargetIndicator
+                            height: visible ? implicitHeight : 0
+                            leftPadding: 12
+
+                            contentItem: Text {
+                                text: targetMenuItem.text
+                                font { pixelSize: 11; bold: true }
+                                color: targetMenuItem.enabled ? (targetMenuItem.hovered ? "#00f5d4" : "#eeeeee") : "#555555"
+                                horizontalAlignment: Text.AlignLeft
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                implicitWidth: 150
+                                implicitHeight: 32
+                                color: targetMenuItem.hovered ? "#2a3540" : "transparent"
+                                border.color: targetMenuItem.hovered ? "#00f5d4" : "transparent"
+                                border.width: 1
+                                radius: 4
+                            }
+
+                            ToolTip.visible: hovered
+                            ToolTip.delay: 600
+                            ToolTip.text: generalSettings.showTargetIndicator ? qsTr("Show a frame and label on this camera when it detects a human, vehicle or animal") : qsTr("Turn on the detection frame in the settings window first")
+
+                            onHoveredChanged: {
+                                if (hovered) {
+                                    streamSubMenu.close();
+                                }
+                            }
+
+                            onTriggered: {
+                                var player = playerPool.activePlayersMap[model.index];
+                                if (player) {
+                                    player.toggleTargetHere();
                                 }
                             }
                         }
