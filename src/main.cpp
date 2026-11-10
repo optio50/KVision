@@ -61,6 +61,7 @@ int qmlRegisterSingletonInstance(const char *uri, int versionMajor, int versionM
 #include "hikvisionisapi.h"
 #include "hikvisiondownloader.h"
 #include "hikvisiontalk.h"
+#include "hikvisionevents.h"
 
 QFile *g_logFile = nullptr;
 QMutex g_logMutex;
@@ -419,6 +420,9 @@ int main(int argc, char *argv[])
             return hikvisionManager->getSession(ip, port, user, pass);
         });
     qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "HikvisionTalk", hikvisionTalk);
+
+    auto *hikvisionEvents = new HikvisionEvents();
+    qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "HikvisionEvents", hikvisionEvents);
 
     auto *nvrStatusManager = new NvrStatusManager();
     qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "NvrStatusManager", nvrStatusManager);

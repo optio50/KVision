@@ -214,6 +214,8 @@ ApplicationWindow {
         property string videoPath: ""
         property bool disableAudio: false
         property bool disableTalk: false
+        property bool showTargetIndicator: false
+        property int targetHoldSeconds: 10
         property string talkMicrophone: ""
         property real talkGain: 2.0
         property real talkBoostDb: 0.0
@@ -490,6 +492,15 @@ ApplicationWindow {
             var diskDisableAudio = Context.readSetting("", "disableAudio", false);
             if (generalSettings.disableAudio !== diskDisableAudio) {
                 generalSettings.disableAudio = diskDisableAudio;
+            }
+            var diskTargetHold = parseInt(Context.readSetting("", "targetHoldSeconds", 10));
+            if (!(diskTargetHold >= 3 && diskTargetHold <= 30)) diskTargetHold = 10;
+            if (generalSettings.targetHoldSeconds !== diskTargetHold) {
+                generalSettings.targetHoldSeconds = diskTargetHold;
+            }
+            var diskShowTarget = Context.readSetting("", "showTargetIndicator", false);
+            if (generalSettings.showTargetIndicator !== diskShowTarget) {
+                generalSettings.showTargetIndicator = diskShowTarget;
             }
             var diskDisableTalk = Context.readSetting("", "disableTalk", false);
             if (generalSettings.disableTalk !== diskDisableTalk) {
@@ -1976,6 +1987,8 @@ ApplicationWindow {
         Context.writeSetting("", "videoPath", generalSettings.videoPath);
         Context.writeSetting("", "disableAudio", generalSettings.disableAudio);
         Context.writeSetting("", "disableTalk", generalSettings.disableTalk);
+        Context.writeSetting("", "showTargetIndicator", generalSettings.showTargetIndicator);
+        Context.writeSetting("", "targetHoldSeconds", generalSettings.targetHoldSeconds);
         Context.writeSetting("", "talkMicrophone", generalSettings.talkMicrophone);
         Context.writeSetting("", "talkGain", generalSettings.talkGain);
         Context.writeSetting("", "talkBoostDb", generalSettings.talkBoostDb);

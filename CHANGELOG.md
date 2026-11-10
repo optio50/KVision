@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+* **Detected-target indicator.** A tile shows a frame and a HUMAN, VEHICLE or ANIMAL label when its camera reports one. It reads the camera's motion events (`/ISAPI/Event/notification/alertStream`), one shared connection per camera, and only for standalone cameras. Off by default, with a setting for how long the frame stays (default 10 s).
+* The listener sends the saved login once and stops for the session if the camera refuses it, so a wrong password cannot lock a camera.
+
 ## [3.1.0] - 2026-11-09
 
 ### Added

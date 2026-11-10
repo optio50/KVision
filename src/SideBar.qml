@@ -2333,6 +2333,32 @@ FocusScope {
                             }
 
                             CheckBox {
+                                text: qsTr("Show a frame and label on a camera when it detects a human, vehicle or animal (needs motion detection on in the camera)")
+                                checked: generalSettings.showTargetIndicator
+                                onCheckedChanged: generalSettings.showTargetIndicator = checked
+                                Layout.fillWidth: true
+                            }
+
+                            Text {
+                                text: qsTr("Keep the frame visible for %1 s after the last report").arg(targetHoldSlider.value.toFixed(0))
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            Slider {
+                                id: targetHoldSlider
+                                Layout.fillWidth: true
+                                from: 3
+                                to: 30
+                                stepSize: 1
+                                enabled: generalSettings.showTargetIndicator
+                                value: generalSettings.targetHoldSeconds
+                                onMoved: generalSettings.targetHoldSeconds = value
+                            }
+
+                            CheckBox {
                                 text: qsTr("LNG_00267")
                                 checked: viewportSettings.noUnmuteWhenFullScreen
                                 onCheckedChanged: viewportSettings.noUnmuteWhenFullScreen = checked

@@ -737,6 +737,7 @@ FocusScope {
         }
     }
     Component.onCompleted: {
+        Qt.callLater(updateTargetWatch);
         if (Qt.application.arguments.indexOf("--debug-memory") !== -1) {
             console.log("[MEM-TRACK] Created Player.qml component (index: " + index + ")");
         }
@@ -744,6 +745,81 @@ FocusScope {
             timer.start();
         }
         updateSource();
+    }
+
+    // --- Detected-target indicator (human / vehicle / animal) ---
+    // Cameras report what their motion detection saw. A frame and a label are shown for a few
+    // seconds after each report. Only standalone cameras are watched for now; a camera behind a
+    // recorder is reached through the recorder, which does not stream these events per camera.
+    property string targetType: ""
+    property bool targetWatching: false
+    readonly property bool targetWanted: (typeof generalSettings !== "undefined") && generalSettings.showTargetIndicator
+                                          && root.isHikvision && !root.isQuickPlayback && root.recorderIp !== ""
+                                          && root.visible && root.source !== ""
+                                          && root.isStandaloneCamera && root.savedLoginFor(root.recorderIp) !== null
+    // A standalone camera is its own recorder with one or two channels (a dual-lens camera has two).
+    // Anything with more channels is treated as an NVR and is not watched.
+    function standaloneFor(ip) {
+        if (ip === "" || typeof rootWindow === "undefined" || !rootWindow.hikvisionRecordersJson)
+            return false;
+        try {
+            var list = JSON.parse(rootWindow.hikvisionRecordersJson);
+            for (var i = 0; i < list.length; ++i) {
+                if (list[i].ip === ip)
+                    return !list[i].cameras || list[i].cameras.length <= 2;
+            }
+        } catch (e) {}
+        return false;
+    }
+    readonly property bool isStandaloneCamera: standaloneFor(root.recorderIp)
+
+    // The login for a camera, read from the saved recorder list. A tile's own username and
+    // password properties are not always filled in when this runs, and a blank password sent to a
+    // camera counts as a failed login and can lock the camera.
+    function savedLoginFor(ip) {
+        if (ip === "" || typeof rootWindow === "undefined" || !rootWindow.hikvisionRecordersJson)
+            return null;
+        try {
+            var list = JSON.parse(rootWindow.hikvisionRecordersJson);
+            for (var i = 0; i < list.length; ++i) {
+                var rip = (list[i].ip || "").trim().split(":")[0];
+                if (rip === ip && list[i].username && list[i].password)
+                    return { user: list[i].username, pass: list[i].password,
+                             http: parseInt(list[i].httpPort) || 80 };
+            }
+        } catch (e) {}
+        return null;
+    }
+
+    function updateTargetWatch() {
+        if (root.targetWanted && !root.targetWatching) {
+            var login = root.savedLoginFor(root.recorderIp);
+            HikvisionEvents.watch(root.recorderIp, login.http, login.user, login.pass);
+            root.targetWatching = true;
+            root.watchedIp = root.recorderIp;
+        } else if (!root.targetWanted && root.targetWatching) {
+            HikvisionEvents.unwatch(root.watchedIp);
+            root.targetWatching = false;
+            root.targetType = "";
+        }
+    }
+    property string watchedIp: ""
+    onTargetWantedChanged: updateTargetWatch()
+
+    Connections {
+        target: HikvisionEvents
+        onTargetDetected: {
+            if (root.targetWatching && ip === root.watchedIp) {
+                root.targetType = targetType;
+                targetHideTimer.restart();
+            }
+        }
+    }
+
+    Timer {
+        id: targetHideTimer
+        interval: ((typeof generalSettings !== "undefined") ? generalSettings.targetHoldSeconds : 10) * 1000
+        onTriggered: root.targetType = ""
     }
 
     // --- Hold-to-talk (two-way audio) ---
@@ -1023,6 +1099,7 @@ FocusScope {
     }
 
     Component.onDestruction: {
+        if (root.targetWatching) HikvisionEvents.unwatch(root.watchedIp);
         if (Qt.application.arguments.indexOf("--debug-memory") !== -1) {
             console.log("[MEM-TRACK] Destroyed Player.qml component (index: " + index + ")");
         }
@@ -1207,6 +1284,39 @@ FocusScope {
                     font.bold: true
                     font.pixelSize: 14
                     anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+        }
+
+        Rectangle {
+            id: targetFrame
+            z: 9
+            anchors.fill: parent
+            color: "transparent"
+            radius: 2
+            border.width: 4
+            border.color: root.targetType === "human" ? "#ff5a36" : (root.targetType === "vehicle" ? "#2d8cff" : "#2ecc71")
+            visible: root.targetType !== ""
+            opacity: visible ? 1.0 : 0.0
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.top: parent.top
+                anchors.margins: 6
+                height: targetLabel.implicitHeight + 8
+                width: targetLabel.implicitWidth + 16
+                radius: 4
+                color: parent.border.color
+
+                Text {
+                    id: targetLabel
+                    anchors.centerIn: parent
+                    color: "#ffffff"
+                    font.pixelSize: 13
+                    font.bold: true
+                    text: root.targetType === "human" ? qsTr("HUMAN")
+                          : (root.targetType === "vehicle" ? qsTr("VEHICLE")
+                          : (root.targetType === "animal" ? qsTr("ANIMAL") : qsTr("MOTION")))
                 }
             }
         }
