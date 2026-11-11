@@ -822,12 +822,18 @@ ApplicationWindow {
         Context.startAuxiliaryProcess();
     }
 
-    function openPlaybackWindow(recInfo, channelId, cameraName) {
+    function openPlaybackWindow(recInfo, channelId, cameraName, startMs) {
+        var at = startMs > 0 ? startMs : 0;
         if (playbackWindowLoader.active) {
             if (playbackWindowLoader.item) {
-                playbackWindowLoader.item.recorderInfo = recInfo;
-                playbackWindowLoader.item.channelId = channelId;
-                playbackWindowLoader.item.cameraName = cameraName;
+                if (at > 0) {
+                    // Already open: show the camera at that moment in the window as it is.
+                    playbackWindowLoader.item.openCameraAt(recInfo, { "channelId": channelId, "name": cameraName }, at);
+                } else {
+                    playbackWindowLoader.item.recorderInfo = recInfo;
+                    playbackWindowLoader.item.channelId = channelId;
+                    playbackWindowLoader.item.cameraName = cameraName;
+                }
                 playbackWindowLoader.item.show();
                 playbackWindowLoader.item.raise();
             }
@@ -836,11 +842,49 @@ ApplicationWindow {
                 "recorderInfo": recInfo,
                 "channelId": channelId,
                 "cameraName": cameraName,
+                "initialStartMs": at,
                 "width": rootWindow.width * 0.9,
                 "height": rootWindow.height * 0.9
             });
             playbackWindowLoader.active = true;
         }
+    }
+
+    // Open playback for a recorder channel at a moment (epoch milliseconds), using the login saved for
+    // that recorder. Used by the detection log. Returns false when the recorder is not in the saved list.
+    function openPlaybackAt(recorderIp, channelId, startMs) {
+        var list = [];
+        try {
+            list = JSON.parse(rootWindow.hikvisionRecordersJson || "[]");
+        } catch (e) {
+            return false;
+        }
+        for (var i = 0; i < list.length; ++i) {
+            var rec = list[i];
+            if ((rec.ip || "").trim().split(":")[0] !== recorderIp)
+                continue;
+            var camName = "Camera " + channelId;
+            var cams = rec.cameras || [];
+            for (var j = 0; j < cams.length; ++j) {
+                if (parseInt(cams[j].channelId) === channelId) {
+                    camName = cams[j].customName || cams[j].name || camName;
+                    break;
+                }
+            }
+            var recInfo = {
+                "ip": recorderIp,
+                "name": rec.name || recorderIp,
+                "port": rec.sdkPort || rec.port || 8000,
+                "sdkPort": rec.sdkPort || rec.port || 8000,
+                "httpPort": rec.httpPort || 80,
+                "rtspPort": rec.rtspPort || 554,
+                "username": rec.username,
+                "password": rec.password
+            };
+            rootWindow.openPlaybackWindow(recInfo, channelId, camName, startMs);
+            return true;
+        }
+        return false;
     }
 
     function openPlaybackWindowEmpty() {

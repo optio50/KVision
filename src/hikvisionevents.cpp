@@ -76,7 +76,8 @@ HikvisionEvents::~HikvisionEvents()
 }
 
 void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user, const QString &pass,
-                            const QString &name, const QString &configDir)
+                            const QString &name, const QString &configDir,
+                            const QString &recorderIp, int recorderChannel)
 {
     if (ip.isEmpty() || user.isEmpty() || pass.isEmpty())
         return; // never send a login we know is incomplete: a wrong login counts toward a camera lockout
@@ -90,6 +91,8 @@ void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user
         c->user = user;
         c->pass = pass;
         c->name = name;
+        c->recIp = recorderIp;
+        c->recChannel = recorderChannel;
         c->retry = new QTimer(this);
         c->retry->setSingleShot(true);
         c->retry->setInterval(kRetryMs);
@@ -102,6 +105,10 @@ void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user
     ++c->watchers;
     if (c->name.isEmpty() && !name.isEmpty())
         c->name = name;
+    if (c->recIp.isEmpty() && !recorderIp.isEmpty()) {
+        c->recIp = recorderIp;
+        c->recChannel = recorderChannel;
+    }
     if (!c->reply && !c->retry->isActive() && c->failures < kMaxFailures && !c->authFailed)
         open(ip);
 }
@@ -170,6 +177,7 @@ void HikvisionEvents::onReadyRead(const QString &ip)
     static const QRegularExpression typeRx(QStringLiteral("<eventType>([^<]*)</eventType>"));
     static const QRegularExpression targetRx(QStringLiteral("<targetType>([^<]*)</targetType>"));
     static const QRegularExpression timeRx(QStringLiteral("<dateTime>([^<]*)</dateTime>"));
+    static const QRegularExpression chanRx(QStringLiteral("<channelID>(\\d+)</channelID>"));
     static const QRegularExpression stateRx(QStringLiteral("<eventState>([^<]*)</eventState>"));
     static const QRegularExpression vcaTargetRx(QStringLiteral("<detectionTarget>([^<]*)</detectionTarget>"));
 
@@ -182,6 +190,7 @@ void HikvisionEvents::onReadyRead(const QString &ip)
         const QString body = m.captured(0);
         const QString type = typeRx.match(body).captured(1);
         const QString camTime = timeRx.match(body).captured(1);
+        const int camChannel = chanRx.match(body).captured(1).toInt();
         if (type != QLatin1String("VMD")) {
             // A smart event (line crossing, intrusion, region entrance or exit...). The camera names
             // the target inside the rule. All of them go to the detection log and show the tile's
@@ -191,7 +200,7 @@ void HikvisionEvents::onReadyRead(const QString &ip)
                 QString t = vcaTargetRx.match(body).captured(1).trimmed().toLower();
                 if (!t.isEmpty() && t != QLatin1String("human") && t != QLatin1String("vehicle") && t != QLatin1String("animal"))
                     t = QStringLiteral("other");
-                logDetection(c, t, kind, camTime);
+                logDetection(c, t, kind, camTime, camChannel);
                 if (t.isEmpty())
                     t = QStringLiteral("other");
                 qDebug() << "[Events]" << kind << "from" << ip << ":" << t;
@@ -207,8 +216,8 @@ void HikvisionEvents::onReadyRead(const QString &ip)
         if (target != QLatin1String("human") && target != QLatin1String("vehicle") && target != QLatin1String("animal"))
             target = QStringLiteral("other");
         qDebug() << "[Events] report from" << ip << ":" << target;
-        logDetection(c, target, QStringLiteral("Motion"), camTime);
-        emit targetDetected(ip, target, QString());
+        logDetection(c, target, QStringLiteral("Motion"), camTime, camChannel);
+        emit targetDetected(ip, target, QStringLiteral("MOTION"));
     }
     if (consumed > 0)
         c->buffer.remove(0, consumed);
@@ -250,12 +259,12 @@ void HikvisionEvents::onFinished(const QString &ip, QNetworkReply *reply)
 }
 
 // One line per labelled report, in the order they arrive:
-//   10 Nov 2026 08:52:24, Human detected, Motion, Camera_Name, 192.0.0.3
-//   10 Nov 2026 08:53:10, Vehicle detected, Line crossing, Camera_Name, 192.0.0.3
+//   10 Nov 2026 08:52:24, Human detected, Motion, Camera_Name, 192.0.0.3, recorder 192.0.0.99 ch 17
+//   10 Nov 2026 08:53:10, Vehicle detected, Line crossing, Camera_Name, 192.0.0.3, recorder 192.0.0.99 ch 17
 // The time is the camera's own time for the event, shown in this computer's time zone. When KVision
 // only read the report 10 seconds or more after the camera made it (for example after a stall), the
 // line ends with ", received HH:mm:ss". Plain motion reports carry no target type and are not logged.
-void HikvisionEvents::logDetection(const Conn *c, const QString &target, const QString &kind, const QString &cameraTime)
+void HikvisionEvents::logDetection(const Conn *c, const QString &target, const QString &kind, const QString &cameraTime, int eventChannel)
 {
     if (m_logDir.isEmpty())
         return;
@@ -277,7 +286,15 @@ void HikvisionEvents::logDetection(const Conn *c, const QString &target, const Q
         eventTime = now;
     }
     const QString when = QLocale::c().toString(eventTime, QStringLiteral("dd MMM yyyy HH:mm:ss"));
-    QTextStream(&f) << when << ", " << what << " detected, " << kind << ", " << (c->name.isEmpty() ? c->ip : c->name) << ", " << c->ip << late << "\n";
+    // Where to play this back from. A standalone camera is its own recorder, and its report names the
+    // channel; a camera behind a recorder reports channel 1 of itself, so the tile's channel is used.
+    QString recorder;
+    if (!c->recIp.isEmpty()) {
+        const int ch = (c->recIp == c->ip && eventChannel > 0) ? eventChannel : c->recChannel;
+        if (ch > 0)
+            recorder = QStringLiteral(", recorder ") + c->recIp + QStringLiteral(" ch ") + QString::number(ch);
+    }
+    QTextStream(&f) << when << ", " << what << " detected, " << kind << ", " << (c->name.isEmpty() ? c->ip : c->name) << ", " << c->ip << recorder << late << "\n";
 }
 
 // One line each time a tile shows a detection frame (a camera shown on two tiles gives two lines):
@@ -293,4 +310,89 @@ void HikvisionEvents::logFrame(const QString &ip, const QString &text, int tile)
     const Conn *c = m_conns.value(ip, nullptr);
     const QString when = QLocale::c().toString(QDateTime::currentDateTime(), QStringLiteral("dd MMM yyyy HH:mm:ss"));
     QTextStream(&f) << when << ", Frame shown, " << text << ", tile " << tile << ", " << (c && !c->name.isEmpty() ? c->name : ip) << ", " << ip << "\n";
+}
+
+QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &configDir, const QString &filterIp) const
+{
+    QVariantMap result;
+    QVariantList entries;
+    bool more = false;
+    QFile f(configDir + QStringLiteral("/logs/Detection.log"));
+    if (skip < 0)
+        skip = 0;
+    if (count < 1)
+        count = 1;
+    if (f.open(QIODevice::ReadOnly)) {
+        // Walk backwards in blocks until enough complete lines are in hand (or the start is reached).
+        const qint64 size = f.size();
+        const qint64 block = 64 * 1024;
+        qint64 pos = size;
+        QByteArray data;
+        const int need = skip + count + 1; // one extra line tells us whether older entries remain
+        // With a camera filter any part of the file may hold matches, so read it all.
+        while (pos > 0 && (!filterIp.isEmpty() || data.count('\n') <= need)) {
+            const qint64 start = qMax<qint64>(0, pos - block);
+            f.seek(start);
+            data.prepend(f.read(pos - start));
+            pos = start;
+        }
+        QList<QByteArray> lines = data.split('\n');
+        if (pos > 0 && !lines.isEmpty())
+            lines.removeFirst(); // the first line may be cut in half
+        for (int i = lines.size() - 1; i >= 0; --i) {
+            const QString line = QString::fromUtf8(lines.at(i)).trimmed();
+            if (line.isEmpty())
+                continue;
+            // time, "<Target> detected", [kind,] camera, ip [, received HH:mm:ss]. Older lines have no kind.
+            QStringList parts = line.split(QStringLiteral(", "));
+            QVariantMap e;
+            e.insert(QStringLiteral("raw"), line);
+            QString received;
+            if (!parts.isEmpty() && parts.last().startsWith(QStringLiteral("received "))) {
+                received = parts.takeLast().mid(9);
+            }
+            QString recorderIp;
+            int channel = 0;
+            if (!parts.isEmpty() && parts.last().startsWith(QStringLiteral("recorder "))) {
+                const QStringList r = parts.takeLast().mid(9).split(QLatin1Char(' ')); // "<ip> ch <n>"
+                if (r.size() == 3 && r.at(1) == QLatin1String("ch")) {
+                    recorderIp = r.at(0);
+                    channel = r.at(2).toInt();
+                }
+            }
+            if (parts.size() >= 4) {
+                e.insert(QStringLiteral("time"), parts.at(0));
+                e.insert(QStringLiteral("target"), parts.at(1).section(QLatin1Char(' '), 0, 0));
+                const bool hasKind = parts.size() >= 5;
+                e.insert(QStringLiteral("kind"), hasKind ? parts.at(2) : QString());
+                e.insert(QStringLiteral("camera"), parts.mid(hasKind ? 3 : 2, parts.size() - (hasKind ? 4 : 3)).join(QStringLiteral(", ")));
+                e.insert(QStringLiteral("ip"), parts.last());
+            } else {
+                e.insert(QStringLiteral("time"), QString());
+                e.insert(QStringLiteral("target"), QString());
+                e.insert(QStringLiteral("kind"), QString());
+                e.insert(QStringLiteral("camera"), line);
+                e.insert(QStringLiteral("ip"), QString());
+            }
+            e.insert(QStringLiteral("received"), received);
+            e.insert(QStringLiteral("recorderIp"), recorderIp);
+            e.insert(QStringLiteral("channel"), channel);
+            const QDateTime when = QLocale::c().toDateTime(e.value(QStringLiteral("time")).toString(), QStringLiteral("dd MMM yyyy HH:mm:ss"));
+            e.insert(QStringLiteral("epochMs"), when.isValid() ? when.toMSecsSinceEpoch() : qint64(0));
+            if (!filterIp.isEmpty() && e.value(QStringLiteral("ip")).toString() != filterIp)
+                continue;
+            if (skip > 0) {
+                --skip;
+                continue;
+            }
+            if (entries.size() >= count) {
+                more = true;
+                break;
+            }
+            entries.append(e);
+        }
+    }
+    result.insert(QStringLiteral("entries"), entries);
+    result.insert(QStringLiteral("more"), more);
+    return result;
 }

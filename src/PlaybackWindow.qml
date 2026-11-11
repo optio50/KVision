@@ -124,6 +124,9 @@ Window {
     property int selectedPlayerIndex: 0
     property var recordersList: []
     property var pendingInitialSeek: ({})
+    // When set (epoch milliseconds), playback starts at this moment instead of near the latest recording.
+    // Used to open an entry of the detection log. It is cleared once it has been used.
+    property real initialStartMs: 0
     property var activeFastSearches: ({})
     
     // User selected layout columns/rows (max 2x2, default 2x2)
@@ -265,6 +268,33 @@ Window {
             selectedPlayerIndex = newSize - 1;
         }
         updateActiveCameraProperties();
+    }
+
+    // Show a camera at a given moment (epoch milliseconds). The camera may or may not have a recording
+    // there; the player then shows its usual "no recording" message.
+    function openCameraAt(rec, cam, startMs) {
+        var alreadyShown = false;
+        for (var i = 0; i < activePlayersList.length; i++) {
+            if (activePlayersList[i] && activePlayersList[i].ip === rec.ip && activePlayersList[i].channelId === cam.channelId) {
+                alreadyShown = true;
+                break;
+            }
+        }
+        var dayStart = new Date(startMs);
+        dayStart.setHours(0, 0, 0, 0);
+        currentDate = dayStart;
+        playheadTimeMs = startMs;
+        panOffsetMs = (startMs - dayStart.getTime()) - (zoomHours * 3600000) / 2;
+        if (alreadyShown) {
+            addCameraToGrid(rec, cam);   // only selects it
+            searchRecordingsForDate(currentDate);
+            jumpToEvent(startMs);
+            return;
+        }
+        initialStartMs = startMs;    // read when the new camera's first search finishes
+        addCameraToGrid(rec, cam);
+        searchRecordingsForDate(currentDate);
+        isPlaying = true;
     }
 
     function addCameraToGrid(rec, cam) {
@@ -618,7 +648,7 @@ Window {
         if (typeof rootWindow !== "undefined" && rootWindow.generalSettings) {
             offsetSeconds = rootWindow.generalSettings.playbackOffsetSeconds
         }
-        var targetTime = new Date(now.getTime() - offsetSeconds * 1000)
+        var targetTime = initialStartMs > 0 ? new Date(initialStartMs) : new Date(now.getTime() - offsetSeconds * 1000)
         var dStart = new Date(targetTime)
         dStart.setHours(0, 0, 0, 0)
         currentDate = dStart
@@ -878,7 +908,7 @@ Window {
             delete tempSeek[seekKey];
             pendingInitialSeek = tempSeek;
 
-            if (segments && segments.length > 0) {
+            if (initialStartMs <= 0 && segments && segments.length > 0) {
                 var maxEndTime = 0;
                 for (var sIdx = 0; sIdx < segments.length; sIdx++) {
                     if (segments[sIdx].endTime > maxEndTime) {
@@ -916,6 +946,7 @@ Window {
             var fStart = new Date(fallbackDate);
             fStart.setHours(0, 0, 0, 0);
             playAtTime(fStart, playheadTimeMs - fStart.getTime());
+            initialStartMs = 0;
         }
     }
 

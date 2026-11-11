@@ -50,6 +50,7 @@
         <file>images/github.svg</file>
         <file>src/NvrSettingsPanel.qml</file>
         <file>src/NvrCamerasWindow.qml</file>
+        <file>src/DetectionLogWindow.qml</file>
         <file>src/PlaybackWindow.qml</file>
         <file>images/play.svg</file>
         <file>images/pause.svg</file>

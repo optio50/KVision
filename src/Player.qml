@@ -752,7 +752,7 @@ FocusScope {
     // seconds after each report. Only standalone cameras are watched for now; a camera behind a
     // recorder is reached through the recorder, which does not stream these events per camera.
     property string targetType: ""
-    property string targetSource: "" // LINE, INTRUSION, ENTER or EXIT while a smart-event frame is showing
+    property string targetSource: "" // MOTION, LINE, INTRUSION, ENTER or EXIT: the kind of report behind the frame
     property bool targetWatching: false
     readonly property bool targetWanted: (typeof generalSettings !== "undefined") && generalSettings.showTargetIndicator
                                           && root.isHikvision && !root.isQuickPlayback && root.recorderIp !== ""
@@ -842,6 +842,15 @@ FocusScope {
         return root.targetCam;
     }
 
+    // The address this tile's camera is logged under in the detection log: the camera's own address,
+    // which for a camera behind a recorder is not the recorder's.
+    function detectionLogIp() {
+        if (root.watchedIp !== "")
+            return root.watchedIp;
+        var cam = root.resolveTargetCam();
+        return cam ? cam.ip : root.recorderIp;
+    }
+
     // Flip the switch for the camera this tile shows. Every tile of that camera follows, and the
     // camera's connection closes at once when it is switched off.
     function toggleTargetHere() {
@@ -890,7 +899,8 @@ FocusScope {
             var login = root.savedLoginFor(root.recorderIp);
             if (!cam || !login)
                 return;
-            HikvisionEvents.watch(cam.ip, cam.http, login.user, login.pass, root.cameraNameInfo, Context.configDirPath());
+            HikvisionEvents.watch(cam.ip, cam.http, login.user, login.pass, root.cameraNameInfo, Context.configDirPath(),
+                                 root.recorderIp, root.channelId);
             root.targetWatching = true;
             root.watchedIp = cam.ip;
         } else if (!root.targetWanted && root.targetWatching) {
@@ -915,16 +925,11 @@ FocusScope {
             if (root.targetWatching && ip === root.watchedIp) {
                 // A smart event names itself on the frame. A labelled motion report after it keeps
                 // the name while the frame is still up; a new frame from motion alone has none.
-                if (source !== "")
+                if (source !== "MOTION" || root.targetType === "")
                     root.targetSource = source;
-                else if (root.targetType === "")
-                    root.targetSource = "";
                 root.targetType = targetType;
                 root.lastTargetReport = Date.now();
-                var shownAs = (targetType === "human" ? "HUMAN" : (targetType === "vehicle" ? "VEHICLE"
-                              : (targetType === "animal" ? "ANIMAL" : "MOTION")))
-                              + (root.targetSource !== "" ? " - " + root.targetSource : "");
-                HikvisionEvents.logFrame(ip, shownAs, root.index);
+                HikvisionEvents.logFrame(ip, root.targetCaption(" - "), root.index);
             }
         }
     }
@@ -937,6 +942,18 @@ FocusScope {
             if (root.targetWatching && ip === root.watchedIp && root.targetType !== "")
                 root.lastTargetReport = Date.now();
         }
+    }
+
+    // The words on the frame: the target, then what kind of report it was, e.g. "HUMAN \u2013 LINE" or
+    // "HUMAN \u2013 MOTION". A target the camera did not name reads just "MOTION", not "MOTION - MOTION".
+    function targetCaption(sep) {
+        var base = root.targetType === "human" ? qsTr("HUMAN")
+                 : (root.targetType === "vehicle" ? qsTr("VEHICLE")
+                 : (root.targetType === "animal" ? qsTr("ANIMAL") : qsTr("MOTION")));
+        var kind = root.targetSource;
+        if (kind === "MOTION" && base === qsTr("MOTION"))
+            kind = "";
+        return base + (kind !== "" ? sep + kind : "");
     }
 
     // The frame is hidden by comparing the clock with the time of the last report, so it does not
@@ -1451,10 +1468,7 @@ FocusScope {
                     color: "#ffffff"
                     font.pixelSize: 13
                     font.bold: true
-                    text: (root.targetType === "human" ? qsTr("HUMAN")
-                           : (root.targetType === "vehicle" ? qsTr("VEHICLE")
-                           : (root.targetType === "animal" ? qsTr("ANIMAL") : qsTr("MOTION"))))
-                          + (root.targetSource !== "" ? " \u2013 " + root.targetSource : "")
+                    text: root.targetCaption(" \u2013 ")
                 }
             }
         }
