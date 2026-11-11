@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **The picture viewer steps through the whole list.** Click the Picture button on any entry and the viewer opens on that
+  picture; the right arrow (or the Right key) always goes to the next newest picture and the left arrow to an older one,
+  skipping entries with no picture, with a counter such as "7 / 25" and each picture's own time, target and kind above
+  it. A tracking entry's snapshots run oldest to newest. It covers the entries loaded in the window, so press "Load 10 more" first to
+  reach older ones.
 * **Playback timelines also show what the detection log holds.** The recorder saves fewer smart events than a camera
   reports (the PTZ close-up's events were mostly missing), so the timeline now adds the line, intrusion, entrance, exit
   and other events from `Detection.log` for that camera and channel. Events that only the log has are drawn as a thin

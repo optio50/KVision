@@ -56,11 +56,26 @@ Window {
 
     property string notice: ""
 
+    // Opens the viewer on the picture of the entry clicked. The pictures are in time order, oldest first, so the right
+    // arrow always goes to the next newest picture and the left arrow to an older one (the list itself shows the newest
+    // entry at the top). Entries with no picture are skipped, and a tracking entry's snapshots run oldest to newest.
     function showPicture(entry) {
         if (entry.picture === "")
             return;
-        var w = pictureViewer.createObject(null, { "pictures": (entry.pictures && entry.pictures.length > 0) ? entry.pictures : [entry.picture],
-                                                    "caption": entry.time + "   " + entry.target + "   " + entry.kind + "   " + entry.camera });
+        var items = [];
+        var start = 0;
+        for (var i = logWin.entries.length - 1; i >= 0; --i) {
+            var e = logWin.entries[i];
+            if (e.picture === "")
+                continue;
+            var pics = (e.pictures && e.pictures.length > 0) ? e.pictures : [e.picture];
+            if (e.raw === entry.raw && e.picture === entry.picture)
+                start = items.length;
+            for (var k = 0; k < pics.length; ++k)
+                items.push({ "path": pics[k],
+                             "caption": e.time + "   " + e.target + "   " + e.kind + "   " + e.camera + (pics.length > 1 ? "   (" + (k + 1) + "/" + pics.length + ")" : "") });
+        }
+        var w = pictureViewer.createObject(null, { "items": items, "shown": start });
         if (w)
             w.show();
     }
@@ -69,10 +84,9 @@ Window {
         id: pictureViewer
         Window {
             id: pv
-            // One picture, or several (a tracking line keeps snapshots a second apart): the buttons step through them.
-            property var pictures: []
+            // Every picture in the list as {path, caption}, oldest first; Right goes to the next newest, Left to an older one.
+            property var items: []
             property int shown: 0
-            property string caption: ""
             width: 960
             height: 600
             minimumWidth: 320
@@ -82,36 +96,42 @@ Window {
             flags: Qt.Window | Qt.WindowStaysOnTopHint
             onClosing: pv.destroy()
 
+            Shortcut { sequence: "Left"; enabled: pv.shown > 0; onActivated: pv.shown-- }
+            Shortcut { sequence: "Right"; enabled: pv.shown < pv.items.length - 1; onActivated: pv.shown++ }
+
             Text {
                 id: cap
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.right: stepRow.left
                 anchors.margins: 8
-                text: pv.caption
+                anchors.verticalCenter: stepRow.verticalCenter
+                text: pv.items.length > 0 ? pv.items[pv.shown].caption : ""
                 color: "#eeeeee"
                 font.pixelSize: 13
                 elide: Text.ElideRight
             }
             Row {
                 id: stepRow
-                visible: pv.pictures.length > 1
+                visible: pv.items.length > 1
                 anchors.top: parent.top
                 anchors.right: parent.right
                 anchors.margins: 6
                 spacing: 6
-                Button { text: "\u2039"; enabled: pv.shown > 0; onClicked: pv.shown-- }
-                Text { text: (pv.shown + 1) + " / " + pv.pictures.length; color: "#cccccc"; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
-                Button { text: "\u203a"; enabled: pv.shown < pv.pictures.length - 1; onClicked: pv.shown++ }
+                Button { text: "\u2039"; enabled: pv.shown > 0; onClicked: pv.shown--
+                         ToolTip.visible: hovered; ToolTip.delay: 500; ToolTip.text: qsTr("Older picture (Left key)") }
+                Text { text: (pv.shown + 1) + " / " + pv.items.length; color: "#cccccc"; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
+                Button { text: "\u203a"; enabled: pv.shown < pv.items.length - 1; onClicked: pv.shown++
+                         ToolTip.visible: hovered; ToolTip.delay: 500; ToolTip.text: qsTr("Next newest picture (Right key)") }
             }
             Image {
-                anchors.top: cap.bottom
+                anchors.top: stepRow.bottom
                 anchors.topMargin: 6
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: 8
-                source: pv.pictures.length > 0 ? "file://" + pv.pictures[pv.shown] : ""
+                source: pv.items.length > 0 ? "file://" + pv.items[pv.shown].path : ""
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 cache: false
