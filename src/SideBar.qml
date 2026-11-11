@@ -144,6 +144,17 @@ FocusScope {
 
     property var changelogData: [
         {
+            version: "v3.4.0",
+            date: "11.11.2026",
+            changes: [
+                qsTr("Two-lens PTZ cameras: each lens is logged and shown as its own camera, with its own pictures. A PTZ that follows a target shows an amber TRACKING frame, and a Tracking entry keeps two snapshots a second apart."),
+                qsTr("Detection events window (was Detection log): the picture viewer steps through every picture in the list, with Right going to the next newest."),
+                qsTr("Playback timelines colour events by kind (motion, line, intrusion, entrance, exit) and also show events from the detection log, where the recording has video."),
+                qsTr("Event pictures keep a separate file for each kind of event in the same second."),
+                qsTr("The detection frame can be switched on or off for every camera in one window, and event pictures are kept per camera (100, 500 or 1000).")
+            ]
+        },
+        {
             version: "v3.3.0",
             date: "11.11.2026",
             changes: [

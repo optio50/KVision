@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-11-11
+
 ### Added
 * **The picture viewer steps through the whole list.** Click the Picture button on any entry and the viewer opens on that
   picture; the right arrow (or the Right key) always goes to the next newest picture and the left arrow to an older one,
@@ -34,6 +36,23 @@ All notable changes to this project will be documented in this file.
   event grey, with a small legend at the top right of the timeline showing the kinds that are drawn. The 30-minute bar
   on a live tile uses the same colours. The kind comes from the recorder's saved-event search (motion, line crossing and
   field detection are separate there). The recorder does not say who crossed, so there is no human / animal colour.
+
+### Fixed
+* **Events of different kinds in the same second keep their own pictures.** A camera can report a line crossing, a region
+  entrance and an intrusion in one second, each with its own picture, but the pictures were named only by camera and
+  second, so the last one overwrote the others and every log line showed the same picture. The kind is now part of the
+  file name (for example `192.0.0.115_ch15_1794430690-linecrossing.jpg`). Pictures saved before still open. Two events
+  of the same kind in the same second still share one picture.
+* **The two lenses of a PTZ keep their event pictures apart.** Both lenses share one address, so their pictures shared
+  one file name and one could overwrite the other when both fired in the same second. A two-lens camera's pictures are
+  now named `<address>_ch<recorder channel>_<time>.jpg` (for example `192.0.0.115_ch14_...`). Other cameras keep their
+  names, and pictures saved before still open. The per-camera limit counts each lens on its own.
+* **A camera with two lenses (a PTZ with a close-up and a wide view) now logs and shows each lens as its own camera.**
+  The camera names the lens in every report on its one stream (channel 1 or 2). KVision ignored that number, so the
+  detection log named every event after whichever tile opened the connection first (all of them "Ch. 14 PTZ", none for
+  the wide view), "Play" from the log opened the wrong lens, and both tiles flashed a frame for either lens. Now the log
+  line carries the right camera name and recorder channel, and a tile shows only its own lens's reports. This covers a
+  two-lens camera on its own and one behind a recorder (found on the recorder's PTZ, channels 14 and 15).
 
 ### Changed
 * The right-click item and the window "Detection log" are now called **Detection events**, because the window shows more
@@ -78,21 +97,6 @@ All notable changes to this project will be documented in this file.
   number in the report, whether or not a tile shows that camera.
 
 ### Fixed
-* **Events of different kinds in the same second keep their own pictures.** A camera can report a line crossing, a region
-  entrance and an intrusion in one second, each with its own picture, but the pictures were named only by camera and
-  second, so the last one overwrote the others and every log line showed the same picture. The kind is now part of the
-  file name (for example `192.0.0.115_ch15_1794430690-linecrossing.jpg`). Pictures saved before still open. Two events
-  of the same kind in the same second still share one picture.
-* **The two lenses of a PTZ keep their event pictures apart.** Both lenses share one address, so their pictures shared
-  one file name and one could overwrite the other when both fired in the same second. A two-lens camera's pictures are
-  now named `<address>_ch<recorder channel>_<time>.jpg` (for example `192.0.0.115_ch14_...`). Other cameras keep their
-  names, and pictures saved before still open. The per-camera limit counts each lens on its own.
-* **A camera with two lenses (a PTZ with a close-up and a wide view) now logs and shows each lens as its own camera.**
-  The camera names the lens in every report on its one stream (channel 1 or 2). KVision ignored that number, so the
-  detection log named every event after whichever tile opened the connection first (all of them "Ch. 14 PTZ", none for
-  the wide view), "Play" from the log opened the wrong lens, and both tiles flashed a frame for either lens. Now the log
-  line carries the right camera name and recorder channel, and a tile shows only its own lens's reports. This covers a
-  two-lens camera on its own and one behind a recorder (found on the recorder's PTZ, channels 14 and 15).
 * **The frame label no longer follows plain motion right after a line or intrusion report.** For 10 seconds after a
   line, intrusion, entrance or exit report, a plain motion report (often somebody elsewhere in the picture) only
   keeps the frame alive and does not change its label. Before, a person at the desk could rename the frame of a dog
@@ -110,6 +114,7 @@ All notable changes to this project will be documented in this file.
   tile watches, where before three failures in a row stopped it for the rest of the session. A refused login still
   stops everything, so a wrong password cannot lock a camera. A device with no event stream (the Doorbell) is asked
   once.
+
 
 ### Changed
 * The frame label, border and padding shrink with the tile's height, so the label no longer crowds a small or
