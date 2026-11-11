@@ -271,7 +271,7 @@ Window {
                             text: "\u2013"
                             color: "#445566"; font.pixelSize: 12
                             ToolTip.visible: noPicArea.containsMouse
-                            ToolTip.text: qsTr("No picture kept for this entry (only line and area events bring one, and the last 100 are kept)")
+                            ToolTip.text: qsTr("No picture kept for this entry (only line and area events bring one, and only the newest ones of each camera are kept, see the setting in the sidebar)")
                             MouseArea { id: noPicArea; anchors.fill: parent; hoverEnabled: true }
                         }
                     }

@@ -19,7 +19,6 @@
 
 namespace {
 const int kMaxFailures = 3;       // after this many failed attempts in a row, tell the user once (it keeps trying)
-const int kMaxPictures = 100;     // event pictures kept on disk; the oldest go first
 const int kRetryBaseMs = 2000;    // first wait before reopening a lost stream; doubles each time
 const int kRetryMaxMs = 30000;    // and never waits longer than this
 const int kHealthyMs = 10000;     // a stream that has stayed up this long counts as working
@@ -471,10 +470,35 @@ void HikvisionEvents::savePicture(const QString &address, qint64 secs, const QBy
     }
     f.write(jpeg);
     f.close();
-    // Keep the newest kMaxPictures. The oldest are removed so the folder cannot grow without end.
+    prunePictures(dirPath, address);
+}
+
+// Keeps the newest m_maxPictures pictures of each camera (all cameras when address is empty) and deletes the older
+// ones, so a busy camera cannot push out the pictures of a quiet one and the folder cannot grow without end.
+void HikvisionEvents::prunePictures(const QString &dirPath, const QString &address)
+{
     const QFileInfoList files = QDir(dirPath).entryInfoList(QStringList() << QStringLiteral("*.jpg"), QDir::Files, QDir::Time);
-    for (int i = kMaxPictures; i < files.size(); ++i)
-        QFile::remove(files.at(i).absoluteFilePath());
+    QString only = address;
+    only.replace(QRegularExpression(QStringLiteral("[^0-9A-Za-z.-]")), QStringLiteral("_"));
+    QHash<QString, int> seen;
+    for (const QFileInfo &fi : files) {
+        const QString name = fi.completeBaseName();
+        const int us = name.lastIndexOf(QLatin1Char('_'));
+        if (us <= 0)
+            continue;
+        const QString cam = name.left(us);
+        if (!address.isEmpty() && cam != only)
+            continue;
+        if (++seen[cam] > m_maxPictures)
+            QFile::remove(fi.absoluteFilePath());
+    }
+}
+
+void HikvisionEvents::setMaxPictures(int count)
+{
+    m_maxPictures = qBound(10, count, 10000);
+    if (!m_logDir.isEmpty())
+        prunePictures(m_logDir + QStringLiteral("/pictures"), QString());
 }
 
 QVariantMap HikvisionEvents::pictureFrames(const QString &address) const

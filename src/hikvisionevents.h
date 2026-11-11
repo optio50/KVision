@@ -48,6 +48,8 @@ public:
     Q_INVOKABLE void setAllowedKinds(const QString &kinds);
     // Which targets may show a frame and be logged: a comma list of human, vehicle, animal, other.
     Q_INVOKABLE void setAllowedTargets(const QString &targets);
+    // How many event pictures are kept for each camera (the newest ones). Older ones are deleted at once.
+    Q_INVOKABLE void setMaxPictures(int count);
     // A tile calls this when it shows a detection frame, so logs/Frames.log records what was on screen.
     Q_INVOKABLE void logFrame(const QString &ip, const QString &text, int tile);
     // Newest-first entries from logs/Detection.log, skipping the first `skip`. Each entry is a map with
@@ -123,15 +125,17 @@ private:
     bool judgePicture(Conn *c, const QByteArray &data);
     // Remembers the target rectangle an event names, so the picture that follows it can be judged.
     void notePictureRect(Conn *c, const QString &body, int eventChannel, const QString &cameraTime);
-    // Keeps the newest kMaxPictures pictures in logs/pictures and deletes the older ones.
     // A recorder sends a link to the picture instead of the picture. Downloads it with the connection's login
     // (one try, and only from the connection's own address), then keeps and judges it like an attached one.
     void fetchPicture(const QString &ip, const QUrl &url, const QString &address, qint64 secs, bool hasRect, const QRectF &rect);
     void judgeJpeg(const QString &address, bool hasRect, const QRectF &rect, const QByteArray &jpeg);
     void savePicture(const QString &address, qint64 secs, const QByteArray &jpeg);
+    // Keeps the newest m_maxPictures pictures of each camera in logs/pictures (or of one camera) and deletes the older ones.
+    void prunePictures(const QString &dirPath, const QString &address);
     QString cameraAddress(const Conn *c, int eventChannel) const;
 
     QNetworkAccessManager *m_net = nullptr;
+    int m_maxPictures = 100;
     QHash<QString, Conn *> m_conns;
     QSet<QString> m_allowedKinds{QStringLiteral("motion"), QStringLiteral("line"), QStringLiteral("intrusion"),
                                  QStringLiteral("enter"), QStringLiteral("exit"), QStringLiteral("other")};

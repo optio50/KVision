@@ -2695,6 +2695,21 @@ FocusScope {
                             }
 
                             Text {
+                                text: qsTr("Event pictures kept for each camera (the newest ones; older ones are deleted)")
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            ComboBox {
+                                Layout.fillWidth: true
+                                model: [100, 500, 1000]
+                                currentIndex: Math.max(0, model.indexOf(generalSettings.picturesPerCamera))
+                                onActivated: generalSettings.picturesPerCamera = model[index]
+                            }
+
+                            Text {
                                 text: qsTr("Is each camera set up to report? A read-only check of the camera's settings (metadata, zones, rules, the recorder's centre action). It changes nothing.")
                                 color: "#8898a6"
                                 font.pixelSize: 11

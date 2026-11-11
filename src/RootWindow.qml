@@ -216,6 +216,7 @@ ApplicationWindow {
         property bool disableTalk: false
         property bool showTargetIndicator: false
         property int targetHoldSeconds: 10
+        property int picturesPerCamera: 100
         // Where cameras behind a recorder get their detection reports: "camera" (each camera directly) or
         // "recorder" (one connection to the recorder). Standalone cameras always use their own connection.
         property string targetSource: "camera"
@@ -507,6 +508,11 @@ ApplicationWindow {
             if (!(diskTargetHold >= 3 && diskTargetHold <= 30)) diskTargetHold = 10;
             if (generalSettings.targetHoldSeconds !== diskTargetHold) {
                 generalSettings.targetHoldSeconds = diskTargetHold;
+            }
+            var diskPictures = parseInt(Context.readSetting("", "picturesPerCamera", 100));
+            if ([100, 500, 1000].indexOf(diskPictures) < 0) diskPictures = 100;
+            if (generalSettings.picturesPerCamera !== diskPictures) {
+                generalSettings.picturesPerCamera = diskPictures;
             }
             var diskTargetSource = String(Context.readSetting("", "targetSource", "camera"));
             if (diskTargetSource !== "camera" && diskTargetSource !== "recorder") diskTargetSource = "camera";
@@ -2068,6 +2074,7 @@ ApplicationWindow {
         Context.writeSetting("", "disableTalk", generalSettings.disableTalk);
         Context.writeSetting("", "showTargetIndicator", generalSettings.showTargetIndicator);
         Context.writeSetting("", "targetHoldSeconds", generalSettings.targetHoldSeconds);
+        Context.writeSetting("", "picturesPerCamera", generalSettings.picturesPerCamera);
         Context.writeSetting("", "targetSource", generalSettings.targetSource);
         Context.writeSetting("", "targetKinds", generalSettings.targetKinds);
         Context.writeSetting("", "checkSetupAtStart", generalSettings.checkSetupAtStart);
@@ -2162,12 +2169,14 @@ ApplicationWindow {
     function applyDetectionFilters() {
         HikvisionEvents.setAllowedKinds(generalSettings.targetKinds);
         HikvisionEvents.setAllowedTargets(generalSettings.targetTargets);
+        HikvisionEvents.setMaxPictures(generalSettings.picturesPerCamera);
     }
 
     Connections {
         target: generalSettings
         onTargetKindsChanged: rootWindow.applyDetectionFilters()
         onTargetTargetsChanged: rootWindow.applyDetectionFilters()
+        onPicturesPerCameraChanged: rootWindow.applyDetectionFilters()
     }
 
     Component.onCompleted: {

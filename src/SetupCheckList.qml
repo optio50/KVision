@@ -91,7 +91,7 @@ ListView {
                     width: body.width
                     spacing: 8
                     Text { text: list.stateMark(modelData.state); color: list.stateColor(modelData.state); font.pixelSize: 12; font.bold: true; width: 14 }
-                    Text { text: modelData.label; color: "#dddddd"; font.pixelSize: 12; width: 170; elide: Text.ElideRight }
+                    Text { text: modelData.label; color: "#dddddd"; font.pixelSize: 12; width: 170; wrapMode: Text.Wrap }
                     Text {
                         text: modelData.detail
                         color: modelData.state === "problem" ? "#ff8a6a" : "#8899aa"

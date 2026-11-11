@@ -432,11 +432,11 @@ void HikvisionSetupCheck::stepNvrSmart(const JobPtr &j, int index)
         j->nvrSet << QLatin1String(kSmartEvent[index]);
         const QString label = tr(kSmartLabel[index]);
         const bool inCamera = j->smartSet.contains(QLatin1String(kSmartEvent[index]));
-        const QString where = inCamera ? tr("in the camera and in the recorder") : tr("in the recorder only, not in the camera");
-        add(j, QStringLiteral("nvr%1").arg(index), tr("%1 rule lives %2").arg(label, where), QStringLiteral("note"),
-            tr("The recorder has its own %1 area (zone %2) for this channel%3. Events from it show that area on the saved picture, even where the camera has no such area. "
+        const QString where = inCamera ? tr("Lives in the camera and in the recorder.") : tr("Lives in the recorder only, not in the camera.");
+        add(j, QStringLiteral("nvr%1").arg(index), tr("%1 rule location").arg(label), QStringLiteral("note"),
+            tr("%1 The recorder has its own %2 area (zone %3) for this channel%4. Events from it show that area on the saved picture, even where the camera has no such area. "
                "To remove it, open the recorder's own smart event settings for this channel.")
-                .arg(label.toLower(), zones.join(QStringLiteral(", ")),
+                .arg(where, label.toLower(), zones.join(QStringLiteral(", ")),
                      inCamera ? tr(", as well as the camera's") : QString()));
         stepNvrSmart(j, index + 1);
     });

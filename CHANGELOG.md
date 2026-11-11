@@ -11,11 +11,15 @@ All notable changes to this project will be documented in this file.
   action. Results open in a window and are also written to `logs/SetupCheck.log`. An optional tick box runs the check
   at start-up (off by default). It only reads, one request at a time, and stops at the first refused login so it cannot
   lock a camera out.
+* **Setup check labels are no longer cut off.** Long labels wrap, and "lives in the camera / recorder" moved into the detail text.
 * **The setup check says where a rule lives.** For a camera behind a recorder it now also reads the recorder's own
   line and area rules for that channel. If the recorder has a zone of its own it adds a note, "Intrusion rule lives in
   the camera and in the recorder" (or "in the recorder only"), with the zone numbers. This explains a mystery event
   whose saved picture shows a zone the camera does not have: the recorder can run its own rule and draws it on the
   picture. Found on Driveway (channel 16), where the recorder's intrusion zone is not in the camera.
+* **Event pictures are kept per camera, and how many is a setting.** The newest 100, 500 or 1000 pictures of each camera
+  are kept (before, 100 in all, so one busy camera pushed out everyone else's). The choice is in the sidebar under the
+  detection options; lowering it deletes the surplus at once.
 * **Event pictures.** The picture a camera or recorder sends with a line or area event is kept (the newest 100, in
   `logs/pictures`; older ones are deleted). A recorder sends a link instead of the picture, and KVision downloads it
   with the recorder's login (one try; a refused login stops it). The detection log window has a new **Picture**
