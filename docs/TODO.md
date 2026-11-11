@@ -33,7 +33,7 @@ Status key: `[ ]` not started, `[~]` started, `[x]` done.
 - **Where:** `src/hikvisionevents.cpp` (the connection already counts failures and has `listenFailed`) and `src/Player.qml`.
 - **Done when:** unplugging a camera shows the mark within about a minute, and plugging it back in clears it.
 
-### 4. [ ] "Check detection setup" for a camera
+### 4. [x] "Check detection setup" for a camera (done, not yet committed; fixes are the next step)
 - **Why:** on 10 Nov nearly every "no events" problem was a setting in the camera or recorder: metadata off, a rule
   switched off, no centre action, no zone drawn, a switch that did not save. Their README says the same: "For NVR/DVR,
   remember to select Notify Alarm Center... otherwise the NVR won't emit any alarm event."
@@ -42,7 +42,11 @@ Status key: `[ ]` not started, `[~]` started, `[x]` done.
 - **Never changes anything.** It only reports.
 - **Done when:** run on Garage3 as it was before the fixes, it names metadata, the rule switches and the centre action.
 
-### 5. [ ] Keep the picture that comes with an event
+### 5. [x] Keep the picture that comes with an event (done, not yet committed)
+- **Done so far:** the setup check reports whether event pictures carry the rule and target frames (tested on Garage3's
+  real pictures: frame on = outline found on the reported rectangle, frame off = none). Pictures are not kept yet.
+- **Not possible:** reading or setting the camera's "Overlay Rule Frame and Target Frame" switch over ISAPI. It is not
+  in any of about 70 settings paths tried; it is only in the camera's web page.
 - **Why:** both the recorder's SDK alarm and the camera's own stream attach a snapshot with the box drawn on it (about
   250 KB). Their node passes it on (`picName`, `picUrl`, the image output).
 - **Idea:** keep the latest picture per camera, show it in the detection log window next to the entry, and store a

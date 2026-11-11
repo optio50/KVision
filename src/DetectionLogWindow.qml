@@ -56,6 +56,56 @@ Window {
 
     property string notice: ""
 
+    function showPicture(entry) {
+        if (entry.picture === "")
+            return;
+        var w = pictureViewer.createObject(null, { "picturePath": entry.picture,
+                                                    "caption": entry.time + "   " + entry.target + "   " + entry.kind + "   " + entry.camera });
+        if (w)
+            w.show();
+    }
+
+    Component {
+        id: pictureViewer
+        Window {
+            id: pv
+            property string picturePath: ""
+            property string caption: ""
+            width: 960
+            height: 600
+            minimumWidth: 320
+            minimumHeight: 240
+            color: "#0f151b"
+            title: qsTr("Event picture")
+            flags: Qt.Window | Qt.WindowStaysOnTopHint
+            onClosing: pv.destroy()
+
+            Text {
+                id: cap
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 8
+                text: pv.caption
+                color: "#eeeeee"
+                font.pixelSize: 13
+                elide: Text.ElideRight
+            }
+            Image {
+                anchors.top: cap.bottom
+                anchors.topMargin: 6
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                anchors.margins: 8
+                source: "file://" + pv.picturePath
+                fillMode: Image.PreserveAspectFit
+                asynchronous: true
+                cache: false
+            }
+        }
+    }
+
     function targetColor(target) {
         var t = String(target).toLowerCase();
         return t === "human" ? "#ff5a36" : (t === "vehicle" ? "#2d8cff" : "#2ecc71");
@@ -118,8 +168,9 @@ Window {
                 Text { width: 150; height: parent.height; text: qsTr("Time"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter }
                 Text { width: 80; height: parent.height; text: qsTr("Target"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter }
                 Text { width: 120; height: parent.height; text: qsTr("Type"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter }
-                Text { width: parent.width - 350 - 100 - 40; height: parent.height; text: qsTr("Camera"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                Text { width: parent.width - 350 - 100 - 80; height: parent.height; text: qsTr("Camera"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
                 Text { width: 100; height: parent.height; text: qsTr("Address"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter }
+                Text { width: 40; height: parent.height; text: qsTr("Picture"); color: "#00f5d4"; font.bold: true; font.pixelSize: 11; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter }
                 Text { width: 40; height: parent.height; text: qsTr("Play"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter }
             }
         }
@@ -175,7 +226,7 @@ Window {
                         color: modelData.kind !== "" ? "#eeeeee" : "#667788"; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter
                     }
                     Text {
-                        width: parent.width - 350 - 100 - 40; height: parent.height
+                        width: parent.width - 350 - 100 - 80; height: parent.height
                         text: modelData.camera + (modelData.received !== "" ? "   (late)" : "")
                         color: modelData.received !== "" ? "#aa9966" : "#eeeeee"; font.pixelSize: 12
                         verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
@@ -184,6 +235,45 @@ Window {
                         width: 100; height: parent.height
                         text: modelData.ip
                         color: "#8899aa"; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter
+                    }
+                    Item {
+                        width: 40; height: parent.height
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 26; height: 20; radius: 4
+                            visible: modelData.picture !== ""
+                            color: picArea.containsMouse ? "#00f5d4" : "#2a3540"
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 14; height: 10; radius: 2
+                                color: "transparent"
+                                border.width: 1
+                                border.color: picArea.containsMouse ? "#0f151b" : "#00f5d4"
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 4; height: 4; radius: 2
+                                    color: picArea.containsMouse ? "#0f151b" : "#00f5d4"
+                                }
+                            }
+                            MouseArea {
+                                id: picArea
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                onClicked: logWin.showPicture(modelData)
+                                ToolTip.visible: containsMouse
+                                ToolTip.delay: 500
+                                ToolTip.text: qsTr("Show the picture the camera sent with this event")
+                            }
+                        }
+                        Text {
+                            anchors.centerIn: parent
+                            visible: modelData.picture === ""
+                            text: "\u2013"
+                            color: "#445566"; font.pixelSize: 12
+                            ToolTip.visible: noPicArea.containsMouse
+                            ToolTip.text: qsTr("No picture kept for this entry (only line and area events bring one, and the last 100 are kept)")
+                            MouseArea { id: noPicArea; anchors.fill: parent; hoverEnabled: true }
+                        }
                     }
                     Item {
                         width: 40; height: parent.height

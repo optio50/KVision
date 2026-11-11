@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Check detection setup (read-only).** Right-click a camera, or use the *Check now* button in the sidebar, to see
+  whether it is set up to report detection events: login, address, online, firmware, smart-event metadata, motion
+  zone, line and area rules (drawn but switched off, or switched on with nothing drawn) and the recorder's centre
+  action. Results open in a window and are also written to `logs/SetupCheck.log`. An optional tick box runs the check
+  at start-up (off by default). It only reads, one request at a time, and stops at the first refused login so it cannot
+  lock a camera out.
+* **Event pictures.** The picture a camera or recorder sends with a line or area event is kept (the newest 100, in
+  `logs/pictures`; older ones are deleted). A recorder sends a link instead of the picture, and KVision downloads it
+  with the recorder's login (one try; a refused login stops it). The detection log window has a new **Picture**
+  column: a small button beside Play opens the picture, with the red target frame (and the rule line) when the
+  camera's "Overlay Rule Frame and Target Frame on Background Picture" switch is on.
+* **The setup check reports that switch.** It looks for the red outline on the rectangle an event names. The switch
+  cannot be read or set over the camera's network interface, so the check only says where to find it.
 * **Choose where cameras behind a recorder get their detection reports.** A new setting under User Interface Settings:
   *Each camera directly* (the default, one connection per camera) or *Through the recorder* (one connection to the
   recorder, which relays every camera's events with the channel number). A standalone camera, a dual-lens camera and a

@@ -1,7 +1,9 @@
 #ifndef HIKVISIONEVENTS_H
 #define HIKVISIONEVENTS_H
 
+#include <QDateTime>
 #include <QHash>
+#include <QRectF>
 #include <QSet>
 #include <QObject>
 #include <QString>
@@ -10,6 +12,7 @@
 
 class QNetworkAccessManager;
 class QNetworkReply;
+class QUrl;
 
 // Listens to the motion/target events a Hikvision camera streams over HTTP
 // (/ISAPI/Event/notification/alertStream) and reports which kind of target
@@ -54,6 +57,13 @@ public:
     // log is large.
     // filterIp limits the entries to one camera address (empty for all); skip then counts only those.
     Q_INVOKABLE QVariantMap readDetections(int skip, int count, const QString &configDir, const QString &filterIp = QString()) const;
+    // What the newest event picture from a camera showed: a map with state ("on" if the picture carries the red
+    // target frame, "off" if the camera sent a clean picture, empty if none has been seen since KVision started)
+    // and time. address is the camera's own address. The picture is only looked at, never kept.
+    Q_INVOKABLE QVariantMap pictureFrames(const QString &address) const;
+    // The saved picture for a camera address at a moment (seconds since 1970), or an empty string if there is none.
+    // The detection log entries carry this as "picture" already; this is for anything else that wants one.
+    static QString picturePath(const QString &configDir, const QString &address, qint64 secs);
 
 signals:
     // targetType is what the camera reported: "human", "vehicle", "animal" or "other".
@@ -86,6 +96,18 @@ private:
         QNetworkReply *reply = nullptr;
         QByteArray buffer;
         QTimer *retry = nullptr;
+        // The target rectangle (0..1) of the last smart event, waiting for the picture that follows it.
+        bool pendingValid = false;  // a picture is expected after the last smart event
+        bool pendingHasRect = false; // and the event named where the target is
+        QRectF pendingRect;
+        QString pendingAddress;
+        qint64 pendingSecs = 0;      // the event's time, which names the saved picture
+        bool pictureRefused = false; // the recorder refused the login for a picture: never ask again this session
+        int pictureFetches = 0;      // picture downloads in progress
+    };
+    struct PictureVerdict {
+        bool on = false;
+        QDateTime when;
     };
 
     void open(const QString &ip);
@@ -93,6 +115,18 @@ private:
     void onFinished(const QString &ip, QNetworkReply *reply);
     void close(const QString &ip);
     void logDetection(const Conn *c, const QString &target, const QString &kind, const QString &cameraTime, int eventChannel);
+    // Looks for the picture that follows an event in `data`, and records whether it carries the target frame.
+    // Returns true if a whole picture was there (so the event is done with).
+    bool judgePicture(Conn *c, const QByteArray &data);
+    // Remembers the target rectangle an event names, so the picture that follows it can be judged.
+    void notePictureRect(Conn *c, const QString &body, int eventChannel, const QString &cameraTime);
+    // Keeps the newest kMaxPictures pictures in logs/pictures and deletes the older ones.
+    // A recorder sends a link to the picture instead of the picture. Downloads it with the connection's login
+    // (one try, and only from the connection's own address), then keeps and judges it like an attached one.
+    void fetchPicture(const QString &ip, const QUrl &url, const QString &address, qint64 secs, bool hasRect, const QRectF &rect);
+    void judgeJpeg(const QString &address, bool hasRect, const QRectF &rect, const QByteArray &jpeg);
+    void savePicture(const QString &address, qint64 secs, const QByteArray &jpeg);
+    QString cameraAddress(const Conn *c, int eventChannel) const;
 
     QNetworkAccessManager *m_net = nullptr;
     QHash<QString, Conn *> m_conns;
@@ -100,6 +134,7 @@ private:
                                  QStringLiteral("enter"), QStringLiteral("exit"), QStringLiteral("other")};
     QSet<QString> m_allowedTargets{QStringLiteral("human"), QStringLiteral("vehicle"), QStringLiteral("animal"),
                                    QStringLiteral("other")};
+    QHash<QString, PictureVerdict> m_pictures; // by camera address
     QString m_logDir; // where Detection.log is written; empty until a tile gives the config directory
 };
 

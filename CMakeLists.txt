@@ -177,6 +177,7 @@ set(PROJ_FILES
     src/hikvisiontalk.cpp src/hikvisiontalk.h src/talkaudio.h
     src/talkaacencoder.cpp src/talkaacencoder.h
     src/hikvisionevents.cpp src/hikvisionevents.h
+    src/hikvisionsetupcheck.cpp src/hikvisionsetupcheck.h
     src/systemstats.cpp src/systemstats.h
     src/nvrstatusmanager.cpp src/nvrstatusmanager.h
     src/DownloadDialog.qml

@@ -2694,6 +2694,59 @@ FocusScope {
                                 Layout.fillWidth: true
                             }
 
+                            Text {
+                                text: qsTr("Is each camera set up to report? A read-only check of the camera's settings (metadata, zones, rules, the recorder's centre action). It changes nothing.")
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            CheckBox {
+                                text: qsTr("Check every detection camera once when KVision starts")
+                                checked: generalSettings.checkSetupAtStart
+                                onToggled: generalSettings.checkSetupAtStart = checked
+                                enabled: generalSettings.showTargetIndicator
+                                Layout.fillWidth: true
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                Button {
+                                    text: qsTr("Check now")
+                                    enabled: generalSettings.showTargetIndicator && HikvisionSetupCheck.pending === 0
+                                    onClicked: {
+                                        rootWindow.checkDetectionSetup("");
+                                        var win = setupCheckComponent.createObject(rootWindow, { "focusKey": "" });
+                                        if (win)
+                                            win.show();
+                                    }
+                                }
+
+                                Button {
+                                    text: qsTr("Show results")
+                                    onClicked: {
+                                        var win = setupCheckComponent.createObject(rootWindow, { "focusKey": "" });
+                                        if (win)
+                                            win.show();
+                                    }
+                                }
+
+                                Text {
+                                    visible: HikvisionSetupCheck.pending > 0
+                                    text: qsTr("Checking... %1 left").arg(HikvisionSetupCheck.pending)
+                                    color: "#8899aa"
+                                    font.pixelSize: 11
+                                }
+                            }
+
+                            Component {
+                                id: setupCheckComponent
+                                SetupCheckWindow {}
+                            }
+
                             CheckBox {
                                 text: qsTr("LNG_00253")
                                 checked: viewSettings.disableViewportZoomAnimation

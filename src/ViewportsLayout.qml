@@ -1526,6 +1526,51 @@ FocusScope {
                                     win.show();
                             }
                         }
+
+                        MenuItem {
+                            id: setupCheckMenuItem
+                            text: qsTr("Check detection setup...")
+                            visible: model.url !== "" && String(model.url).indexOf("hikvision://") !== -1 && contextMenu.targetAvailable
+                            height: visible ? implicitHeight : 0
+                            leftPadding: 12
+
+                            contentItem: Text {
+                                text: setupCheckMenuItem.text
+                                font { pixelSize: 11; bold: true }
+                                color: setupCheckMenuItem.hovered ? "#00f5d4" : "#eeeeee"
+                                horizontalAlignment: Text.AlignLeft
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                implicitWidth: 150
+                                implicitHeight: 32
+                                color: setupCheckMenuItem.hovered ? "#2a3540" : "transparent"
+                                border.color: setupCheckMenuItem.hovered ? "#00f5d4" : "transparent"
+                                border.width: 1
+                                radius: 4
+                            }
+
+                            ToolTip.visible: hovered
+                            ToolTip.delay: 600
+                            ToolTip.text: qsTr("Read this camera's detection settings and list what is missing. It changes nothing.")
+
+                            onHoveredChanged: {
+                                if (hovered) {
+                                    streamSubMenu.close();
+                                }
+                            }
+
+                            onTriggered: {
+                                var player = playerPool.activePlayersMap[model.index];
+                                if (!player)
+                                    return;
+                                var key = player.recorderIp + "#" + player.channelId;
+                                rootWindow.checkDetectionSetup(key);
+                                var win = setupCheckComponent.createObject(rootWindow, { "focusKey": key });
+                                if (win)
+                                    win.show();
+                            }
+                        }
                     }
 
                     Menu {
@@ -1930,6 +1975,12 @@ FocusScope {
 
     AddCameraDialog {
         id: addCameraDialog
+    }
+
+    // The setup check window lists what the check found for each camera.
+    Component {
+        id: setupCheckComponent
+        SetupCheckWindow {}
     }
 
     // The detection log window is created each time it is opened, so there can be one per camera.

@@ -222,6 +222,7 @@ ApplicationWindow {
         // Which kinds of report may show a frame (comma list: motion,line,intrusion,enter,exit,other) and which
         // targets (human,vehicle,animal,other).
         property string targetKinds: "motion,line,intrusion,enter,exit,other"
+        property bool checkSetupAtStart: false // read each camera's detection setup once when KVision starts
         property string targetTargets: "human,vehicle,animal,other"
         property string targetOffCameras: "[]" // JSON list of camera addresses with the indicator switched off
         property string targetNvrOnCameras: "[]" // JSON list of "recorderIp#channel" entries switched on for cameras behind a recorder
@@ -511,6 +512,10 @@ ApplicationWindow {
             if (diskTargetSource !== "camera" && diskTargetSource !== "recorder") diskTargetSource = "camera";
             if (generalSettings.targetSource !== diskTargetSource) {
                 generalSettings.targetSource = diskTargetSource;
+            }
+            var diskCheckSetup = Context.readSetting("", "checkSetupAtStart", false);
+            if (generalSettings.checkSetupAtStart !== diskCheckSetup) {
+                generalSettings.checkSetupAtStart = diskCheckSetup;
             }
             var diskTargetKinds = String(Context.readSetting("", "targetKinds", "motion,line,intrusion,enter,exit,other"));
             if (generalSettings.targetKinds !== diskTargetKinds) {
@@ -2065,6 +2070,7 @@ ApplicationWindow {
         Context.writeSetting("", "targetHoldSeconds", generalSettings.targetHoldSeconds);
         Context.writeSetting("", "targetSource", generalSettings.targetSource);
         Context.writeSetting("", "targetKinds", generalSettings.targetKinds);
+        Context.writeSetting("", "checkSetupAtStart", generalSettings.checkSetupAtStart);
         Context.writeSetting("", "targetTargets", generalSettings.targetTargets);
         Context.writeSetting("", "targetOffCameras", generalSettings.targetOffCameras);
         Context.writeSetting("", "targetNvrOnCameras", generalSettings.targetNvrOnCameras);
@@ -2103,6 +2109,55 @@ ApplicationWindow {
         }
     }
 
+    // Which cameras the check covers: every Hikvision camera that is switched on for detection. A camera behind
+    // a recorder with more than two cameras is read through the recorder; a camera or dual-lens camera has its
+    // own address. With onlyKey (recorderIp#channel) only that camera is asked.
+    function checkDetectionSetup(onlyKey) {
+        var list = [];
+        try {
+            list = JSON.parse(rootWindow.hikvisionRecordersJson || "[]");
+        } catch (e) {
+            return 0;
+        }
+        var nvrOn = [];
+        var camOff = [];
+        try { nvrOn = JSON.parse(generalSettings.targetNvrOnCameras || "[]"); } catch (e1) {}
+        try { camOff = JSON.parse(generalSettings.targetOffCameras || "[]"); } catch (e2) {}
+        var through = generalSettings.targetSource === "recorder";
+        var asked = 0;
+        for (var i = 0; i < list.length; ++i) {
+            var rec = list[i];
+            var ip = (rec.ip || "").trim().split(":")[0];
+            if (!rec.username || !rec.password || ip === "")
+                continue;
+            var cams = rec.cameras || [];
+            var behind = cams.length > 2;
+            for (var j = 0; j < cams.length; ++j) {
+                var ch = parseInt(cams[j].channelId);
+                var key = ip + "#" + ch;
+                if (onlyKey !== undefined && onlyKey !== "" && onlyKey !== key)
+                    continue;
+                if (onlyKey === undefined || onlyKey === "") {
+                    // Everything: only cameras that are switched on for detection.
+                    if (behind ? nvrOn.indexOf(key) < 0 : camOff.indexOf(ip) >= 0)
+                        continue;
+                }
+                var nm = (rec.name || ip) + " Ch. " + ch + " " + (cams[j].customName || cams[j].name || ("Camera " + ch));
+                HikvisionSetupCheck.check(key, nm, ip, parseInt(rec.httpPort) || 80, rec.username, rec.password, ch,
+                                          behind, through, Context.configDirPath());
+                ++asked;
+            }
+        }
+        return asked;
+    }
+
+    Timer {
+        id: startupSetupCheckTimer
+        interval: 20000 // let the wall and its streams settle first
+        repeat: false
+        onTriggered: rootWindow.checkDetectionSetup("")
+    }
+
     // The detection filters live in the listener, so it is told whenever the settings change.
     function applyDetectionFilters() {
         HikvisionEvents.setAllowedKinds(generalSettings.targetKinds);
@@ -2118,6 +2173,8 @@ ApplicationWindow {
     Component.onCompleted: {
         stackLayout.visible = true;
         rootWindow.applyDetectionFilters();
+        if (generalSettings.checkSetupAtStart && !Context.isAuxiliary)
+            startupSetupCheckTimer.start();
 
         var snapPath = Context.sanitizePlatformPath(generalSettings.snapshotPath, Context.defaultPicturesPath());
         if (generalSettings.snapshotPath !== snapPath) {

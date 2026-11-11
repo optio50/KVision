@@ -51,6 +51,8 @@
         <file>src/NvrSettingsPanel.qml</file>
         <file>src/NvrCamerasWindow.qml</file>
         <file>src/DetectionLogWindow.qml</file>
+        <file>src/SetupCheckWindow.qml</file>
+        <file>src/SetupCheckList.qml</file>
         <file>src/PlaybackWindow.qml</file>
         <file>images/play.svg</file>
         <file>images/pause.svg</file>
