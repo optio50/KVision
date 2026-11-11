@@ -42,6 +42,15 @@ public:
     // JSON object {"17": {"name": "NVR Ch. 17 Garage3", "ip": "192.0.0.3"}, ...}. The detection log uses it
     // so a report for any channel is written under that camera, whether or not a tile shows it.
     Q_INVOKABLE void setChannelInfo(const QString &ip, const QString &json);
+    // For a camera with more than one lens (one address, several channels), which recorder channel and name each of
+    // the camera's own channels is, as JSON: {"1": {"name": "...", "channel": 14}, "2": {...}}. A report from the
+    // camera's own stream names its own channel, and this turns it into the right camera for the detection log.
+    Q_INVOKABLE void setLensInfo(const QString &ip, const QString &json);
+    // A PTZ lens has started to follow a target the other lens named (target is human, vehicle, animal or other).
+    // Writes a "Tracking" line to the detection log and keeps two snapshots of the PTZ lens, one second apart, that the
+    // log window offers with that line. lensChannel is the camera's own channel of the PTZ lens. Only for a camera
+    // on its own connection; ignored if the same lens was logged in the last 10 seconds.
+    Q_INVOKABLE void logTracking(const QString &ip, const QString &target, int lensChannel);
 
     // Which kinds of report may show a frame and be logged. kinds is a comma list of: motion, line,
     // intrusion, enter, exit, other (smart events not listed here). An empty list allows nothing.
@@ -51,7 +60,8 @@ public:
     // How many event pictures are kept for each camera (the newest ones). Older ones are deleted at once.
     Q_INVOKABLE void setMaxPictures(int count);
     // A tile calls this when it shows a detection frame, so logs/Frames.log records what was on screen.
-    Q_INVOKABLE void logFrame(const QString &ip, const QString &text, int tile);
+    // name is the camera name the tile shows; without it the connection's name is used.
+    Q_INVOKABLE void logFrame(const QString &ip, const QString &text, int tile, const QString &name = QString());
     // Newest-first entries from logs/Detection.log, skipping the first `skip`. Each entry is a map with
     // time, epochMs, target, kind, camera, ip, recorderIp, channel and received (empty unless the report
     // was read late). recorderIp is empty for lines without a recorder. The result
@@ -65,7 +75,10 @@ public:
     Q_INVOKABLE QVariantMap pictureFrames(const QString &address) const;
     // The saved picture for a camera address at a moment (seconds since 1970), or an empty string if there is none.
     // The detection log entries carry this as "picture" already; this is for anything else that wants one.
-    static QString picturePath(const QString &configDir, const QString &address, qint64 secs);
+    // A camera with more than one lens (one address, several channels) keeps each lens's pictures apart: lens is the
+    // recorder channel of the lens, and the name becomes <address>_ch<lens>_<secs>.jpg. 0 means an ordinary camera.
+    static QString picturePath(const QString &configDir, const QString &address, qint64 secs, int lens = 0);
+    static QString pictureKey(const QString &address, int lens);
 
 signals:
     // targetType is what the camera reported: "human", "vehicle", "animal" or "other".
@@ -77,6 +90,11 @@ signals:
     // A motion report with no target type. Some cameras send the type only once per target, so a
     // tile uses these to keep a frame it is already showing alive.
     void motionDetected(const QString &ip, int channel);
+    // A PTZ camera leaves its park position (preset) to follow a target the other lens saw, or comes back to it. channel
+    // is the camera's own channel of the PTZ lens. tracking is true when it leaves and false when it is back.
+    void trackingChanged(const QString &ip, int channel, bool tracking);
+    // The PTZ lens reported where it points (about once a second while it moves).
+    void ptzMoved(const QString &ip, int channel);
     // The connection failed and will not be retried until a tile watches again.
     void listenFailed(const QString &ip, const QString &message);
 
@@ -92,11 +110,14 @@ private:
         bool recorderMode = false; // this connection is to a recorder, and its reports name the channel
         struct ChanInfo { QString name; QString ip; };
         QHash<int, ChanInfo> chanInfo;
+        struct Lens { QString name; int channel = 0; };
+        QHash<int, Lens> lens; // a multi-lens camera on its own connection: its own channel -> camera name and recorder channel
         int watchers = 0;
         int failures = 0;
         bool authFailed = false; // the camera refused our login: never try again in this session
         QNetworkReply *reply = nullptr;
         QByteArray buffer;
+        int jsonScanned = 0; // how much of the buffer has been searched for PTZ JSON messages already
         QTimer *retry = nullptr;
         QTimer *watchdog = nullptr; // fires when nothing has arrived for too long: a stalled stream is reopened
         qint64 openedMs = 0;        // when the stream was last opened
@@ -106,6 +127,7 @@ private:
         bool pendingHasRect = false; // and the event named where the target is
         QRectF pendingRect;
         QString pendingAddress;
+        int pendingLens = 0;         // the lens's recorder channel when the camera has more than one, else 0
         qint64 pendingSecs = 0;      // the event's time, which names the saved picture
         bool pictureRefused = false; // the recorder refused the login for a picture: never ask again this session
         int pictureFetches = 0;      // picture downloads in progress
@@ -127,11 +149,14 @@ private:
     void notePictureRect(Conn *c, const QString &body, int eventChannel, const QString &cameraTime);
     // A recorder sends a link to the picture instead of the picture. Downloads it with the connection's login
     // (one try, and only from the connection's own address), then keeps and judges it like an attached one.
-    void fetchPicture(const QString &ip, const QUrl &url, const QString &address, qint64 secs, bool hasRect, const QRectF &rect);
+    void fetchPicture(const QString &ip, const QUrl &url, const QString &address, int lens, qint64 secs, bool hasRect, const QRectF &rect);
     void judgeJpeg(const QString &address, bool hasRect, const QRectF &rect, const QByteArray &jpeg);
-    void savePicture(const QString &address, qint64 secs, const QByteArray &jpeg);
+    void savePicture(const QString &address, int lens, qint64 secs, const QByteArray &jpeg);
+    void takeSnapshot(const QString &ip, int cameraChannel);
+    QHash<QString, qint64> m_lastTrack; // when a lens last logged a track (ms), to ignore a second tile of the same camera
+    int pictureLens(const Conn *c, int eventChannel) const;
     // Keeps the newest m_maxPictures pictures of each camera in logs/pictures (or of one camera) and deletes the older ones.
-    void prunePictures(const QString &dirPath, const QString &address);
+    void prunePictures(const QString &dirPath, const QString &key);
     QString cameraAddress(const Conn *c, int eventChannel) const;
 
     QNetworkAccessManager *m_net = nullptr;

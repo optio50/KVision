@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+* **A PTZ that follows a target shows TRACKING on its tile.** A two-lens PTZ (close-up plus wide view) is told where to
+  point by the wide lens, and the close-up itself sends no line or intrusion report while it follows. The camera does
+  say when the close-up leaves its park position ("leave"), where it points about once a second, and when it is back.
+  KVision now reads those messages. While the close-up follows, its tile shows an amber frame with the target the wide
+  lens named, for example "HUMAN - TRACKING", and clears it when the camera is back at its park position or stops
+  sending positions. No frame is shown if the wide lens named nothing in the last 15 seconds (someone steering the
+  PTZ by hand), and a report the close-up makes itself is never replaced.
+* **A track is logged with two snapshots a second apart.** When the PTZ starts to follow a target, the detection log gets
+  a "Tracking" line (target from the wide lens, camera and recorder channel of the PTZ lens), and KVision takes two
+  snapshots of the PTZ lens one and two seconds later, from the camera's own picture address with the same login. The
+  Picture button on that line opens a viewer with arrows to step between them. One snapshot request at a time, and a
+  refused login stops them. Not taken for cameras read through the recorder.
+* **Playback timeline ticks are coloured by what the recorder says the event was.** Before, every event was red. Now
+  motion is yellow, line crossing red, intrusion magenta, region entrance blue, region exit purple and any other smart
+  event grey, with a small legend at the top right of the timeline showing the kinds that are drawn. The 30-minute bar
+  on a live tile uses the same colours. The kind comes from the recorder's saved-event search (motion, line crossing and
+  field detection are separate there). The recorder does not say who crossed, so there is no human / animal colour.
+
 ## [3.3.0] - 2026-11-11
 
 ### Added
@@ -43,6 +62,16 @@ All notable changes to this project will be documented in this file.
   number in the report, whether or not a tile shows that camera.
 
 ### Fixed
+* **The two lenses of a PTZ keep their event pictures apart.** Both lenses share one address, so their pictures shared
+  one file name and one could overwrite the other when both fired in the same second. A two-lens camera's pictures are
+  now named `<address>_ch<recorder channel>_<time>.jpg` (for example `192.0.0.115_ch14_...`). Other cameras keep their
+  names, and pictures saved before still open. The per-camera limit counts each lens on its own.
+* **A camera with two lenses (a PTZ with a close-up and a wide view) now logs and shows each lens as its own camera.**
+  The camera names the lens in every report on its one stream (channel 1 or 2). KVision ignored that number, so the
+  detection log named every event after whichever tile opened the connection first (all of them "Ch. 14 PTZ", none for
+  the wide view), "Play" from the log opened the wrong lens, and both tiles flashed a frame for either lens. Now the log
+  line carries the right camera name and recorder channel, and a tile shows only its own lens's reports. This covers a
+  two-lens camera on its own and one behind a recorder (found on the recorder's PTZ, channels 14 and 15).
 * **The frame label no longer follows plain motion right after a line or intrusion report.** For 10 seconds after a
   line, intrusion, entrance or exit report, a plain motion report (often somebody elsewhere in the picture) only
   keeps the frame alive and does not change its label. Before, a person at the desk could rename the frame of a dog

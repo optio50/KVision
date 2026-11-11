@@ -228,8 +228,10 @@ void HikvisionEvents::onReadyRead(const QString &ip)
         c->failures = 0;
     c->watchdog->start(); // and the stream is alive: start the stall timer again
     c->buffer += c->reply->readAll();
-    if (c->buffer.size() > kMaxBuffer)
+    if (c->buffer.size() > kMaxBuffer) {
         c->buffer = c->buffer.right(kMaxBuffer / 2);
+        c->jsonScanned = 0;
+    }
 
     static const QRegularExpression eventRx(
         QStringLiteral("<EventNotificationAlert.*?</EventNotificationAlert>"),
@@ -291,8 +293,38 @@ void HikvisionEvents::onReadyRead(const QString &ip)
         qDebug() << "[Events] report from" << ip << "channel" << camChannel << ":" << target;
         emit targetDetected(ip, target, QStringLiteral("MOTION"), camChannel);
     }
-    if (consumed > 0)
+    // A PTZ camera also sends JSON messages in the same stream. Two of them say it is following a target: it "leaves"
+    // its park preset, then reports where it points about once a second, then is back ("inPointion"). The same message
+    // may be seen again on the next read; the state they set is the same each time, so that does no harm.
+    static const QRegularExpression presetRx(QStringLiteral(
+        "\"channelID\":\\s*(\\d+),[\\s\\S]{0,160}?\"eventType\":\\s*\"presetSwitchingInformation\"[\\s\\S]{0,260}?\"switchStatus\":\\s*\"([^\"]*)\""));
+    static const QRegularExpression gisRx(QStringLiteral(
+        "\"channelID\":\\s*(\\d+),[\\s\\S]{0,160}?\"eventType\":\\s*\"GISInfo\""));
+    if (text.contains(QLatin1String("presetSwitchingInformation")) || text.contains(QLatin1String("GISInfo"))) {
+        // Each message is acted on once: only matches that end after what was searched before count.
+        int scannedTo = c->jsonScanned;
+        QRegularExpressionMatchIterator pi = presetRx.globalMatch(text, qMax(0, c->jsonScanned - 300));
+        while (pi.hasNext()) {
+            const QRegularExpressionMatch pm = pi.next();
+            if (pm.capturedEnd() <= c->jsonScanned)
+                continue;
+            scannedTo = qMax(scannedTo, int(pm.capturedEnd()));
+            emit trackingChanged(ip, pm.captured(1).toInt(), pm.captured(2) == QLatin1String("leave"));
+        }
+        QRegularExpressionMatchIterator gi = gisRx.globalMatch(text, qMax(0, c->jsonScanned - 300));
+        while (gi.hasNext()) {
+            const QRegularExpressionMatch gm = gi.next();
+            if (gm.capturedEnd() <= c->jsonScanned)
+                continue;
+            scannedTo = qMax(scannedTo, int(gm.capturedEnd()));
+            emit ptzMoved(ip, gm.captured(1).toInt());
+        }
+        c->jsonScanned = scannedTo;
+    }
+    if (consumed > 0) {
         c->buffer.remove(0, consumed);
+        c->jsonScanned = qMax(0, c->jsonScanned - consumed);
+    }
     judgePicture(c, c->buffer);
 }
 
@@ -310,6 +342,7 @@ void HikvisionEvents::notePictureRect(Conn *c, const QString &body, int eventCha
         when = QDateTime::currentDateTime();
     c->pendingSecs = when.toSecsSinceEpoch();
     c->pendingAddress = cameraAddress(c, eventChannel);
+    c->pendingLens = pictureLens(c, eventChannel);
     const QRegularExpressionMatch m = rectRx.match(body);
     if (m.hasMatch()) {
         c->pendingRect = QRectF(m.captured(1).toDouble(), m.captured(2).toDouble(), m.captured(3).toDouble(), m.captured(4).toDouble());
@@ -319,7 +352,7 @@ void HikvisionEvents::notePictureRect(Conn *c, const QString &body, int eventCha
     static const QRegularExpression urlRx(QStringLiteral("<bkgUrl>([^<]*)</bkgUrl>"));
     const QString link = urlRx.match(body).captured(1).replace(QStringLiteral("&amp;"), QStringLiteral("&")).trimmed();
     if (!link.isEmpty()) {
-        fetchPicture(c->ip, QUrl(link), c->pendingAddress, c->pendingSecs, c->pendingHasRect, c->pendingRect);
+        fetchPicture(c->ip, QUrl(link), c->pendingAddress, c->pendingLens, c->pendingSecs, c->pendingHasRect, c->pendingRect);
         return; // nothing will follow on the stream
     }
     c->pendingValid = true;
@@ -374,7 +407,7 @@ bool HikvisionEvents::judgePicture(Conn *c, const QByteArray &data)
         return false; // the rest of the picture is still on its way
     c->pendingValid = false;
     const QByteArray jpeg = data.mid(start, end + 2 - start);
-    savePicture(c->pendingAddress, c->pendingSecs, jpeg);
+    savePicture(c->pendingAddress, c->pendingLens, c->pendingSecs, jpeg);
     judgeJpeg(c->pendingAddress, c->pendingHasRect, c->pendingRect, jpeg);
     return true;
 }
@@ -412,7 +445,7 @@ void HikvisionEvents::judgeJpeg(const QString &address, bool hasRect, const QRec
     }
 }
 
-void HikvisionEvents::fetchPicture(const QString &ip, const QUrl &url, const QString &address, qint64 secs, bool hasRect, const QRectF &rect)
+void HikvisionEvents::fetchPicture(const QString &ip, const QUrl &url, const QString &address, int lens, qint64 secs, bool hasRect, const QRectF &rect)
 {
     Conn *c = m_conns.value(ip, nullptr);
     if (!c || c->pictureRefused || c->pictureFetches >= 2 || address.isEmpty())
@@ -420,7 +453,7 @@ void HikvisionEvents::fetchPicture(const QString &ip, const QUrl &url, const QSt
     // Only ever send the login to the device this connection belongs to.
     if (url.scheme() != QLatin1String("http") || url.host() != c->ip.section(QLatin1Char(':'), 0, 0).trimmed())
         return;
-    if (QFile::exists(picturePath(QFileInfo(m_logDir).absolutePath(), address, secs)) && !m_logDir.isEmpty())
+    if (QFile::exists(picturePath(QFileInfo(m_logDir).absolutePath(), address, secs, lens)) && !m_logDir.isEmpty())
         return; // already have this one
     ++c->pictureFetches;
     QNetworkRequest req(url);
@@ -428,7 +461,7 @@ void HikvisionEvents::fetchPicture(const QString &ip, const QUrl &url, const QSt
     QNetworkReply *reply = m_net->get(req);
     reply->setProperty("evUser", c->user);
     reply->setProperty("evPass", c->pass);
-    connect(reply, &QNetworkReply::finished, this, [this, ip, reply, address, secs, hasRect, rect]() {
+    connect(reply, &QNetworkReply::finished, this, [this, ip, reply, address, lens, secs, hasRect, rect]() {
         reply->deleteLater();
         Conn *conn = m_conns.value(ip, nullptr);
         if (conn && conn->pictureFetches > 0)
@@ -445,41 +478,69 @@ void HikvisionEvents::fetchPicture(const QString &ip, const QUrl &url, const QSt
         const QByteArray jpeg = reply->readAll();
         if (jpeg.size() < 1000 || jpeg.left(3) != QByteArray("\xff\xd8\xff", 3))
             return;
-        savePicture(address, secs, jpeg);
+        savePicture(address, lens, secs, jpeg);
         judgeJpeg(address, hasRect, rect, jpeg);
     });
 }
 
-QString HikvisionEvents::picturePath(const QString &configDir, const QString &address, qint64 secs)
+QString HikvisionEvents::pictureKey(const QString &address, int lens)
 {
     QString a = address;
     a.replace(QRegularExpression(QStringLiteral("[^0-9A-Za-z.-]")), QStringLiteral("_"));
-    return configDir + QStringLiteral("/logs/pictures/") + a + QLatin1Char('_') + QString::number(secs) + QStringLiteral(".jpg");
+    if (lens > 0)
+        a += QStringLiteral("_ch") + QString::number(lens);
+    return a;
 }
 
-void HikvisionEvents::savePicture(const QString &address, qint64 secs, const QByteArray &jpeg)
+QString HikvisionEvents::picturePath(const QString &configDir, const QString &address, qint64 secs, int lens)
+{
+    return configDir + QStringLiteral("/logs/pictures/") + pictureKey(address, lens) + QLatin1Char('_') + QString::number(secs) + QStringLiteral(".jpg");
+}
+
+// The lens this event came from, as the recorder channel of that lens, when the camera has more than one lens at
+// one address (a PTZ with a close-up and a wide view); 0 for an ordinary camera. Both lenses would otherwise share
+// one picture name and could overwrite each other in the same second.
+int HikvisionEvents::pictureLens(const Conn *c, int eventChannel) const
+{
+    if (c->recorderMode) {
+        const auto it = c->chanInfo.constFind(eventChannel);
+        if (it == c->chanInfo.constEnd() || it->ip.isEmpty())
+            return 0;
+        int same = 0;
+        for (auto i = c->chanInfo.constBegin(); i != c->chanInfo.constEnd(); ++i)
+            if (i->ip == it->ip)
+                ++same;
+        return same > 1 ? eventChannel : 0;
+    }
+    if (c->lens.size() > 1) {
+        const auto it = c->lens.constFind(eventChannel);
+        if (it != c->lens.constEnd() && it->channel > 0)
+            return it->channel;
+    }
+    return 0;
+}
+
+void HikvisionEvents::savePicture(const QString &address, int lens, qint64 secs, const QByteArray &jpeg)
 {
     if (m_logDir.isEmpty() || address.isEmpty() || jpeg.size() < 1000)
         return;
     const QString dirPath = m_logDir + QStringLiteral("/pictures");
     QDir().mkpath(dirPath);
-    QFile f(picturePath(QFileInfo(m_logDir).absolutePath(), address, secs));
+    QFile f(picturePath(QFileInfo(m_logDir).absolutePath(), address, secs, lens));
     if (!f.open(QIODevice::WriteOnly)) {
         qWarning() << "[Events] cannot write" << f.fileName() << f.errorString();
         return;
     }
     f.write(jpeg);
     f.close();
-    prunePictures(dirPath, address);
+    prunePictures(dirPath, pictureKey(address, lens));
 }
 
-// Keeps the newest m_maxPictures pictures of each camera (all cameras when address is empty) and deletes the older
-// ones, so a busy camera cannot push out the pictures of a quiet one and the folder cannot grow without end.
-void HikvisionEvents::prunePictures(const QString &dirPath, const QString &address)
+// Keeps the newest m_maxPictures pictures of each camera (or lens) - all of them when key is empty - and deletes the
+// older ones, so a busy camera cannot push out the pictures of a quiet one and the folder cannot grow without end.
+void HikvisionEvents::prunePictures(const QString &dirPath, const QString &key)
 {
     const QFileInfoList files = QDir(dirPath).entryInfoList(QStringList() << QStringLiteral("*.jpg"), QDir::Files, QDir::Time);
-    QString only = address;
-    only.replace(QRegularExpression(QStringLiteral("[^0-9A-Za-z.-]")), QStringLiteral("_"));
     QHash<QString, int> seen;
     for (const QFileInfo &fi : files) {
         const QString name = fi.completeBaseName();
@@ -487,7 +548,7 @@ void HikvisionEvents::prunePictures(const QString &dirPath, const QString &addre
         if (us <= 0)
             continue;
         const QString cam = name.left(us);
-        if (!address.isEmpty() && cam != only)
+        if (!key.isEmpty() && cam != key)
             continue;
         if (++seen[cam] > m_maxPictures)
             QFile::remove(fi.absoluteFilePath());
@@ -594,6 +655,16 @@ void HikvisionEvents::logDetection(const Conn *c, const QString &target, const Q
     }
     QString name = c->name.isEmpty() ? c->ip : c->name;
     QString address = c->ip;
+    if (!c->recorderMode) {
+        // A camera with several lenses reports each lens as its own channel on the one stream.
+        const auto lens = c->lens.constFind(eventChannel);
+        if (lens != c->lens.constEnd()) {
+            if (!lens->name.isEmpty())
+                name = lens->name;
+            if (lens->channel > 0 && !c->recIp.isEmpty())
+                recorder = QStringLiteral(", recorder ") + c->recIp + QStringLiteral(" ch ") + QString::number(lens->channel);
+        }
+    }
     if (c->recorderMode) {
         // One connection serves every camera behind the recorder, so the report's channel says which one.
         const auto it = c->chanInfo.constFind(eventChannel);
@@ -606,7 +677,7 @@ void HikvisionEvents::logDetection(const Conn *c, const QString &target, const Q
 
 // One line each time a tile shows a detection frame (a camera shown on two tiles gives two lines):
 //   10 Nov 2026 08:52:24, Frame shown, HUMAN - LINE, tile 19, Camera_Name, 192.0.0.3
-void HikvisionEvents::logFrame(const QString &ip, const QString &text, int tile)
+void HikvisionEvents::logFrame(const QString &ip, const QString &text, int tile, const QString &name)
 {
     if (m_logDir.isEmpty())
         return;
@@ -616,7 +687,7 @@ void HikvisionEvents::logFrame(const QString &ip, const QString &text, int tile)
         return;
     const Conn *c = m_conns.value(ip, nullptr);
     const QString when = QLocale::c().toString(QDateTime::currentDateTime(), QStringLiteral("dd MMM yyyy HH:mm:ss"));
-    QTextStream(&f) << when << ", Frame shown, " << text << ", tile " << tile << ", " << (c && !c->name.isEmpty() ? c->name : ip) << ", " << ip << "\n";
+    QTextStream(&f) << when << ", Frame shown, " << text << ", tile " << tile << ", " << (!name.isEmpty() ? name : (c && !c->name.isEmpty() ? c->name : ip)) << ", " << ip << "\n";
 }
 
 QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &configDir, const QString &filterIp) const
@@ -690,7 +761,24 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
                 continue;
             {
                 const qint64 ms = e.value(QStringLiteral("epochMs")).toLongLong();
-                const QString pic = ms > 0 ? picturePath(configDir, e.value(QStringLiteral("ip")).toString(), ms / 1000) : QString();
+                const QString picIp = e.value(QStringLiteral("ip")).toString();
+                QString pic = ms > 0 && channel > 0 ? picturePath(configDir, picIp, ms / 1000, channel) : QString();
+                if (pic.isEmpty() || !QFile::exists(pic))
+                    pic = ms > 0 ? picturePath(configDir, picIp, ms / 1000) : QString();
+                QStringList all;
+                if (e.value(QStringLiteral("kind")).toString() == QLatin1String("Tracking") && ms > 0) {
+                    // The snapshots are saved a second or two after the line is written.
+                    for (qint64 sec = ms / 1000; sec <= ms / 1000 + 4; ++sec) {
+                        const QString one = picturePath(configDir, picIp, sec, channel > 0 ? channel : 0);
+                        if (QFile::exists(one))
+                            all << one;
+                    }
+                    if (!all.isEmpty())
+                        pic = all.first();
+                }
+                if (all.isEmpty() && !pic.isEmpty() && QFile::exists(pic))
+                    all << pic;
+                e.insert(QStringLiteral("pictures"), all);
                 e.insert(QStringLiteral("picture"), (!pic.isEmpty() && QFile::exists(pic)) ? pic : QString());
             }
             if (skip > 0) {
@@ -736,4 +824,77 @@ void HikvisionEvents::setChannelInfo(const QString &ip, const QString &json)
         const QJsonObject v = it.value().toObject();
         c->chanInfo.insert(it.key().toInt(), { v.value(QStringLiteral("name")).toString(), v.value(QStringLiteral("ip")).toString() });
     }
+}
+
+void HikvisionEvents::setLensInfo(const QString &ip, const QString &json)
+{
+    Conn *c = m_conns.value(ip, nullptr);
+    if (!c)
+        return;
+    const QJsonObject o = QJsonDocument::fromJson(json.toUtf8()).object();
+    c->lens.clear();
+    for (auto it = o.constBegin(); it != o.constEnd(); ++it) {
+        const QJsonObject v = it.value().toObject();
+        Conn::Lens l;
+        l.name = v.value(QStringLiteral("name")).toString();
+        l.channel = v.value(QStringLiteral("channel")).toInt();
+        c->lens.insert(it.key().toInt(), l);
+    }
+}
+
+void HikvisionEvents::logTracking(const QString &ip, const QString &target, int lensChannel)
+{
+    Conn *c = m_conns.value(ip, nullptr);
+    if (!c || c->recorderMode || lensChannel <= 0 || m_logDir.isEmpty())
+        return;
+    const QString key = ip + QLatin1Char('#') + QString::number(lensChannel);
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (now - m_lastTrack.value(key, 0) < 10000)
+        return;
+    m_lastTrack.insert(key, now);
+    logDetection(c, target.isEmpty() ? QStringLiteral("other") : target, QStringLiteral("Tracking"),
+                 QDateTime::currentDateTime().toString(Qt::ISODate), lensChannel);
+    // The PTZ is still swinging when it leaves its park position, so the first snapshot waits a second.
+    QTimer::singleShot(1000, this, [this, ip, lensChannel]() { takeSnapshot(ip, lensChannel); });
+    QTimer::singleShot(2000, this, [this, ip, lensChannel]() { takeSnapshot(ip, lensChannel); });
+}
+
+// A still picture of one lens of the camera, from the camera's own picture address (main stream of that channel,
+// channel 1 = 101, channel 2 = 201). One request with the connection's login; a refused login stops all picture
+// requests for this camera, like the event pictures.
+void HikvisionEvents::takeSnapshot(const QString &ip, int cameraChannel)
+{
+    Conn *c = m_conns.value(ip, nullptr);
+    if (!c || c->pictureRefused || c->pictureFetches >= 2 || m_logDir.isEmpty())
+        return;
+    QUrl url;
+    url.setScheme(QStringLiteral("http"));
+    url.setHost(ip.section(QLatin1Char(':'), 0, 0).trimmed());
+    url.setPort(c->httpPort);
+    url.setPath(QStringLiteral("/ISAPI/Streaming/channels/%1/picture").arg(cameraChannel * 100 + 1));
+    ++c->pictureFetches;
+    QNetworkRequest req(url);
+    req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("KVision"));
+    QNetworkReply *reply = m_net->get(req);
+    reply->setProperty("evUser", c->user);
+    reply->setProperty("evPass", c->pass);
+    connect(reply, &QNetworkReply::finished, this, [this, ip, reply, cameraChannel]() {
+        reply->deleteLater();
+        Conn *conn = m_conns.value(ip, nullptr);
+        if (conn && conn->pictureFetches > 0)
+            --conn->pictureFetches;
+        const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+        if (status == 401 || status == 403 || reply->error() == QNetworkReply::AuthenticationRequiredError) {
+            if (conn)
+                conn->pictureRefused = true;
+            qWarning() << "[Events]" << ip << "refused the login for a snapshot. Not asking again.";
+            return;
+        }
+        if (!conn || reply->error() != QNetworkReply::NoError)
+            return;
+        const QByteArray jpeg = reply->readAll();
+        if (jpeg.size() < 1000 || jpeg.left(3) != QByteArray("\xff\xd8\xff", 3))
+            return;
+        savePicture(cameraAddress(conn, cameraChannel), pictureLens(conn, cameraChannel), QDateTime::currentSecsSinceEpoch(), jpeg);
+    });
 }

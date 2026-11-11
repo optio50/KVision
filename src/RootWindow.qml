@@ -147,6 +147,24 @@ ApplicationWindow {
     property var playbackSegmentsCache: ({})
     property var playbackEventsCache: ({})
 
+    // The colour of an event tick on a playback timeline, by what the recorder says the event was. The order is the
+    // drawing order, so the rarer smart events end up on top of motion.
+    readonly property var eventKindOrder: ["motion", "other", "enter", "exit", "line", "intrusion"]
+    function eventKindColor(kind) {
+        return kind === "line" ? "#ff3344"
+             : (kind === "intrusion" ? "#ff00c8"
+             : (kind === "enter" ? "#3a86ff"
+             : (kind === "exit" ? "#8338ec"
+             : (kind === "other" ? "#cfd8dc" : "#ffd23f"))));
+    }
+    function eventKindName(kind) {
+        return kind === "line" ? qsTr("Line crossing")
+             : (kind === "intrusion" ? qsTr("Intrusion")
+             : (kind === "enter" ? qsTr("Region entrance")
+             : (kind === "exit" ? qsTr("Region exit")
+             : (kind === "other" ? qsTr("Other smart event") : qsTr("Motion")))));
+    }
+
     // Multi-stage Deferred Garbage Collection and Memory Trimming to prevent memory accumulation / leaks
     Timer {
         id: gcTimer

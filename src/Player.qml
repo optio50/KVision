@@ -317,7 +317,8 @@ FocusScope {
                     adjustedEvents.push({
                         "startTime": seg.startTime + localOffsetMs,
                         "endTime": seg.endTime + localOffsetMs,
-                        "event": true
+                        "event": true,
+                        "kind": seg.kind || "motion"
                     });
                 }
             }
@@ -940,8 +941,16 @@ FocusScope {
                 return;
             HikvisionEvents.watch(cam.ip, cam.http, login.user, login.pass, root.cameraNameInfo, Context.configDirPath(),
                                  root.recorderIp, root.channelId, cam.recorder === true);
-            if (cam.recorder === true)
+            if (cam.recorder === true) {
                 HikvisionEvents.setChannelInfo(cam.ip, root.channelInfoJson(login));
+                root.lensChannel = 0;
+            } else {
+                // A camera with more than one lens reports each lens as its own channel on one stream.
+                var lens = root.lensInfo(login, cam.ip);
+                root.lensChannel = lens.mine;
+                if (lens.count > 1)
+                    HikvisionEvents.setLensInfo(cam.ip, JSON.stringify(lens.map));
+            }
             root.targetWatching = true;
             root.watchedIp = cam.ip;
         } else if (!root.targetWanted && root.targetWatching) {
@@ -987,7 +996,73 @@ FocusScope {
                 root.targetSource = source;
                 root.targetType = targetType;
                 root.lastTargetReport = Date.now();
-                HikvisionEvents.logFrame(ip, root.targetCaption(" - "), root.index);
+                HikvisionEvents.logFrame(ip, root.targetCaption(" - "), root.index, root.cameraNameInfo);
+            } else if (root.targetWatching && ip === root.watchedIp && root.lensChannel > 0 && channel > 0 && channel !== root.lensChannel) {
+                // The other lens of this camera saw something. A PTZ lens is told where to point by it, so keep the
+                // target for the moment the PTZ leaves its park position to follow.
+                root.siblingType = targetType;
+                root.siblingAt = Date.now();
+                root.showTracking();
+            }
+        }
+    }
+
+    // --- A PTZ lens following a target that the other lens saw ---
+    // The camera says when the PTZ leaves its park preset ("leave"), where it points while it follows, and when it is
+    // back. It does not name the target: that comes from the other lens (the wide view), which is what told the PTZ
+    // where to look. While it follows, this tile shows that target with TRACKING.
+    property bool trackingFlag: false
+    property double trackingAt: 0
+    property string siblingType: ""
+    property double siblingAt: 0
+    readonly property int trackingStaleMs: 30000 // the camera stopped sending positions: it is not following any more
+    readonly property int siblingFreshMs: 15000  // the other lens's report is only used this long
+
+    function showTracking() {
+        var now = Date.now();
+        if (!root.trackingFlag || now - root.trackingAt > root.trackingStaleMs)
+            return;
+        if (root.siblingType === "" || now - root.siblingAt > root.siblingFreshMs)
+            return; // the PTZ moved with no target seen (someone steering it), so no frame
+        if (root.targetType !== "" && root.targetSource !== "TRACKING")
+            return; // this lens has a report of its own on screen: leave that
+        var starting = root.targetSource !== "TRACKING";
+        var changed = starting || root.targetType !== root.siblingType;
+        root.targetSource = "TRACKING";
+        root.targetType = root.siblingType;
+        root.lastTargetReport = now;
+        if (changed)
+            HikvisionEvents.logFrame(root.watchedIp, root.targetCaption(" - "), root.index, root.cameraNameInfo);
+        if (starting)
+            HikvisionEvents.logTracking(root.watchedIp, root.siblingType, root.lensChannel); // the log line and two snapshots
+    }
+
+    function endTracking() {
+        root.trackingFlag = false;
+        if (root.targetSource === "TRACKING") {
+            root.targetType = "";
+            root.targetSource = "";
+        }
+    }
+
+    Connections {
+        target: HikvisionEvents
+        onTrackingChanged: {
+            if (!(root.targetWatching && ip === root.watchedIp && root.lensChannel > 0 && channel === root.lensChannel))
+                return;
+            root.trackingFlag = tracking;
+            root.trackingAt = Date.now();
+            if (tracking)
+                root.showTracking();
+            else
+                root.endTracking();
+        }
+        onPtzMoved: {
+            if (!(root.targetWatching && ip === root.watchedIp && root.lensChannel > 0 && channel === root.lensChannel))
+                return;
+            if (root.trackingFlag) {
+                root.trackingAt = Date.now();
+                root.showTracking();
             }
         }
     }
@@ -1007,7 +1082,51 @@ FocusScope {
     function reportIsMine(channel) {
         if (root.useRecorderEvents)
             return channel === root.channelId;
+        // A camera with several lenses: a report names the lens, and a tile takes only its own.
+        if (root.lensChannel > 0 && channel > 0)
+            return channel === root.lensChannel;
         return true;
+    }
+
+    // The camera's own channel this tile shows, when the camera has more than one lens (0 otherwise).
+    property int lensChannel: 0
+
+    // The lenses of the camera this tile watches: its own channel numbers, with the name and the recorder channel
+    // each one has. A standalone camera lists its own channels; a camera behind a recorder is found by the address
+    // the recorder says several of its channels share. count is 1 for an ordinary camera.
+    function lensInfo(login, camIp) {
+        var out = { count: 1, mine: 0, map: {} };
+        try {
+            var list = JSON.parse(rootWindow.hikvisionRecordersJson);
+            for (var i = 0; i < list.length; ++i) {
+                var rec = list[i];
+                if ((rec.ip || "").trim().split(":")[0] !== root.recorderIp)
+                    continue;
+                var recName = rec.name || root.recorderIp;
+                var cams = rec.cameras || [];
+                var n = 0;
+                for (var j = 0; j < cams.length; ++j) {
+                    var ch = parseInt(cams[j].channelId);
+                    var nm = recName + " Ch. " + ch + " " + (cams[j].customName || cams[j].name || ("Camera " + ch));
+                    var lensNo = ch;
+                    if (!root.isStandaloneCamera) {
+                        var p = HikvisionManager.proxyCameraCached(root.recorderIp, login.http, login.user, login.pass, ch);
+                        if (!p || p.ip !== camIp)
+                            continue;
+                        lensNo = p.channel || 1;
+                    }
+                    out.map[lensNo] = { name: nm, channel: ch };
+                    ++n;
+                    if (ch === root.channelId)
+                        out.mine = lensNo;
+                }
+                out.count = n;
+                break;
+            }
+        } catch (e) {}
+        if (out.count < 2)
+            out.mine = 0;
+        return out;
     }
 
     // The words on the frame: the target, then what kind of report it was, e.g. "HUMAN \u2013 LINE" or
@@ -1521,7 +1640,7 @@ FocusScope {
             // tiles (still readable). They never grow beyond full size.
             readonly property real labelScale: Math.max(0.55, Math.min(1.0, 0.4977 + height * 0.000773))
             border.width: Math.max(2, Math.round(4 * labelScale))
-            border.color: root.targetType === "human" ? "#ff5a36" : (root.targetType === "vehicle" ? "#2d8cff" : "#2ecc71")
+            border.color: root.targetSource === "TRACKING" ? "#ffb703" : (root.targetType === "human" ? "#ff5a36" : (root.targetType === "vehicle" ? "#2d8cff" : "#2ecc71"))
             visible: root.targetType !== ""
             opacity: visible ? 1.0 : 0.0
 
@@ -3079,16 +3198,19 @@ FocusScope {
                             if (root.quickPlaybackActivationTime) {
                                 var evWindowEnd = root.quickPlaybackActivationTime.getTime();
                                 var evWindowStart = evWindowEnd - 1800000;
-                                ctx.fillStyle = "#ff3344";
-                                for (var ei = 0; ei < root.quickPlaybackEvents.length; ei++) {
-                                    var ev = root.quickPlaybackEvents[ei];
-                                    if (!ev) continue;
-                                    var evStart = Math.max(evWindowStart, ev.startTime);
-                                    var evEnd = Math.min(evWindowEnd, ev.endTime);
-                                    if (evStart > evEnd) continue;
-                                    var ex = ((evStart - evWindowStart) / 1800000) * width;
-                                    var ew = Math.max(3, ((evEnd - evStart) / 1800000) * width);
-                                    ctx.fillRect(Math.min(ex, width - ew), 0, ew, height - 8);
+                                for (var ki = 0; ki < rootWindow.eventKindOrder.length; ki++) {
+                                    var kindNow = rootWindow.eventKindOrder[ki];
+                                    ctx.fillStyle = rootWindow.eventKindColor(kindNow);
+                                    for (var ei = 0; ei < root.quickPlaybackEvents.length; ei++) {
+                                        var ev = root.quickPlaybackEvents[ei];
+                                        if (!ev || (ev.kind || "motion") !== kindNow) continue;
+                                        var evStart = Math.max(evWindowStart, ev.startTime);
+                                        var evEnd = Math.min(evWindowEnd, ev.endTime);
+                                        if (evStart > evEnd) continue;
+                                        var ex = ((evStart - evWindowStart) / 1800000) * width;
+                                        var ew = Math.max(3, ((evEnd - evStart) / 1800000) * width);
+                                        ctx.fillRect(Math.min(ex, width - ew), 0, ew, height - 8);
+                                    }
                                 }
                             }
 

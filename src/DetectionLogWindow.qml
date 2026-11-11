@@ -59,7 +59,7 @@ Window {
     function showPicture(entry) {
         if (entry.picture === "")
             return;
-        var w = pictureViewer.createObject(null, { "picturePath": entry.picture,
+        var w = pictureViewer.createObject(null, { "pictures": (entry.pictures && entry.pictures.length > 0) ? entry.pictures : [entry.picture],
                                                     "caption": entry.time + "   " + entry.target + "   " + entry.kind + "   " + entry.camera });
         if (w)
             w.show();
@@ -69,7 +69,9 @@ Window {
         id: pictureViewer
         Window {
             id: pv
-            property string picturePath: ""
+            // One picture, or several (a tracking line keeps snapshots a second apart): the buttons step through them.
+            property var pictures: []
+            property int shown: 0
             property string caption: ""
             width: 960
             height: 600
@@ -84,12 +86,23 @@ Window {
                 id: cap
                 anchors.top: parent.top
                 anchors.left: parent.left
-                anchors.right: parent.right
+                anchors.right: stepRow.left
                 anchors.margins: 8
                 text: pv.caption
                 color: "#eeeeee"
                 font.pixelSize: 13
                 elide: Text.ElideRight
+            }
+            Row {
+                id: stepRow
+                visible: pv.pictures.length > 1
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.margins: 6
+                spacing: 6
+                Button { text: "\u2039"; enabled: pv.shown > 0; onClicked: pv.shown-- }
+                Text { text: (pv.shown + 1) + " / " + pv.pictures.length; color: "#cccccc"; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
+                Button { text: "\u203a"; enabled: pv.shown < pv.pictures.length - 1; onClicked: pv.shown++ }
             }
             Image {
                 anchors.top: cap.bottom
@@ -98,7 +111,7 @@ Window {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: 8
-                source: "file://" + pv.picturePath
+                source: pv.pictures.length > 0 ? "file://" + pv.pictures[pv.shown] : ""
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 cache: false

@@ -30,6 +30,24 @@ void HikvisionISAPI::searchRecordings(const QVariantMap &recorderInfo, int chann
     doSearchRequest(sessionId);
 }
 
+// What the recorder says a saved event was, for the colour on the timeline. Motion is its own group; the smart
+// events carry a minor type (line crossing, field detection = intrusion, region entrance, region exit...).
+static QString eventKind(WORD major, WORD minor)
+{
+    if (major == EVENT_MOT_DET)
+        return QStringLiteral("motion");
+    if (major == EVENT_VCA_DETECTION) {
+        switch (minor) {
+        case EVENT_VCA_TRAVERSE_PLANE: return QStringLiteral("line");
+        case EVENT_FIELD_DETECTION: return QStringLiteral("intrusion");
+        case EVENT_ENTER_REGION: return QStringLiteral("enter");
+        case EVENT_EXIT_REGION: return QStringLiteral("exit");
+        default: break;
+        }
+    }
+    return QStringLiteral("other");
+}
+
 void HikvisionISAPI::searchEvents(const QVariantMap &recorderInfo, int channelId, const QDateTime &start, const QDateTime &end)
 {
     HikvisionSearchSession session;
@@ -112,6 +130,7 @@ void HikvisionISAPI::searchEvents(const QVariantMap &recorderInfo, int channelId
                         segment["endTime"] = eventEnd.toMSecsSinceEpoch();
                         segment["timeIsLocal"] = true;
                         segment["event"] = true;
+                        segment["kind"] = eventKind(event.wMajorType, event.wMinorType);
                         segments.append(segment);
                         accepted++;
                     } else if (state == 1002) {

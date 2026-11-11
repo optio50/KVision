@@ -573,7 +573,8 @@ Window {
                     adjustedSegments.push({
                         "startTime": seg.startTime + localOffsetMs,
                         "endTime": seg.endTime + localOffsetMs,
-                        "event": true
+                        "event": true,
+                        "kind": seg.kind || "motion"
                     });
                 }
             }
@@ -3606,6 +3607,7 @@ Window {
                                  }
                              }
                             
+                            var seenKinds = ({})
                             var colors = ["#00f5d4", "#e0aaff", "#70e000", "#ff5c8a"]
                             var activeCams = getLoadedCameras()
                             var N = activeCams.length
@@ -3676,19 +3678,26 @@ Window {
 
                                     var eventSegments = rootWindow.playbackEventsCache[cacheKey]
                                     if (eventSegments) {
-                                        ctx.fillStyle = "#ff3344"
-                                        for (var e = 0; e < eventSegments.length; e++) {
-                                            var eventSeg = eventSegments[e]
-                                            if (eventSeg.endTime <= dayStartMs || eventSeg.startTime >= dayEndMs)
-                                                continue
-                                            var eventStart = Math.max(eventSeg.startTime, dayStartMs) - sodTime
-                                            var eventEnd = Math.min(eventSeg.endTime, dayEndMs) - sodTime
-                                            var ex1 = (eventStart - panOffsetMs) / msPerPixel
-                                            var ex2 = (eventEnd - panOffsetMs) / msPerPixel
-                                            if (ex2 >= 0 && ex1 <= width) {
-                                                var eventX = Math.max(0, ex1)
-                                                var eventW = Math.max(2, Math.min(width - eventX, ex2 - eventX))
-                                                ctx.fillRect(eventX, barY, eventW, 6)
+                                        // One pass per kind, so smart events are drawn over motion.
+                                        for (var ki = 0; ki < rootWindow.eventKindOrder.length; ki++) {
+                                            var kindNow = rootWindow.eventKindOrder[ki]
+                                            ctx.fillStyle = rootWindow.eventKindColor(kindNow)
+                                            for (var e = 0; e < eventSegments.length; e++) {
+                                                var eventSeg = eventSegments[e]
+                                                if ((eventSeg.kind || "motion") !== kindNow)
+                                                    continue
+                                                if (eventSeg.endTime <= dayStartMs || eventSeg.startTime >= dayEndMs)
+                                                    continue
+                                                var eventStart = Math.max(eventSeg.startTime, dayStartMs) - sodTime
+                                                var eventEnd = Math.min(eventSeg.endTime, dayEndMs) - sodTime
+                                                var ex1 = (eventStart - panOffsetMs) / msPerPixel
+                                                var ex2 = (eventEnd - panOffsetMs) / msPerPixel
+                                                if (ex2 >= 0 && ex1 <= width) {
+                                                    var eventX = Math.max(0, ex1)
+                                                    var eventW = Math.max(2, Math.min(width - eventX, ex2 - eventX))
+                                                    ctx.fillRect(eventX, barY, eventW, 6)
+                                                    seenKinds[kindNow] = true
+                                                }
                                             }
                                         }
                                         ctx.fillStyle = barColor
@@ -3705,6 +3714,22 @@ Window {
                                 ctx.fillText(labelText, 8, barY + 6)
                             }
                             
+                            // Legend: the kinds of event drawn above, top right
+                            ctx.font = "9px sans-serif"
+                            var legendX = width - 6
+                            for (var li = rootWindow.eventKindOrder.length - 1; li >= 0; li--) {
+                                var legendKind = rootWindow.eventKindOrder[li]
+                                if (!seenKinds[legendKind])
+                                    continue
+                                var legendName = rootWindow.eventKindName(legendKind)
+                                var legendW = ctx.measureText(legendName).width
+                                ctx.fillStyle = "#c8d2da"
+                                ctx.fillText(legendName, legendX - legendW, 11)
+                                ctx.fillStyle = rootWindow.eventKindColor(legendKind)
+                                ctx.fillRect(legendX - legendW - 12, 4, 8, 8)
+                                legendX -= legendW + 22
+                            }
+
                             // Draw day boundaries
                             ctx.strokeStyle = "#445566"
                             ctx.lineWidth = 2
