@@ -6,6 +6,10 @@
 
 <p align="center">Personal Linux CCTV client for live Hikvision and RTSP camera walls, playback, and PTZ control.</p>
 
+<p align="center">
+  <a href="https://paypal.me/optio50"><img src="https://img.shields.io/badge/Donate-PayPal-green.svg" alt="Donate with PayPal"></a>
+</p>
+
 This repository is a private working copy based on the upstream KVision/cctv-viewer project. It keeps the original application and adds the local fixes used on this system.
 
 **Version 3.2.0** is an independent, Linux-only fork. It starts from upstream KVision 2.7.5 (Arkanista) and no longer tracks upstream. See `CHANGELOG.md` for what changed.
