@@ -2,16 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
-## [Unreleased]
+## [3.2.0] - 2026-11-10
 
 ### Added
-* **Detected-target indicator.** A tile shows a frame and a HUMAN, VEHICLE or ANIMAL label when its camera reports one. It reads the camera's motion events (`/ISAPI/Event/notification/alertStream`), one shared connection per camera, and only for standalone cameras. Off by default.
-* **Per-camera switch.** Right-click a tile and choose "Detection frame" to turn the indicator off or on for that camera. Switching it off closes that camera's detection connection at once.
-* **Hold time setting** (3 to 30 s, default 10) for how long the frame stays after the last report. The settings are under User Interface Settings.
+* **On-screen event detection.** A tile shows a coloured frame and a caption when its camera reports a target: HUMAN, VEHICLE or ANIMAL, followed by the kind of report (`MOTION`, `LINE`, `INTRUSION`, `ENTER`, `EXIT`), for example `HUMAN - LINE`. It listens to each camera's event stream (`/ISAPI/Event/notification/alertStream`), one shared connection per camera. Off by default.
+* **Smart events.** Line crossing, intrusion, region entrance and region exit reports show the frame as well as labelled motion reports. Plain motion with no target type never starts a frame, but keeps a showing one alive.
+* **Cameras behind an NVR.** KVision looks up each camera's own address from the NVR and listens to it with the NVR's login. These start off and are switched on one at a time.
+* **Per-camera switch.** Right-click a tile and choose "Detection frame" to turn it on or off for that camera. Switching it off closes that camera's connection at once.
+* **Hold time setting** (3 to 30 s) for how long the frame stays after the last report. The settings are under User Interface Settings.
+* **Detection log.** Every labelled report is written to `logs/Detection.log` in the configuration folder with the camera's own time, the target, the kind of report, the camera name and address, and the recorder and channel it plays back from. A report read 10 seconds or more late ends with `received HH:mm:ss`. `logs/Frames.log` records each frame a tile showed.
+* **Detection log window.** Right-click a Hikvision tile and choose "Detection log..." for the newest 10 entries, a "Load 10 more" button, a Refresh button and an "Only this camera" filter. Double-click an entry, or press its play button, to open playback 10 seconds before the event. A moment with no recording simply shows no video.
+
+### Changed
+* The routine `libva info` lines are hidden unless KVision is started with `--verbose`. A `LIBVA_MESSAGING_LEVEL` you set yourself is left alone.
 
 ### Fixed
 * The frame is hidden by comparing the clock with the last report, not with one long timer: a 30 s one-shot timer was seen to fire after about 19 s.
 * A tile takes the camera's login from the saved recorder list. Using the tile's own password could send a blank one, which counts as a failed login and can lock a camera. The listener also stops for the session if a camera refuses its login.
+
+### Documentation
+* The README now says that on-screen detection depends heavily on correct detection settings inside each camera, and that setting them up takes attention to detail and patience.
 
 ## [3.1.0] - 2026-11-09
 
