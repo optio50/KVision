@@ -18,9 +18,12 @@
 #include <QUrl>
 
 namespace {
-const int kMaxFailures = 3;       // after this many failed attempts in a row, stop trying
+const int kMaxFailures = 3;       // after this many failed attempts in a row, tell the user once (it keeps trying)
 const int kMaxPictures = 100;     // event pictures kept on disk; the oldest go first
-const int kRetryMs = 15000;       // wait between attempts
+const int kRetryBaseMs = 2000;    // first wait before reopening a lost stream; doubles each time
+const int kRetryMaxMs = 30000;    // and never waits longer than this
+const int kHealthyMs = 10000;     // a stream that has stayed up this long counts as working
+const int kStallMs = 40000;       // a camera sends a heartbeat about every 10 s: this long with no data means the stream is dead
 const int kMaxBuffer = 1024 * 1024; // pictures can ride along in an event; never keep more than this
 
 // Smart (VCA) event types a camera can stream, and the words used for them in the detection log.
@@ -49,6 +52,15 @@ QStringList splitList(const QString &list)
 #else
     return list.split(QLatin1Char(','), QString::SkipEmptyParts);
 #endif
+}
+
+// How long to wait before reopening a stream that has failed `failures` times in a row.
+int retryDelayMs(int failures)
+{
+    int ms = kRetryBaseMs;
+    for (int i = 1; i < failures && ms < kRetryMaxMs; ++i)
+        ms *= 2;
+    return qMin(ms, kRetryMaxMs);
 }
 
 // The key the filter setting uses for a kind of report.
@@ -125,10 +137,19 @@ void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user
         c->recorderMode = recorderMode;
         c->retry = new QTimer(this);
         c->retry->setSingleShot(true);
-        c->retry->setInterval(kRetryMs);
         connect(c->retry, &QTimer::timeout, this, [this, ip]() {
             if (m_conns.contains(ip))
                 open(ip);
+        });
+        c->watchdog = new QTimer(this);
+        c->watchdog->setSingleShot(true);
+        c->watchdog->setInterval(kStallMs);
+        connect(c->watchdog, &QTimer::timeout, this, [this, ip]() {
+            Conn *conn = m_conns.value(ip, nullptr);
+            if (!conn || !conn->reply)
+                return;
+            qWarning() << "[Events]" << ip << "sent nothing for" << kStallMs / 1000 << "seconds. Reopening the detection stream.";
+            conn->reply->abort(); // finished() follows and the normal retry takes over
         });
         m_conns.insert(ip, c);
     }
@@ -139,7 +160,7 @@ void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user
         c->recIp = recorderIp;
         c->recChannel = recorderChannel;
     }
-    if (!c->reply && !c->retry->isActive() && c->failures < kMaxFailures && !c->authFailed)
+    if (!c->reply && !c->retry->isActive() && !c->authFailed && !c->unsupported)
         open(ip);
 }
 
@@ -160,6 +181,10 @@ void HikvisionEvents::close(const QString &ip)
     if (c->retry) {
         c->retry->stop();
         c->retry->deleteLater();
+    }
+    if (c->watchdog) {
+        c->watchdog->stop();
+        c->watchdog->deleteLater();
     }
     if (c->reply) {
         c->reply->disconnect(this);
@@ -183,6 +208,8 @@ void HikvisionEvents::open(const QString &ip)
     req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("KVision"));
     c->buffer.clear();
     qDebug() << "[Events] opening the detection stream for" << ip;
+    c->openedMs = QDateTime::currentMSecsSinceEpoch();
+    c->watchdog->start();
     c->reply = m_net->get(req);
     c->reply->setProperty("evUser", c->user);
     c->reply->setProperty("evPass", c->pass);
@@ -196,7 +223,11 @@ void HikvisionEvents::onReadyRead(const QString &ip)
     Conn *c = m_conns.value(ip, nullptr);
     if (!c || !c->reply)
         return;
-    c->failures = 0; // data is arriving, so the login worked
+    // Data is arriving, so the login worked. The failure count only starts again once the stream has stayed up
+    // for a while, so a camera that connects and drops at once is not asked again every two seconds.
+    if (QDateTime::currentMSecsSinceEpoch() - c->openedMs >= kHealthyMs)
+        c->failures = 0;
+    c->watchdog->start(); // and the stream is alive: start the stall timer again
     c->buffer += c->reply->readAll();
     if (c->buffer.size() > kMaxBuffer)
         c->buffer = c->buffer.right(kMaxBuffer / 2);
@@ -212,7 +243,9 @@ void HikvisionEvents::onReadyRead(const QString &ip)
     static const QRegularExpression vcaTargetRx(QStringLiteral("<detectionTarget>([^<]*)</detectionTarget>"));
 
     int consumed = 0;
-    const QString text = QString::fromLatin1(c->buffer);
+    // Pictures ride in the same stream and contain zero bytes. QString::fromLatin1(QByteArray) stops at the first one,
+    // which hid every event that came after a picture, so the length is given explicitly.
+    const QString text = QString::fromLatin1(c->buffer.constData(), c->buffer.size());
     QRegularExpressionMatchIterator it = eventRx.globalMatch(text);
     while (it.hasNext()) {
         const QRegularExpressionMatch m = it.next();
@@ -466,6 +499,7 @@ void HikvisionEvents::onFinished(const QString &ip, QNetworkReply *reply)
     const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
     const QString errText = reply->errorString();
     const bool triedLogin = reply->property("authTried").toBool();
+    c->watchdog->stop();
     c->reply = nullptr;
     reply->deleteLater();
     if (err == QNetworkReply::OperationCanceledError && c->watchers <= 0)
@@ -480,14 +514,22 @@ void HikvisionEvents::onFinished(const QString &ip, QNetworkReply *reply)
         emit listenFailed(ip, tr("The camera refused the login. Check its password."));
         return;
     }
-    // The camera closed the stream or the network dropped; try again a few times.
-    ++c->failures;
-    if (c->failures >= kMaxFailures) {
-        qWarning() << "[Events] Giving up on" << ip << "after" << c->failures << "failed attempts";
-        emit listenFailed(ip, tr("Could not listen to this camera's detection events."));
+    // This device has no event stream at all (a doorbell, for example): asking again will never help.
+    if (httpStatus == 404 || httpStatus == 405 || httpStatus == 501) {
+        c->unsupported = true;
+        qWarning() << "[Events]" << ip << "has no detection stream (HTTP" << httpStatus << "). Not trying again.";
+        emit listenFailed(ip, tr("This device does not offer detection events."));
         return;
     }
-    c->retry->start();
+    // The camera closed the stream, the network dropped or it went quiet: reopen it, waiting a little longer each
+    // time (2, 4, 8, 16, then 30 seconds) for as long as a tile watches. A lost login is the only thing that stops
+    // this, because a wrong password is what can lock a camera.
+    ++c->failures;
+    if (c->failures == kMaxFailures) {
+        qWarning() << "[Events]" << ip << "has failed" << c->failures << "times in a row. It will keep trying.";
+        emit listenFailed(ip, tr("Could not listen to this camera's detection events."));
+    }
+    c->retry->start(retryDelayMs(c->failures));
 }
 
 // One line per labelled report, in the order they arrive:

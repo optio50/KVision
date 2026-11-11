@@ -28,6 +28,18 @@ All notable changes to this project will be documented in this file.
 * On a recorder connection each report is written to the detection log under the right camera, using the channel
   number in the report, whether or not a tile shows that camera.
 
+### Fixed
+* **Line crossings and intrusions from a camera's own connection were missed whenever the camera attached a picture.**
+  The camera sends the picture just before the event. The code that looks for events stopped reading at the first zero
+  byte in the picture, so the line or intrusion event after it was never seen, only plain motion before it. They now
+  reach the detection log and the tile. Found on Livingroom-New, which sent dozens of line and intrusion events that
+  KVision logged none of. Recorder connections were not affected, because a recorder sends links instead of pictures.
+* **A stream that dies is reopened.** A camera that goes silent for 40 seconds (it normally sends a heartbeat every
+  10) is reconnected, and a lost connection is retried with waits of 2, 4, 8, 16 and then 30 seconds for as long as a
+  tile watches, where before three failures in a row stopped it for the rest of the session. A refused login still
+  stops everything, so a wrong password cannot lock a camera. A device with no event stream (the Doorbell) is asked
+  once.
+
 ### Changed
 * The frame label, border and padding shrink with the tile's height, so the label no longer crowds a small or
   medium cell. The font is 12 px on tiles about 650 pixels high or more (it was 13 px on every tile), 10 px at about 430,

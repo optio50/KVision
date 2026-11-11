@@ -96,6 +96,9 @@ private:
         QNetworkReply *reply = nullptr;
         QByteArray buffer;
         QTimer *retry = nullptr;
+        QTimer *watchdog = nullptr; // fires when nothing has arrived for too long: a stalled stream is reopened
+        qint64 openedMs = 0;        // when the stream was last opened
+        bool unsupported = false;   // the device has no event stream (HTTP 404/405/501): do not ask again
         // The target rectangle (0..1) of the last smart event, waiting for the picture that follows it.
         bool pendingValid = false;  // a picture is expected after the last smart event
         bool pendingHasRect = false; // and the event named where the target is
