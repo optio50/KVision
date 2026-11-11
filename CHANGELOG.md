@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+* **Choose where cameras behind a recorder get their detection reports.** A new setting under User Interface Settings:
+  *Each camera directly* (the default, one connection per camera) or *Through the recorder* (one connection to the
+  recorder, which relays every camera's events with the channel number). A standalone camera, a dual-lens camera and a
+  recorder with one or two cameras always use their own connection. Changing the setting takes effect at once.
+* **Choose which reports show a frame.** Tick or untick Motion, Line crossing, Intrusion, Region entrance, Region exit
+  and Other smart events, and the targets Human, Vehicle, Animal and Other. Untick Motion on a windy day and only smart
+  events show. The detection log keeps every report whatever is unticked.
+* On a recorder connection each report is written to the detection log under the right camera, using the channel
+  number in the report, whether or not a tile shows that camera.
+
+### Changed
+* The frame label, border and padding shrink with the tile's height, so the label no longer crowds a small or
+  medium cell. The font is 12 px on tiles about 650 pixels high or more (it was 13 px on every tile), 10 px at about 430,
+  and 8 px on small tiles. It never grows beyond 12 px.
+
+### Documentation
+* `docs/TODO.md` (the to-do list, with ideas from the Node-RED Hikvision project) and
+  `docs/AUDIT-2026-11-10.md` (a record of the changes made on 10 Nov 2026 and how to undo them).
+
 ## [3.2.0] - 2026-11-10
 
 ### Added

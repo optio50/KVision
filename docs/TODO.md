@@ -53,8 +53,9 @@ Status key: `[ ]` not started, `[~]` started, `[x]` done.
 
 ## Left over from 10 Nov 2026 (see the audit trail)
 
-- [ ] **Commit the source and event-type filters.** The code is in the working tree and only tested against a fake
-      recorder. Try it on the real NVR first. Then add a README note, a changelog entry and a version bump.
+- [~] **Release the source and event-type filters.** Committed (`99bc238`), with README and changelog entries.
+      Only tested against a fake recorder and by checking numbers. Try it on the real NVR with a screen, then bump
+      the version and make a release.
 - [ ] **Find out why the "NVR cameras switched on" list emptied itself** (`targetNvrOnCameras=[]` appeared in the
       saved configuration). Best guess: one of the offscreen test runs of the app saved an empty list. Not proven.
       It was restored by hand to 14 cameras. If it empties again, look at how the settings are written on exit.

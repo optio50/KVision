@@ -62,6 +62,9 @@ Starting point: [Arkanista/KVision](https://github.com/Arkanista/KVision) releas
 - On-screen event detection: a tile frame and caption such as `HUMAN - LINE` when a camera reports a human, vehicle or animal.
 - Smart events (line crossing, intrusion, region entrance and exit) show the detection frame as well as labelled motion.
 - Detection also works for cameras behind an NVR, switched on one camera at a time from the right-click menu.
+- A setting chooses whether those cameras report directly or through the NVR (one connection, every channel), and which
+  kinds of report and which targets show a frame, so motion can be switched off on a windy day.
+- The frame label shrinks with the tile, so it stays in proportion in small cells.
 - Detection log (`logs/Detection.log`) with the camera's own time, target, event type and recorder, plus `logs/Frames.log` of what tiles showed.
 - Detection log window (right-click a tile) with load-more paging, a camera filter, and click-to-play from 10 seconds before the event.
 - Hold-to-talk two-way audio through a camera's speaker, including cameras behind an NVR.
@@ -150,6 +153,16 @@ The same changes as the list above, in more detail. The original application alr
 - **On-screen event detection (optional):** when a Hikvision camera reports a human, vehicle or animal, its tile gets a coloured frame and a caption that names the target and the kind of report, for example `HUMAN - MOTION`, `HUMAN - LINE`, `VEHICLE - INTRUSION`, `ANIMAL - ENTER` or `HUMAN - EXIT`. The frame stays up for a hold time you choose (3 to 30 s), and further reports restart it. It listens to what the camera reports (labelled motion, line crossing, intrusion, region entrance and region exit) and does not draw boxes around people. Off by default: turn it on in the settings window under User Interface Settings. Right-click a tile and choose **Detection frame** to switch it on or off for that camera; all tiles of that camera follow. Standalone cameras are on by default once the feature is on. Cameras behind an NVR start off and are switched on one at a time, because KVision connects to each camera directly using the NVR's login.
 
   > **Important: this depends heavily on the camera's own detection settings.** KVision only shows what the camera decides to report, so the result is only as good as the setup inside each camera. Motion detection with the target types ticked, smart events (line crossing, intrusion, region entrance and exit) with their rules drawn, enabled and saved, arming schedules, sensitivity and the false alarm filtering levels all change what is reported, and a different camera model or firmware can behave differently. Getting it right takes attention to detail and patience: expect to adjust, save, test with someone walking through the view, and adjust again, camera by camera. A setting that looks switched on in the camera's web page may not have been saved, and a camera may report a target only once while it stays in view. If a camera shows nothing in KVision, check the camera first. Cameras need reasonably recent firmware to label targets; some older firmware reports plain motion only.
+
+- **Where detection reports come from, and which ones show.** In the settings window under User Interface Settings:
+  - *Each camera directly* (default) opens one connection per camera. *Through the recorder* opens one connection to the
+    NVR, which relays every camera's events with the channel number, and each tile takes its own channel. A standalone
+    camera, a dual-lens camera and a recorder with one or two cameras always use their own connection. Through the
+    recorder needs, for each camera, the smart-event metadata switched on in the camera, its detection rule and zone
+    set up, and the centre action ("Notify Surveillance Center") on the recorder's trigger for that event.
+  - Tick the kinds of report that may show a frame (Motion, Line crossing, Intrusion, Region entrance, Region exit,
+    Other smart events) and the targets (Human, Vehicle, Animal, Other). The detection log keeps every report.
+  - The frame label and border scale with the tile's height, down to a floor that stays readable.
 
 - **Detection log and log window:** every labelled report is written to `logs/Detection.log` in the configuration folder, one line each, in the order received, for example `10 Nov 2026 08:52:24, Human detected, Line crossing, NVR Ch. 17 Garage3, 192.0.0.3, recorder 192.0.0.99 ch 17`. The time is the camera's own time for the event; a line ends with `received HH:mm:ss` when KVision read the report 10 seconds or more late (for example after a stall). `logs/Frames.log` records each frame a tile showed. Right-click a Hikvision tile and choose **Detection log...** to open a small window with the newest 10 entries, a **Load 10 more** button, a Refresh button and an **Only this camera** filter. Double-click an entry, or press its play button, to open playback for that camera starting 10 seconds before the event. A moment with no recording (for example a standalone camera without an SD card) simply shows no video.
 - **Per-tile fullscreen badge:** in a 1x1 grid it toggles the window to fullscreen.
