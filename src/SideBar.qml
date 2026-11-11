@@ -131,6 +131,17 @@ FocusScope {
         checkForUpdates();
     }
 
+    // Adds or removes one key in a comma-separated setting, keeping the others.
+    function toggledList(list, key, on) {
+        var items = list === "" ? [] : list.split(",");
+        var at = items.indexOf(key);
+        if (on && at < 0)
+            items.push(key);
+        else if (!on && at >= 0)
+            items.splice(at, 1);
+        return items.join(",");
+    }
+
     property var changelogData: [
         {
             version: "v3.2.0",
@@ -2589,6 +2600,98 @@ FocusScope {
                                 enabled: generalSettings.showTargetIndicator
                                 value: generalSettings.targetHoldSeconds
                                 onMoved: generalSettings.targetHoldSeconds = value
+                            }
+
+                            Text {
+                                text: qsTr("Where cameras behind a recorder get their detection reports")
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            ComboBox {
+                                id: targetSourceBox
+                                Layout.fillWidth: true
+                                enabled: generalSettings.showTargetIndicator
+                                model: [qsTr("Each camera directly (one connection per camera)"),
+                                        qsTr("Through the recorder (one connection, no pause between reports)")]
+                                currentIndex: generalSettings.targetSource === "recorder" ? 1 : 0
+                                onActivated: generalSettings.targetSource = (index === 1 ? "recorder" : "camera")
+                            }
+
+                            Text {
+                                text: qsTr("A standalone camera, a dual-lens camera, and a recorder with one or two cameras always use their own connection. Through the recorder needs the camera's smart event metadata and the recorder's centre action switched on.")
+                                color: "#6f7f8c"
+                                font.pixelSize: 10
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            Text {
+                                text: qsTr("Show a frame for these kinds of report")
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            Flow {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                enabled: generalSettings.showTargetIndicator
+
+                                Repeater {
+                                    model: [
+                                        { key: "motion", label: qsTr("Motion") },
+                                        { key: "line", label: qsTr("Line crossing") },
+                                        { key: "intrusion", label: qsTr("Intrusion") },
+                                        { key: "enter", label: qsTr("Region entrance") },
+                                        { key: "exit", label: qsTr("Region exit") },
+                                        { key: "other", label: qsTr("Other smart events") }
+                                    ]
+                                    delegate: CheckBox {
+                                        text: modelData.label
+                                        checked: ("," + generalSettings.targetKinds + ",").indexOf("," + modelData.key + ",") >= 0
+                                        onToggled: generalSettings.targetKinds = rootSideBar.toggledList(generalSettings.targetKinds, modelData.key, checked)
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: qsTr("Show a frame for these targets")
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            Flow {
+                                Layout.fillWidth: true
+                                spacing: 4
+                                enabled: generalSettings.showTargetIndicator
+
+                                Repeater {
+                                    model: [
+                                        { key: "human", label: qsTr("Human") },
+                                        { key: "vehicle", label: qsTr("Vehicle") },
+                                        { key: "animal", label: qsTr("Animal") },
+                                        { key: "other", label: qsTr("Other") }
+                                    ]
+                                    delegate: CheckBox {
+                                        text: modelData.label
+                                        checked: ("," + generalSettings.targetTargets + ",").indexOf("," + modelData.key + ",") >= 0
+                                        onToggled: generalSettings.targetTargets = rootSideBar.toggledList(generalSettings.targetTargets, modelData.key, checked)
+                                    }
+                                }
+                            }
+
+                            Text {
+                                text: qsTr("The detection log keeps every report, whatever is switched off here.")
+                                color: "#6f7f8c"
+                                font.pixelSize: 10
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
                             }
 
                             CheckBox {

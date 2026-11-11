@@ -3,6 +3,8 @@
 #include <QAuthenticator>
 #include <QDateTime>
 #include <QDebug>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QDir>
 #include <QFile>
 #include <QLocale>
@@ -34,6 +36,30 @@ QString vcaKind(const QString &type)
         { QStringLiteral("attendedBaggage"), QStringLiteral("Object removed") },
     };
     return kinds.value(type);
+}
+
+// Splits a comma list into its non-empty items (the flag moved from QString to Qt in Qt 5.14).
+QStringList splitList(const QString &list)
+{
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+    return list.split(QLatin1Char(','), Qt::SkipEmptyParts);
+#else
+    return list.split(QLatin1Char(','), QString::SkipEmptyParts);
+#endif
+}
+
+// The key the filter setting uses for a kind of report.
+QString vcaKey(const QString &type)
+{
+    if (type == QLatin1String("linedetection"))
+        return QStringLiteral("line");
+    if (type == QLatin1String("fielddetection"))
+        return QStringLiteral("intrusion");
+    if (type == QLatin1String("regionEntrance"))
+        return QStringLiteral("enter");
+    if (type == QLatin1String("regionExiting"))
+        return QStringLiteral("exit");
+    return QStringLiteral("other");
 }
 
 // The short word shown after the target on a tile, for example "HUMAN - LINE".
@@ -77,7 +103,7 @@ HikvisionEvents::~HikvisionEvents()
 
 void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user, const QString &pass,
                             const QString &name, const QString &configDir,
-                            const QString &recorderIp, int recorderChannel)
+                            const QString &recorderIp, int recorderChannel, bool recorderMode)
 {
     if (ip.isEmpty() || user.isEmpty() || pass.isEmpty())
         return; // never send a login we know is incomplete: a wrong login counts toward a camera lockout
@@ -93,6 +119,7 @@ void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user
         c->name = name;
         c->recIp = recorderIp;
         c->recChannel = recorderChannel;
+        c->recorderMode = recorderMode;
         c->retry = new QTimer(this);
         c->retry->setSingleShot(true);
         c->retry->setInterval(kRetryMs);
@@ -200,24 +227,30 @@ void HikvisionEvents::onReadyRead(const QString &ip)
                 QString t = vcaTargetRx.match(body).captured(1).trimmed().toLower();
                 if (!t.isEmpty() && t != QLatin1String("human") && t != QLatin1String("vehicle") && t != QLatin1String("animal"))
                     t = QStringLiteral("other");
-                logDetection(c, t, kind, camTime, camChannel);
+                logDetection(c, t, kind, camTime, camChannel); // the log keeps every labelled report
                 if (t.isEmpty())
                     t = QStringLiteral("other");
-                qDebug() << "[Events]" << kind << "from" << ip << ":" << t;
-                emit targetDetected(ip, t, vcaShort(type));
+                // The settings can switch kinds and targets off for the screen: no frame for those.
+                if (!m_allowedKinds.contains(vcaKey(type)) || !m_allowedTargets.contains(t))
+                    continue;
+                qDebug() << "[Events]" << kind << "from" << ip << "channel" << camChannel << ":" << t;
+                emit targetDetected(ip, t, vcaShort(type), camChannel);
             }
             continue;
         }
         QString target = targetRx.match(body).captured(1).trimmed().toLower();
         if (target.isEmpty()) {
-            emit motionDetected(ip);
+            if (m_allowedKinds.contains(QStringLiteral("motion")))
+                emit motionDetected(ip, camChannel);
             continue;
         }
         if (target != QLatin1String("human") && target != QLatin1String("vehicle") && target != QLatin1String("animal"))
             target = QStringLiteral("other");
-        qDebug() << "[Events] report from" << ip << ":" << target;
-        logDetection(c, target, QStringLiteral("Motion"), camTime, camChannel);
-        emit targetDetected(ip, target, QStringLiteral("MOTION"));
+        logDetection(c, target, QStringLiteral("Motion"), camTime, camChannel); // the log keeps every labelled report
+        if (!m_allowedKinds.contains(QStringLiteral("motion")) || !m_allowedTargets.contains(target))
+            continue; // motion, or this target, is switched off for the screen
+        qDebug() << "[Events] report from" << ip << "channel" << camChannel << ":" << target;
+        emit targetDetected(ip, target, QStringLiteral("MOTION"), camChannel);
     }
     if (consumed > 0)
         c->buffer.remove(0, consumed);
@@ -290,11 +323,20 @@ void HikvisionEvents::logDetection(const Conn *c, const QString &target, const Q
     // channel; a camera behind a recorder reports channel 1 of itself, so the tile's channel is used.
     QString recorder;
     if (!c->recIp.isEmpty()) {
-        const int ch = (c->recIp == c->ip && eventChannel > 0) ? eventChannel : c->recChannel;
+        const int ch = ((c->recIp == c->ip || c->recorderMode) && eventChannel > 0) ? eventChannel : c->recChannel;
         if (ch > 0)
             recorder = QStringLiteral(", recorder ") + c->recIp + QStringLiteral(" ch ") + QString::number(ch);
     }
-    QTextStream(&f) << when << ", " << what << " detected, " << kind << ", " << (c->name.isEmpty() ? c->ip : c->name) << ", " << c->ip << recorder << late << "\n";
+    QString name = c->name.isEmpty() ? c->ip : c->name;
+    QString address = c->ip;
+    if (c->recorderMode) {
+        // One connection serves every camera behind the recorder, so the report's channel says which one.
+        const auto it = c->chanInfo.constFind(eventChannel);
+        name = (it != c->chanInfo.constEnd() && !it->name.isEmpty()) ? it->name : QStringLiteral("%1 Ch. %2").arg(c->ip).arg(eventChannel);
+        if (it != c->chanInfo.constEnd() && !it->ip.isEmpty())
+            address = it->ip;
+    }
+    QTextStream(&f) << when << ", " << what << " detected, " << kind << ", " << name << ", " << address << recorder << late << "\n";
 }
 
 // One line each time a tile shows a detection frame (a camera shown on two tiles gives two lines):
@@ -395,4 +437,33 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
     result.insert(QStringLiteral("entries"), entries);
     result.insert(QStringLiteral("more"), more);
     return result;
+}
+
+void HikvisionEvents::setAllowedKinds(const QString &kinds)
+{
+    m_allowedKinds.clear();
+    const QStringList parts = splitList(kinds);
+    for (const QString &p : parts)
+        m_allowedKinds.insert(p.trimmed().toLower());
+}
+
+void HikvisionEvents::setAllowedTargets(const QString &targets)
+{
+    m_allowedTargets.clear();
+    const QStringList parts = splitList(targets);
+    for (const QString &p : parts)
+        m_allowedTargets.insert(p.trimmed().toLower());
+}
+
+void HikvisionEvents::setChannelInfo(const QString &ip, const QString &json)
+{
+    Conn *c = m_conns.value(ip, nullptr);
+    if (!c)
+        return;
+    const QJsonObject o = QJsonDocument::fromJson(json.toUtf8()).object();
+    c->chanInfo.clear();
+    for (auto it = o.constBegin(); it != o.constEnd(); ++it) {
+        const QJsonObject v = it.value().toObject();
+        c->chanInfo.insert(it.key().toInt(), { v.value(QStringLiteral("name")).toString(), v.value(QStringLiteral("ip")).toString() });
+    }
 }

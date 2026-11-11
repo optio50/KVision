@@ -2,6 +2,7 @@
 #define HIKVISIONEVENTS_H
 
 #include <QHash>
+#include <QSet>
 #include <QObject>
 #include <QString>
 #include <QVariantMap>
@@ -30,8 +31,20 @@ public:
     // playback later.
     Q_INVOKABLE void watch(const QString &ip, int httpPort, const QString &user, const QString &pass,
                            const QString &name = QString(), const QString &configDir = QString(),
-                           const QString &recorderIp = QString(), int recorderChannel = 0);
+                           const QString &recorderIp = QString(), int recorderChannel = 0,
+                           bool recorderMode = false);
     Q_INVOKABLE void unwatch(const QString &ip);
+
+    // For a connection to a recorder (recorderMode): the name and address of each camera behind it, as a
+    // JSON object {"17": {"name": "NVR Ch. 17 Garage3", "ip": "192.0.0.3"}, ...}. The detection log uses it
+    // so a report for any channel is written under that camera, whether or not a tile shows it.
+    Q_INVOKABLE void setChannelInfo(const QString &ip, const QString &json);
+
+    // Which kinds of report may show a frame and be logged. kinds is a comma list of: motion, line,
+    // intrusion, enter, exit, other (smart events not listed here). An empty list allows nothing.
+    Q_INVOKABLE void setAllowedKinds(const QString &kinds);
+    // Which targets may show a frame and be logged: a comma list of human, vehicle, animal, other.
+    Q_INVOKABLE void setAllowedTargets(const QString &targets);
     // A tile calls this when it shows a detection frame, so logs/Frames.log records what was on screen.
     Q_INVOKABLE void logFrame(const QString &ip, const QString &text, int tile);
     // Newest-first entries from logs/Detection.log, skipping the first `skip`. Each entry is a map with
@@ -46,10 +59,12 @@ signals:
     // targetType is what the camera reported: "human", "vehicle", "animal" or "other".
     // source says what kind of report it was: MOTION for a labelled motion report, or LINE, INTRUSION,
     // ENTER or EXIT for a smart event.
-    void targetDetected(const QString &ip, const QString &targetType, const QString &source);
+    // channel is the channel number in the report. For a camera behind a recorder that streams its own
+    // events it is 1, and for a recorder connection it is the recorder channel; a tile matches on both.
+    void targetDetected(const QString &ip, const QString &targetType, const QString &source, int channel);
     // A motion report with no target type. Some cameras send the type only once per target, so a
     // tile uses these to keep a frame it is already showing alive.
-    void motionDetected(const QString &ip);
+    void motionDetected(const QString &ip, int channel);
     // The connection failed and will not be retried until a tile watches again.
     void listenFailed(const QString &ip, const QString &message);
 
@@ -62,6 +77,9 @@ private:
         QString name;
         QString recIp;      // recorder this camera is played back from
         int recChannel = 0; // and its channel there
+        bool recorderMode = false; // this connection is to a recorder, and its reports name the channel
+        struct ChanInfo { QString name; QString ip; };
+        QHash<int, ChanInfo> chanInfo;
         int watchers = 0;
         int failures = 0;
         bool authFailed = false; // the camera refused our login: never try again in this session
@@ -78,6 +96,10 @@ private:
 
     QNetworkAccessManager *m_net = nullptr;
     QHash<QString, Conn *> m_conns;
+    QSet<QString> m_allowedKinds{QStringLiteral("motion"), QStringLiteral("line"), QStringLiteral("intrusion"),
+                                 QStringLiteral("enter"), QStringLiteral("exit"), QStringLiteral("other")};
+    QSet<QString> m_allowedTargets{QStringLiteral("human"), QStringLiteral("vehicle"), QStringLiteral("animal"),
+                                   QStringLiteral("other")};
     QString m_logDir; // where Detection.log is written; empty until a tile gives the config directory
 };
 

@@ -778,6 +778,13 @@ FocusScope {
     }
     readonly property bool isStandaloneCamera: standaloneFor(root.recorderIp)
 
+    // A recorder with one or two channels counts as a camera (a dual-lens camera has two) and keeps its own
+    // connection. A recorder with more channels can take its reports from the recorder itself, when the
+    // settings say so.
+    readonly property bool useRecorderEvents: !root.isStandaloneCamera
+                                              && (typeof generalSettings !== "undefined")
+                                              && generalSettings.targetSource === "recorder"
+
     // Per-camera switch for the indicator. It is kept in its own list, not in the saved recorders,
     // because saving the recorder list makes every Hikvision tile reload its source.
     function offList() {
@@ -826,6 +833,10 @@ FocusScope {
     // The address to listen to. A standalone camera is its own recorder; a camera behind a recorder
     // is looked up once from the recorder and cached.
     function resolveTargetCam() {
+        if (root.useRecorderEvents) {
+            // One connection to the recorder itself serves every camera behind it.
+            return { ip: root.recorderIp, http: (root.savedLoginFor(root.recorderIp) || { http: 80 }).http, recorder: true };
+        }
         if (root.isStandaloneCamera)
             return { ip: root.recorderIp, http: (root.savedLoginFor(root.recorderIp) || { http: 80 }).http };
         var key = root.nvrKey();
@@ -842,10 +853,38 @@ FocusScope {
         return root.targetCam;
     }
 
+    // The name and address of every camera behind this tile's recorder, as JSON for the detection log.
+    function channelInfoJson(login) {
+        var out = {};
+        try {
+            var list = JSON.parse(rootWindow.hikvisionRecordersJson);
+            for (var i = 0; i < list.length; ++i) {
+                if ((list[i].ip || "").trim().split(":")[0] !== root.recorderIp)
+                    continue;
+                var cams = list[i].cameras || [];
+                for (var j = 0; j < cams.length; ++j) {
+                    var ch = parseInt(cams[j].channelId);
+                    var nm = cams[j].customName || cams[j].name || ("Camera " + ch);
+                    var proxy = HikvisionManager.proxyCameraCached(root.recorderIp, login.http, login.user, login.pass, ch);
+                    out[ch] = { name: (list[i].name || root.recorderIp) + " Ch. " + ch + " " + nm,
+                                ip: (proxy && proxy.ip) ? proxy.ip : "" };
+                }
+            }
+        } catch (e) {}
+        return JSON.stringify(out);
+    }
+
     // The address this tile's camera is logged under in the detection log: the camera's own address,
     // which for a camera behind a recorder is not the recorder's.
     function detectionLogIp() {
-        if (root.watchedIp !== "")
+        if (root.useRecorderEvents) {
+            // Lines for a camera behind a recorder are written with the camera's own address.
+            var login = root.savedLoginFor(root.recorderIp);
+            var p = login ? HikvisionManager.proxyCameraCached(root.recorderIp, login.http, login.user, login.pass, root.channelId) : null;
+            if (p && p.ip)
+                return p.ip;
+        }
+        if (root.watchedIp !== "" && !root.useRecorderEvents)
             return root.watchedIp;
         var cam = root.resolveTargetCam();
         return cam ? cam.ip : root.recorderIp;
@@ -900,7 +939,9 @@ FocusScope {
             if (!cam || !login)
                 return;
             HikvisionEvents.watch(cam.ip, cam.http, login.user, login.pass, root.cameraNameInfo, Context.configDirPath(),
-                                 root.recorderIp, root.channelId);
+                                 root.recorderIp, root.channelId, cam.recorder === true);
+            if (cam.recorder === true)
+                HikvisionEvents.setChannelInfo(cam.ip, root.channelInfoJson(login));
             root.targetWatching = true;
             root.watchedIp = cam.ip;
         } else if (!root.targetWanted && root.targetWatching) {
@@ -915,6 +956,17 @@ FocusScope {
     }
     property string watchedIp: ""
     onTargetWantedChanged: updateTargetWatch()
+    onUseRecorderEventsChanged: {
+        // The source setting changed: close the old connection and open the one the setting now asks for.
+        if (root.targetWatching) {
+            HikvisionEvents.unwatch(root.watchedIp);
+            root.targetWatching = false;
+            root.targetType = "";
+            root.targetSource = "";
+            root.targetCam = null;
+        }
+        root.updateTargetWatch();
+    }
 
     Connections {
         target: HikvisionEvents
@@ -922,7 +974,7 @@ FocusScope {
             if (ip === root.recorderIp || ip === root.watchedIp)
                 console.debug("[Target] tile " + root.index + " got " + targetType + " for " + ip + " watching=" + root.targetWatching
                             + " watchedIp=" + root.watchedIp + " hold=" + root.targetHoldMs + " ms");
-            if (root.targetWatching && ip === root.watchedIp) {
+            if (root.targetWatching && ip === root.watchedIp && root.reportIsMine(channel)) {
                 // A smart event names itself on the frame. A labelled motion report after it keeps
                 // the name while the frame is still up; a new frame from motion alone has none.
                 if (source !== "MOTION" || root.targetType === "")
@@ -939,9 +991,17 @@ FocusScope {
         onMotionDetected: {
             // Some cameras say what they saw only once per target (the first report), then send plain
             // motion while it moves. Plain motion never starts a frame, but it keeps one alive.
-            if (root.targetWatching && ip === root.watchedIp && root.targetType !== "")
+            if (root.targetWatching && ip === root.watchedIp && root.reportIsMine(channel) && root.targetType !== "")
                 root.lastTargetReport = Date.now();
         }
+    }
+
+    // On a recorder connection every camera behind the recorder reports on the same stream, so a tile only takes
+    // the reports that name its own channel. On a camera's own connection every report is the tile's.
+    function reportIsMine(channel) {
+        if (root.useRecorderEvents)
+            return channel === root.channelId;
+        return true;
     }
 
     // The words on the frame: the target, then what kind of report it was, e.g. "HUMAN \u2013 LINE" or
@@ -1448,7 +1508,11 @@ FocusScope {
             anchors.fill: parent
             color: "transparent"
             radius: 2
-            border.width: 4
+            // The frame and its label shrink with the tile's height: full size (1.0) from a tile 650 pixels high
+            // upward, 0.83 at 430 (a merged cell that is an eighth of the screen), and 0.55 or less on small
+            // tiles (still readable). They never grow beyond full size.
+            readonly property real labelScale: Math.max(0.55, Math.min(1.0, 0.4977 + height * 0.000773))
+            border.width: Math.max(2, Math.round(4 * labelScale))
             border.color: root.targetType === "human" ? "#ff5a36" : (root.targetType === "vehicle" ? "#2d8cff" : "#2ecc71")
             visible: root.targetType !== ""
             opacity: visible ? 1.0 : 0.0
@@ -1456,17 +1520,17 @@ FocusScope {
             Rectangle {
                 anchors.left: parent.left
                 anchors.top: parent.top
-                anchors.margins: 6
-                height: targetLabel.implicitHeight + 8
-                width: targetLabel.implicitWidth + 16
-                radius: 4
+                anchors.margins: Math.round(6 * targetFrame.labelScale)
+                height: targetLabel.implicitHeight + Math.round(8 * targetFrame.labelScale)
+                width: targetLabel.implicitWidth + Math.round(16 * targetFrame.labelScale)
+                radius: Math.max(2, Math.round(4 * targetFrame.labelScale))
                 color: parent.border.color
 
                 Text {
                     id: targetLabel
                     anchors.centerIn: parent
                     color: "#ffffff"
-                    font.pixelSize: 13
+                    font.pixelSize: Math.max(8, Math.round(12 * targetFrame.labelScale))
                     font.bold: true
                     text: root.targetCaption(" \u2013 ")
                 }

@@ -216,6 +216,13 @@ ApplicationWindow {
         property bool disableTalk: false
         property bool showTargetIndicator: false
         property int targetHoldSeconds: 10
+        // Where cameras behind a recorder get their detection reports: "camera" (each camera directly) or
+        // "recorder" (one connection to the recorder). Standalone cameras always use their own connection.
+        property string targetSource: "camera"
+        // Which kinds of report may show a frame (comma list: motion,line,intrusion,enter,exit,other) and which
+        // targets (human,vehicle,animal,other).
+        property string targetKinds: "motion,line,intrusion,enter,exit,other"
+        property string targetTargets: "human,vehicle,animal,other"
         property string targetOffCameras: "[]" // JSON list of camera addresses with the indicator switched off
         property string targetNvrOnCameras: "[]" // JSON list of "recorderIp#channel" entries switched on for cameras behind a recorder
         property string talkMicrophone: ""
@@ -499,6 +506,19 @@ ApplicationWindow {
             if (!(diskTargetHold >= 3 && diskTargetHold <= 30)) diskTargetHold = 10;
             if (generalSettings.targetHoldSeconds !== diskTargetHold) {
                 generalSettings.targetHoldSeconds = diskTargetHold;
+            }
+            var diskTargetSource = String(Context.readSetting("", "targetSource", "camera"));
+            if (diskTargetSource !== "camera" && diskTargetSource !== "recorder") diskTargetSource = "camera";
+            if (generalSettings.targetSource !== diskTargetSource) {
+                generalSettings.targetSource = diskTargetSource;
+            }
+            var diskTargetKinds = String(Context.readSetting("", "targetKinds", "motion,line,intrusion,enter,exit,other"));
+            if (generalSettings.targetKinds !== diskTargetKinds) {
+                generalSettings.targetKinds = diskTargetKinds;
+            }
+            var diskTargetTargets = String(Context.readSetting("", "targetTargets", "human,vehicle,animal,other"));
+            if (generalSettings.targetTargets !== diskTargetTargets) {
+                generalSettings.targetTargets = diskTargetTargets;
             }
             var diskTargetNvrOn = String(Context.readSetting("", "targetNvrOnCameras", "[]"));
             if (generalSettings.targetNvrOnCameras !== diskTargetNvrOn) {
@@ -2043,6 +2063,9 @@ ApplicationWindow {
         Context.writeSetting("", "disableTalk", generalSettings.disableTalk);
         Context.writeSetting("", "showTargetIndicator", generalSettings.showTargetIndicator);
         Context.writeSetting("", "targetHoldSeconds", generalSettings.targetHoldSeconds);
+        Context.writeSetting("", "targetSource", generalSettings.targetSource);
+        Context.writeSetting("", "targetKinds", generalSettings.targetKinds);
+        Context.writeSetting("", "targetTargets", generalSettings.targetTargets);
         Context.writeSetting("", "targetOffCameras", generalSettings.targetOffCameras);
         Context.writeSetting("", "targetNvrOnCameras", generalSettings.targetNvrOnCameras);
         Context.writeSetting("", "talkMicrophone", generalSettings.talkMicrophone);
@@ -2080,8 +2103,21 @@ ApplicationWindow {
         }
     }
 
+    // The detection filters live in the listener, so it is told whenever the settings change.
+    function applyDetectionFilters() {
+        HikvisionEvents.setAllowedKinds(generalSettings.targetKinds);
+        HikvisionEvents.setAllowedTargets(generalSettings.targetTargets);
+    }
+
+    Connections {
+        target: generalSettings
+        onTargetKindsChanged: rootWindow.applyDetectionFilters()
+        onTargetTargetsChanged: rootWindow.applyDetectionFilters()
+    }
+
     Component.onCompleted: {
         stackLayout.visible = true;
+        rootWindow.applyDetectionFilters();
 
         var snapPath = Context.sanitizePlatformPath(generalSettings.snapshotPath, Context.defaultPicturesPath());
         if (generalSettings.snapshotPath !== snapPath) {
