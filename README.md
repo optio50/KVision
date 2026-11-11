@@ -12,7 +12,7 @@
 
 This repository is a personal fork of the upstream KVision/cctv-viewer project. It keeps the original application and adds the fixes and features I use on my own system, shared in case they are useful to others.
 
-**Version 3.2.0** is an independent, Linux-only fork. It starts from upstream KVision 2.7.5 (Arkanista) and no longer tracks upstream. See `CHANGELOG.md` for what changed.
+**Version 3.2.0** is an independent, Linux-only fork. It starts from [Arkanista/KVision](https://github.com/Arkanista/KVision) release 2.7.5 and no longer tracks upstream. See [What this fork adds](#what-this-fork-adds-to-upstream-kvision) for the short list, and `CHANGELOG.md` for the full history.
 
 ## Get it
 
@@ -53,6 +53,49 @@ cd KVision
 
 The first run configures and builds the application in `build/`, then launches it. Later runs start the already built program immediately. Do not run KVision as root.
 
+## What this fork adds to upstream KVision
+
+Starting point: [Arkanista/KVision](https://github.com/Arkanista/KVision) release 2.7.5 (29 Oct 2026). Everything below was added after it.
+
+**Detection and audio**
+
+- On-screen event detection: a tile frame and caption such as `HUMAN - LINE` when a camera reports a human, vehicle or animal.
+- Smart events (line crossing, intrusion, region entrance and exit) show the detection frame as well as labelled motion.
+- Detection also works for cameras behind an NVR, switched on one camera at a time from the right-click menu.
+- Detection log (`logs/Detection.log`) with the camera's own time, target, event type and recorder, plus `logs/Frames.log` of what tiles showed.
+- Detection log window (right-click a tile) with load-more paging, a camera filter, and click-to-play from 10 seconds before the event.
+- Hold-to-talk two-way audio through a camera's speaker, including cameras behind an NVR.
+
+**Playback**
+
+- NVR smart events shown on the playback timeline, with previous and next event buttons.
+- One-frame advance, 6x speed, and quick-playback seek, event and frame-step controls.
+- Mark a range on the timeline and download it.
+- Playback of a standalone camera's SD card through the Hikvision SDK search.
+- Snapshots of the full image or the zoomed view, named with the camera/NVR time in per-date folders.
+
+**Live view**
+
+- Mouse-driven PTZ pad with double-digit presets and focus near/far controls.
+- Right-click camera picker to add or replace a camera, and an **Open camera web UI** entry.
+- Third Hikvision stream with the picture aspect ratio kept.
+- Mouse-wheel zoom inside a box-zoomed viewport, in live view and playback.
+- Mouse-wheel paging between saved layouts.
+- Drag a camera from one cell to another to swap them (this did not work in upstream), with the cursor hidden in windowed mode and a startup size guard.
+- Merged cells for Panovision cameras work, including resizing and swapping them (they did not work in upstream).
+- Per-tile fullscreen badge, channel resolution badge, info badges that hide when idle, and grids up to 18x18.
+
+**Recorders**
+
+- **Generate Grid** button on recorder cards, and thumbnails that reject corrupt or flat frames.
+
+**Install and build**
+
+- One-command `./install.sh` for Debian, Ubuntu and Linux Mint (install, `--update`, `--uninstall`), and a clone-and-run `./kvision` launcher.
+- Builds on Debian 10 (GCC 9, Qt 5.11).
+
+**Removed from upstream:** Windows support (Linux only), the Debian, Arch and Snap packaging recipes, and every translation except English.
+
 ## Screenshots
 
 | Main Window Grid (5x5) | Main Window (Obfuscated Feeds) |
@@ -72,12 +115,6 @@ The first run configures and builds the application in `build/`, then launches i
 | <a href="images/screenshot_archive_setup.png"><img src="images/screenshot_archive_setup.png" width="350" alt="Archive Setup"/></a> | <a href="images/screenshot_app_settings.png"><img src="images/screenshot_app_settings.png" width="350" alt="App Settings"/></a> |
 
 Screenshots are from the upstream project (version 2.x) and show the original interface. This fork's controls and layout have changed since.
-
-## Recent local changes
-
-- Right-click a cell to add or replace its camera from a recorder picker.
-- Mark a playback timeline range and download that range.
-- **Snapshot files match downloads.** Pictures stay in the snapshots folder, inside a `yyyy-MM-dd` directory, named `Recorder_Channel_Camera_yyyy-MM-dd_HHmmss.jpg`.
 
 ## Build and run
 
@@ -100,9 +137,9 @@ kvision
 
 System installation is optional. `./kvision` from the repository root is the normal way to run it.
 
-## Added since the original clone
+## Details of the additions
 
-These are the standout changes in this copy. The original application already had live grids, playback, snapshots, downloads, auxiliary windows, and layout presets.
+The same changes as the list above, in more detail. The original application already had live grids, playback, snapshots, downloads, auxiliary windows, layout presets, per-recorder RTSP transport, custom HTTP and RTSP ports, local camera names, settings import and export, and the system statistics panel.
 
 ### Live view and PTZ
 
@@ -140,13 +177,10 @@ These are the standout changes in this copy. The original application already ha
 - **Recorder cards:** a **Generate Grid** button and working hover text.
 - **Recorder cameras window:** tile width is capped.
 - **Thumbnails:** grabbing waits for a keyframe and rejects corrupt or flat frames.
-- **Per-recorder RTSP transport** (Auto, TCP, or UDP), custom HTTP and RTSP ports, and local camera names that do not change the recorder.
 
 ### Platform and settings
 
 - **Clone and run:** `./kvision` configures, builds, and launches the application. The project also builds on Debian 10's GCC 9 and Qt 5.11.
-- **Settings import and export** from the side panel, for backing up or moving your configuration to another Linux machine.
-- **System statistics** for CPU, RAM, GPU, VRAM, and network use, without stalling video rendering.
 
 ## Features
 
@@ -230,7 +264,7 @@ These are the standout changes in this copy. The original application already ha
   * `M`: Mute/unmute active viewport audio.
   * `Alt + Left` / `Alt + Right`: Switch layouts.
   * `Alt + 1` to `Alt + 9`: Instant preset switching.
-* **Multilingual UI**: Live translation switching across 22 languages.
+* **Language**: English only. The other translations and the language picker were removed.
 * **Settings Import / Export**: Dedicated **Import / Export** tab in the side panel (below Settings) allowing one-click backup and migration of configuration files (`*.conf` / `*.ini`) for Linux (`~/.config/KVision/KVision.conf`).
 * **Cursor Auto-Hide**: In windowed mode, the cursor and viewport buttons hide automatically and return when the mouse moves.
 
