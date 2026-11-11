@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-11-11
+
 ### Added
 * **Check detection setup (read-only).** Right-click a camera, or use the *Check now* button in the sidebar, to see
   whether it is set up to report detection events: login, address, online, firmware, smart-event metadata, motion

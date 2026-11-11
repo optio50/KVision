@@ -144,6 +144,18 @@ FocusScope {
 
     property var changelogData: [
         {
+            version: "v3.3.0",
+            date: "11.11.2026",
+            changes: [
+                qsTr("Choose where cameras behind a recorder get their detection reports: each camera directly, or through the recorder (one connection, human, vehicle and animal labels and the event type with the channel number)."),
+                qsTr("Choose which event types (motion, line crossing, intrusion, region entrance, region exit, other) and which targets (human, vehicle, animal, other) show a frame. The detection log keeps every report."),
+                qsTr("Check detection setup: a read-only check of each camera and recorder (metadata, zones, rules, centre action, where a rule lives). Right-click a camera or use the sidebar buttons."),
+                qsTr("Event pictures are saved, shown in the detection log window, and kept per camera (100, 500 or 1000 in the settings)."),
+                qsTr("One window with a tick box for every camera to switch the detection frame on or off, with All on and All off."),
+                qsTr("Fixed line crossings and intrusions missed on camera streams that attach a picture, and streams that die are reopened. The frame label no longer changes to plain motion right after a line or intrusion report.")
+            ]
+        },
+        {
             version: "v3.2.0",
             date: "10.11.2026",
             changes: [
