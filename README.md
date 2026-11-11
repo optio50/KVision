@@ -10,7 +10,7 @@
   <a href="https://paypal.me/optio50"><img src="https://img.shields.io/badge/Donate-PayPal-green.svg" alt="Donate with PayPal"></a>
 </p>
 
-This repository is a private working copy based on the upstream KVision/cctv-viewer project. It keeps the original application and adds the local fixes used on this system.
+This repository is a personal fork of the upstream KVision/cctv-viewer project. It keeps the original application and adds the fixes and features I use on my own system, shared in case they are useful to others.
 
 **Version 3.2.0** is an independent, Linux-only fork. It starts from upstream KVision 2.7.5 (Arkanista) and no longer tracks upstream. See `CHANGELOG.md` for what changed.
 
@@ -98,7 +98,7 @@ sudo cmake --install build
 kvision
 ```
 
-System installation is optional. `./kvision` from the repository root is the normal way to run this private copy.
+System installation is optional. `./kvision` from the repository root is the normal way to run it.
 
 ## Added since the original clone
 
@@ -236,4 +236,4 @@ These are the standout changes in this copy. The original application already ha
 
 ## Upstream
 
-The original cctv-viewer project was created by Evgeny S. Maksimov. This private repository is maintained separately for local use and is not a request for changes to the upstream project.
+The original cctv-viewer project was created by Evgeny S. Maksimov. This fork is maintained separately, mainly for my own use, and is not a request for changes to the upstream project.
