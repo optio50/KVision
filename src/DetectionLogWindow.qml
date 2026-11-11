@@ -15,7 +15,7 @@ Window {
     minimumWidth: 520
     minimumHeight: 240
     color: "#0f151b"
-    title: qsTr("Detection log")
+    title: qsTr("Detection events")
     flags: Qt.Window | Qt.WindowStaysOnTopHint
 
     // The address of the camera the window was opened from, and its name for the checkbox text.

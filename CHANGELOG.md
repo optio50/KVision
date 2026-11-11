@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Playback timelines also show what the detection log holds.** The recorder saves fewer smart events than a camera
+  reports (the PTZ close-up's events were mostly missing), so the timeline now adds the line, intrusion, entrance, exit
+  and other events from `Detection.log` for that camera and channel. Events that only the log has are drawn as a thin
+  strip in the lower half of the bar, with a note in the legend. A logged event is left out when the recorder has the
+  same kind within 3 seconds. A logged event is drawn only where the bar shows video, so a recorder that records only
+  on events or motion shows no tick that leads to nothing. This covers only the times KVision was running with
+  detection on.
 * **A PTZ that follows a target shows TRACKING on its tile.** A two-lens PTZ (close-up plus wide view) is told where to
   point by the wide lens, and the close-up itself sends no line or intrusion report while it follows. The camera does
   say when the close-up leaves its park position ("leave"), where it points about once a second, and when it is back.
@@ -22,6 +29,10 @@ All notable changes to this project will be documented in this file.
   event grey, with a small legend at the top right of the timeline showing the kinds that are drawn. The 30-minute bar
   on a live tile uses the same colours. The kind comes from the recorder's saved-event search (motion, line crossing and
   field detection are separate there). The recorder does not say who crossed, so there is no human / animal colour.
+
+### Changed
+* The right-click item and the window "Detection log" are now called **Detection events**, because the window shows more
+  than the log (events, pictures and tracks). The file is still `logs/Detection.log`.
 
 ## [3.3.0] - 2026-11-11
 
@@ -62,6 +73,11 @@ All notable changes to this project will be documented in this file.
   number in the report, whether or not a tile shows that camera.
 
 ### Fixed
+* **Events of different kinds in the same second keep their own pictures.** A camera can report a line crossing, a region
+  entrance and an intrusion in one second, each with its own picture, but the pictures were named only by camera and
+  second, so the last one overwrote the others and every log line showed the same picture. The kind is now part of the
+  file name (for example `192.0.0.115_ch15_1794430690-linecrossing.jpg`). Pictures saved before still open. Two events
+  of the same kind in the same second still share one picture.
 * **The two lenses of a PTZ keep their event pictures apart.** Both lenses share one address, so their pictures shared
   one file name and one could overwrite the other when both fired in the same second. A two-lens camera's pictures are
   now named `<address>_ch<recorder channel>_<time>.jpg` (for example `192.0.0.115_ch14_...`). Other cameras keep their

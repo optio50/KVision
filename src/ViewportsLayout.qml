@@ -1483,7 +1483,7 @@ FocusScope {
 
                         MenuItem {
                             id: detectionLogMenuItem
-                            text: qsTr("Detection log...")
+                            text: qsTr("Detection events...")
                             visible: model.url !== "" && String(model.url).indexOf("hikvision://") !== -1 && contextMenu.targetAvailable
                             height: visible ? implicitHeight : 0
                             leftPadding: 12

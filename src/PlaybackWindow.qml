@@ -579,6 +579,7 @@ Window {
                 }
             }
 
+            adjustedSegments = rootWindow.mergeLogEvents(recorderIp, channelId, startTime.getTime ? startTime.getTime() : new Date(startTime).getTime(), adjustedSegments);
             var tempEvents = Object.assign({}, rootWindow.playbackEventsCache);
             tempEvents[cacheKey] = adjustedSegments;
             rootWindow.playbackEventsCache = tempEvents;
@@ -3686,6 +3687,8 @@ Window {
                                                 var eventSeg = eventSegments[e]
                                                 if ((eventSeg.kind || "motion") !== kindNow)
                                                     continue
+                                                if (eventSeg.log && !rootWindow.overlapsRecording(camSegments, eventSeg.startTime, eventSeg.endTime))
+                                                    continue // only the log has it, and there is no video there
                                                 if (eventSeg.endTime <= dayStartMs || eventSeg.startTime >= dayEndMs)
                                                     continue
                                                 var eventStart = Math.max(eventSeg.startTime, dayStartMs) - sodTime
@@ -3695,8 +3698,11 @@ Window {
                                                 if (ex2 >= 0 && ex1 <= width) {
                                                     var eventX = Math.max(0, ex1)
                                                     var eventW = Math.max(2, Math.min(width - eventX, ex2 - eventX))
-                                                    ctx.fillRect(eventX, barY, eventW, 6)
+                                                    // What only the detection log has is drawn as a thinner strip in the lower half
+                                                    ctx.fillRect(eventX, eventSeg.log ? barY + 3 : barY, eventW, eventSeg.log ? 3 : 6)
                                                     seenKinds[kindNow] = true
+                                                    if (eventSeg.log)
+                                                        seenKinds["_log"] = true
                                                 }
                                             }
                                         }
@@ -3717,6 +3723,13 @@ Window {
                             // Legend: the kinds of event drawn above, top right
                             ctx.font = "9px sans-serif"
                             var legendX = width - 6
+                            if (seenKinds["_log"]) {
+                                var logNote = qsTr("thin = from the detection log")
+                                var logNoteW = ctx.measureText(logNote).width
+                                ctx.fillStyle = "#8898a6"
+                                ctx.fillText(logNote, legendX - logNoteW, 11)
+                                legendX -= logNoteW + 14
+                            }
                             for (var li = rootWindow.eventKindOrder.length - 1; li >= 0; li--) {
                                 var legendKind = rootWindow.eventKindOrder[li]
                                 if (!seenKinds[legendKind])

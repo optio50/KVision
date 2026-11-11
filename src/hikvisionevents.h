@@ -68,6 +68,11 @@ public:
     // also says whether older entries remain. Reads from the end of the file, so it stays quick when the
     // log is large.
     // filterIp limits the entries to one camera address (empty for all); skip then counts only those.
+    // The line, intrusion, entrance, exit and other smart events the detection log holds for one camera of a recorder
+    // between two moments (milliseconds since 1970, this computer's local time as the log is written), as a list of
+    // {startTime, endTime, kind} with kind line, intrusion, enter, exit or other. Plain motion and tracking lines are
+    // left out. Used to draw what the camera reported on a playback timeline where the recorder saved less.
+    Q_INVOKABLE QVariantList logEventsBetween(const QString &recorderIp, int channel, qint64 startMs, qint64 endMs, const QString &configDir) const;
     Q_INVOKABLE QVariantMap readDetections(int skip, int count, const QString &configDir, const QString &filterIp = QString()) const;
     // What the newest event picture from a camera showed: a map with state ("on" if the picture carries the red
     // target frame, "off" if the camera sent a clean picture, empty if none has been seen since KVision started)
@@ -77,7 +82,9 @@ public:
     // The detection log entries carry this as "picture" already; this is for anything else that wants one.
     // A camera with more than one lens (one address, several channels) keeps each lens's pictures apart: lens is the
     // recorder channel of the lens, and the name becomes <address>_ch<lens>_<secs>.jpg. 0 means an ordinary camera.
-    static QString picturePath(const QString &configDir, const QString &address, qint64 secs, int lens = 0);
+    // kind (the log's word for the event, such as "Line crossing") is added to the name, so events of different kinds in
+    // the same second keep their own pictures: <address>_ch14_<secs>-linecrossing.jpg. Empty for none.
+    static QString picturePath(const QString &configDir, const QString &address, qint64 secs, int lens = 0, const QString &kind = QString());
     static QString pictureKey(const QString &address, int lens);
 
 signals:
@@ -127,6 +134,7 @@ private:
         bool pendingHasRect = false; // and the event named where the target is
         QRectF pendingRect;
         QString pendingAddress;
+        QString pendingKind;         // what the event was, for the picture's file name
         int pendingLens = 0;         // the lens's recorder channel when the camera has more than one, else 0
         qint64 pendingSecs = 0;      // the event's time, which names the saved picture
         bool pictureRefused = false; // the recorder refused the login for a picture: never ask again this session
@@ -146,12 +154,12 @@ private:
     // Returns true if a whole picture was there (so the event is done with).
     bool judgePicture(Conn *c, const QByteArray &data);
     // Remembers the target rectangle an event names, so the picture that follows it can be judged.
-    void notePictureRect(Conn *c, const QString &body, int eventChannel, const QString &cameraTime);
+    void notePictureRect(Conn *c, const QString &body, int eventChannel, const QString &cameraTime, const QString &kind);
     // A recorder sends a link to the picture instead of the picture. Downloads it with the connection's login
     // (one try, and only from the connection's own address), then keeps and judges it like an attached one.
-    void fetchPicture(const QString &ip, const QUrl &url, const QString &address, int lens, qint64 secs, bool hasRect, const QRectF &rect);
+    void fetchPicture(const QString &ip, const QUrl &url, const QString &address, int lens, const QString &kind, qint64 secs, bool hasRect, const QRectF &rect);
     void judgeJpeg(const QString &address, bool hasRect, const QRectF &rect, const QByteArray &jpeg);
-    void savePicture(const QString &address, int lens, qint64 secs, const QByteArray &jpeg);
+    void savePicture(const QString &address, int lens, const QString &kind, qint64 secs, const QByteArray &jpeg);
     void takeSnapshot(const QString &ip, int cameraChannel);
     QHash<QString, qint64> m_lastTrack; // when a lens last logged a track (ms), to ignore a second tile of the same camera
     int pictureLens(const Conn *c, int eventChannel) const;

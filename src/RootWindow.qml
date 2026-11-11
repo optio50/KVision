@@ -149,6 +149,38 @@ ApplicationWindow {
 
     // The colour of an event tick on a playback timeline, by what the recorder says the event was. The order is the
     // drawing order, so the rarer smart events end up on top of motion.
+    // Adds what the detection log holds for a camera to the events a recorder saved (searchStartMs is the start of the
+    // search, three days wide). A logged event is left out when the recorder has the same kind within 3 seconds.
+    // Logged events carry log: true, and the timelines draw them as a thinner strip.
+    function mergeLogEvents(recorderIp, channelId, searchStartMs, segments) {
+        var logged = HikvisionEvents.logEventsBetween(recorderIp, channelId, searchStartMs, searchStartMs + 3 * 86400000, Context.configDirPath());
+        for (var i = 0; i < logged.length; ++i) {
+            var l = logged[i];
+            var have = false;
+            for (var j = 0; j < segments.length; ++j) {
+                if (segments[j].kind === l.kind && Math.abs(segments[j].startTime - l.startTime) <= 3000) {
+                    have = true;
+                    break;
+                }
+            }
+            if (!have)
+                segments.push({ "startTime": l.startTime, "endTime": l.endTime, "event": true, "kind": l.kind, "log": true });
+        }
+        return segments;
+    }
+
+    // True when a time span overlaps any of the recorded segments (each {startTime, endTime} in ms). Used so an event
+    // that only the detection log has is drawn only where the bar shows video. With no segments loaded yet it is false.
+    function overlapsRecording(segments, startMs, endMs) {
+        if (!segments)
+            return false;
+        for (var i = 0; i < segments.length; ++i) {
+            if (segments[i] && segments[i].startTime < endMs && segments[i].endTime > startMs)
+                return true;
+        }
+        return false;
+    }
+
     readonly property var eventKindOrder: ["motion", "other", "enter", "exit", "line", "intrusion"]
     function eventKindColor(kind) {
         return kind === "line" ? "#ff3344"

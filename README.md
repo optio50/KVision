@@ -66,7 +66,7 @@ Starting point: [Arkanista/KVision](https://github.com/Arkanista/KVision) releas
   kinds of report and which targets show a frame, so motion can be switched off on a windy day.
 - The frame label shrinks with the tile, so it stays in proportion in small cells.
 - Detection log (`logs/Detection.log`) with the camera's own time, target, event type and recorder, plus `logs/Frames.log` of what tiles showed.
-- Detection log window (right-click a tile) with load-more paging, a camera filter, and click-to-play from 10 seconds before the event.
+- Detection events window (right-click a tile) with load-more paging, a camera filter, and click-to-play from 10 seconds before the event.
 - Hold-to-talk two-way audio through a camera's speaker, including cameras behind an NVR.
 
 **Playback**
@@ -164,7 +164,7 @@ The same changes as the list above, in more detail. The original application alr
     Other smart events) and the targets (Human, Vehicle, Animal, Other). The detection log keeps every report.
   - The frame label and border scale with the tile's height, down to a floor that stays readable.
 
-- **Detection log and log window:** every labelled report is written to `logs/Detection.log` in the configuration folder, one line each, in the order received, for example `10 Nov 2026 08:52:24, Human detected, Line crossing, NVR Ch. 17 Garage3, 192.0.0.3, recorder 192.0.0.99 ch 17`. The time is the camera's own time for the event; a line ends with `received HH:mm:ss` when KVision read the report 10 seconds or more late (for example after a stall). `logs/Frames.log` records each frame a tile showed. Right-click a Hikvision tile and choose **Detection log...** to open a small window with the newest 10 entries, a **Load 10 more** button, a Refresh button and an **Only this camera** filter. Double-click an entry, or press its play button, to open playback for that camera starting 10 seconds before the event. A moment with no recording (for example a standalone camera without an SD card) simply shows no video.
+- **Detection log and log window:** every labelled report is written to `logs/Detection.log` in the configuration folder, one line each, in the order received, for example `10 Nov 2026 08:52:24, Human detected, Line crossing, NVR Ch. 17 Garage3, 192.0.0.3, recorder 192.0.0.99 ch 17`. The time is the camera's own time for the event; a line ends with `received HH:mm:ss` when KVision read the report 10 seconds or more late (for example after a stall). `logs/Frames.log` records each frame a tile showed. Right-click a Hikvision tile and choose **Detection events...** to open a small window with the newest 10 entries, a **Load 10 more** button, a Refresh button and an **Only this camera** filter. Double-click an entry, or press its play button, to open playback for that camera starting 10 seconds before the event. A moment with no recording (for example a standalone camera without an SD card) simply shows no video.
 - **Per-tile fullscreen badge:** in a 1x1 grid it toggles the window to fullscreen.
 - **Mouse-wheel zoom:** zoom in and out of a box-zoomed viewport, in live view and playback. The zoom selection offset and panning for scaled video are fixed.
 - **Third Hikvision stream:** in addition to Main and Sub, with the picture aspect ratio preserved instead of stretching the feed.

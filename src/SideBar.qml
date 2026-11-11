@@ -161,7 +161,7 @@ FocusScope {
             changes: [
                 qsTr("On-screen event detection: a tile shows a frame and a caption such as HUMAN - LINE when its camera reports a human, vehicle or animal. Works for standalone cameras and cameras behind an NVR."),
                 qsTr("Reads labelled motion, line crossing, intrusion, region entrance and region exit. It depends on the detection settings inside each camera being set up correctly."),
-                qsTr("Detection log: every report is written to logs/Detection.log. Right-click a tile and choose Detection log to browse it, and double-click an entry to open playback just before the event.")
+                qsTr("Detection log: every report is written to logs/Detection.log. Right-click a tile and choose Detection events to browse it, and double-click an entry to open playback just before the event.")
             ]
         },
         {

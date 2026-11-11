@@ -268,7 +268,7 @@ void HikvisionEvents::onReadyRead(const QString &ip)
                 if (!t.isEmpty() && t != QLatin1String("human") && t != QLatin1String("vehicle") && t != QLatin1String("animal"))
                     t = QStringLiteral("other");
                 logDetection(c, t, kind, camTime, camChannel); // the log keeps every labelled report
-                notePictureRect(c, body, camChannel, camTime);
+                notePictureRect(c, body, camChannel, camTime, kind);
                 if (t.isEmpty())
                     t = QStringLiteral("other");
                 // The settings can switch kinds and targets off for the screen: no frame for those.
@@ -328,7 +328,7 @@ void HikvisionEvents::onReadyRead(const QString &ip)
     judgePicture(c, c->buffer);
 }
 
-void HikvisionEvents::notePictureRect(Conn *c, const QString &body, int eventChannel, const QString &cameraTime)
+void HikvisionEvents::notePictureRect(Conn *c, const QString &body, int eventChannel, const QString &cameraTime, const QString &kind)
 {
     static const QRegularExpression rectRx(QStringLiteral(
         "<TargetRect>\\s*<X>([\\d.]+)</X>\\s*<Y>([\\d.]+)</Y>\\s*<width>([\\d.]+)</width>\\s*<height>([\\d.]+)</height>"));
@@ -343,6 +343,7 @@ void HikvisionEvents::notePictureRect(Conn *c, const QString &body, int eventCha
     c->pendingSecs = when.toSecsSinceEpoch();
     c->pendingAddress = cameraAddress(c, eventChannel);
     c->pendingLens = pictureLens(c, eventChannel);
+    c->pendingKind = kind;
     const QRegularExpressionMatch m = rectRx.match(body);
     if (m.hasMatch()) {
         c->pendingRect = QRectF(m.captured(1).toDouble(), m.captured(2).toDouble(), m.captured(3).toDouble(), m.captured(4).toDouble());
@@ -352,7 +353,7 @@ void HikvisionEvents::notePictureRect(Conn *c, const QString &body, int eventCha
     static const QRegularExpression urlRx(QStringLiteral("<bkgUrl>([^<]*)</bkgUrl>"));
     const QString link = urlRx.match(body).captured(1).replace(QStringLiteral("&amp;"), QStringLiteral("&")).trimmed();
     if (!link.isEmpty()) {
-        fetchPicture(c->ip, QUrl(link), c->pendingAddress, c->pendingLens, c->pendingSecs, c->pendingHasRect, c->pendingRect);
+        fetchPicture(c->ip, QUrl(link), c->pendingAddress, c->pendingLens, c->pendingKind, c->pendingSecs, c->pendingHasRect, c->pendingRect);
         return; // nothing will follow on the stream
     }
     c->pendingValid = true;
@@ -407,7 +408,7 @@ bool HikvisionEvents::judgePicture(Conn *c, const QByteArray &data)
         return false; // the rest of the picture is still on its way
     c->pendingValid = false;
     const QByteArray jpeg = data.mid(start, end + 2 - start);
-    savePicture(c->pendingAddress, c->pendingLens, c->pendingSecs, jpeg);
+    savePicture(c->pendingAddress, c->pendingLens, c->pendingKind, c->pendingSecs, jpeg);
     judgeJpeg(c->pendingAddress, c->pendingHasRect, c->pendingRect, jpeg);
     return true;
 }
@@ -445,7 +446,7 @@ void HikvisionEvents::judgeJpeg(const QString &address, bool hasRect, const QRec
     }
 }
 
-void HikvisionEvents::fetchPicture(const QString &ip, const QUrl &url, const QString &address, int lens, qint64 secs, bool hasRect, const QRectF &rect)
+void HikvisionEvents::fetchPicture(const QString &ip, const QUrl &url, const QString &address, int lens, const QString &kind, qint64 secs, bool hasRect, const QRectF &rect)
 {
     Conn *c = m_conns.value(ip, nullptr);
     if (!c || c->pictureRefused || c->pictureFetches >= 2 || address.isEmpty())
@@ -453,7 +454,7 @@ void HikvisionEvents::fetchPicture(const QString &ip, const QUrl &url, const QSt
     // Only ever send the login to the device this connection belongs to.
     if (url.scheme() != QLatin1String("http") || url.host() != c->ip.section(QLatin1Char(':'), 0, 0).trimmed())
         return;
-    if (QFile::exists(picturePath(QFileInfo(m_logDir).absolutePath(), address, secs, lens)) && !m_logDir.isEmpty())
+    if (QFile::exists(picturePath(QFileInfo(m_logDir).absolutePath(), address, secs, lens, kind)) && !m_logDir.isEmpty())
         return; // already have this one
     ++c->pictureFetches;
     QNetworkRequest req(url);
@@ -461,7 +462,7 @@ void HikvisionEvents::fetchPicture(const QString &ip, const QUrl &url, const QSt
     QNetworkReply *reply = m_net->get(req);
     reply->setProperty("evUser", c->user);
     reply->setProperty("evPass", c->pass);
-    connect(reply, &QNetworkReply::finished, this, [this, ip, reply, address, lens, secs, hasRect, rect]() {
+    connect(reply, &QNetworkReply::finished, this, [this, ip, reply, address, lens, kind, secs, hasRect, rect]() {
         reply->deleteLater();
         Conn *conn = m_conns.value(ip, nullptr);
         if (conn && conn->pictureFetches > 0)
@@ -478,7 +479,7 @@ void HikvisionEvents::fetchPicture(const QString &ip, const QUrl &url, const QSt
         const QByteArray jpeg = reply->readAll();
         if (jpeg.size() < 1000 || jpeg.left(3) != QByteArray("\xff\xd8\xff", 3))
             return;
-        savePicture(address, lens, secs, jpeg);
+        savePicture(address, lens, kind, secs, jpeg);
         judgeJpeg(address, hasRect, rect, jpeg);
     });
 }
@@ -492,9 +493,14 @@ QString HikvisionEvents::pictureKey(const QString &address, int lens)
     return a;
 }
 
-QString HikvisionEvents::picturePath(const QString &configDir, const QString &address, qint64 secs, int lens)
+QString HikvisionEvents::picturePath(const QString &configDir, const QString &address, qint64 secs, int lens, const QString &kind)
 {
-    return configDir + QStringLiteral("/logs/pictures/") + pictureKey(address, lens) + QLatin1Char('_') + QString::number(secs) + QStringLiteral(".jpg");
+    QString slug;
+    for (const QChar ch : kind.toLower())
+        if (ch.isLetterOrNumber() && ch.unicode() < 128)
+            slug += ch;
+    return configDir + QStringLiteral("/logs/pictures/") + pictureKey(address, lens) + QLatin1Char('_') + QString::number(secs)
+           + (slug.isEmpty() ? QString() : QLatin1Char('-') + slug) + QStringLiteral(".jpg");
 }
 
 // The lens this event came from, as the recorder channel of that lens, when the camera has more than one lens at
@@ -520,13 +526,13 @@ int HikvisionEvents::pictureLens(const Conn *c, int eventChannel) const
     return 0;
 }
 
-void HikvisionEvents::savePicture(const QString &address, int lens, qint64 secs, const QByteArray &jpeg)
+void HikvisionEvents::savePicture(const QString &address, int lens, const QString &kind, qint64 secs, const QByteArray &jpeg)
 {
     if (m_logDir.isEmpty() || address.isEmpty() || jpeg.size() < 1000)
         return;
     const QString dirPath = m_logDir + QStringLiteral("/pictures");
     QDir().mkpath(dirPath);
-    QFile f(picturePath(QFileInfo(m_logDir).absolutePath(), address, secs, lens));
+    QFile f(picturePath(QFileInfo(m_logDir).absolutePath(), address, secs, lens, kind));
     if (!f.open(QIODevice::WriteOnly)) {
         qWarning() << "[Events] cannot write" << f.fileName() << f.errorString();
         return;
@@ -762,9 +768,21 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
             {
                 const qint64 ms = e.value(QStringLiteral("epochMs")).toLongLong();
                 const QString picIp = e.value(QStringLiteral("ip")).toString();
-                QString pic = ms > 0 && channel > 0 ? picturePath(configDir, picIp, ms / 1000, channel) : QString();
-                if (pic.isEmpty() || !QFile::exists(pic))
-                    pic = ms > 0 ? picturePath(configDir, picIp, ms / 1000) : QString();
+                const QString kindText = e.value(QStringLiteral("kind")).toString();
+                QString pic;
+                if (ms > 0) {
+                    // This event's own picture first (named with its kind), then the older names without it.
+                    const QString tries[4] = { picturePath(configDir, picIp, ms / 1000, channel > 0 ? channel : 0, kindText),
+                                               picturePath(configDir, picIp, ms / 1000, 0, kindText),
+                                               picturePath(configDir, picIp, ms / 1000, channel > 0 ? channel : 0),
+                                               picturePath(configDir, picIp, ms / 1000) };
+                    for (const QString &t : tries) {
+                        if (QFile::exists(t)) {
+                            pic = t;
+                            break;
+                        }
+                    }
+                }
                 QStringList all;
                 if (e.value(QStringLiteral("kind")).toString() == QLatin1String("Tracking") && ms > 0) {
                     // The snapshots are saved a second or two after the line is written.
@@ -895,6 +913,64 @@ void HikvisionEvents::takeSnapshot(const QString &ip, int cameraChannel)
         const QByteArray jpeg = reply->readAll();
         if (jpeg.size() < 1000 || jpeg.left(3) != QByteArray("\xff\xd8\xff", 3))
             return;
-        savePicture(cameraAddress(conn, cameraChannel), pictureLens(conn, cameraChannel), QDateTime::currentSecsSinceEpoch(), jpeg);
+        savePicture(cameraAddress(conn, cameraChannel), pictureLens(conn, cameraChannel), QString(), QDateTime::currentSecsSinceEpoch(), jpeg);
     });
+}
+
+QVariantList HikvisionEvents::logEventsBetween(const QString &recorderIp, int channel, qint64 startMs, qint64 endMs, const QString &configDir) const
+{
+    QVariantList out;
+    QFile f(configDir + QStringLiteral("/logs/Detection.log"));
+    if (recorderIp.isEmpty() || channel <= 0 || !f.open(QIODevice::ReadOnly))
+        return out;
+    // Walk backwards in blocks until the oldest complete line in hand is older than the start.
+    const qint64 block = 256 * 1024;
+    qint64 pos = f.size();
+    QByteArray data;
+    while (pos > 0) {
+        const qint64 from = qMax<qint64>(0, pos - block);
+        f.seek(from);
+        data.prepend(f.read(pos - from));
+        pos = from;
+        const int nl = data.indexOf('\n');
+        if (pos > 0 && nl >= 0) {
+            const QDateTime first = QLocale::c().toDateTime(QString::fromUtf8(data.mid(nl + 1, 20)), QStringLiteral("dd MMM yyyy HH:mm:ss"));
+            if (first.isValid() && first.toMSecsSinceEpoch() < startMs)
+                break;
+        }
+    }
+    const QString want = QStringLiteral("recorder ") + recorderIp + QStringLiteral(" ch ") + QString::number(channel);
+    const QList<QByteArray> lines = data.split('\n');
+    for (const QByteArray &raw : lines) {
+        if (raw.size() < 24)
+            continue;
+        const QString line = QString::fromUtf8(raw).trimmed();
+        if (!line.contains(want))
+            continue;
+        QStringList parts = line.split(QStringLiteral(", "));
+        if (!parts.isEmpty() && parts.last().startsWith(QStringLiteral("received ")))
+            parts.removeLast();
+        if (parts.size() < 5 || parts.last() != want)
+            continue;
+        const QString kindText = parts.at(2);
+        QString kind;
+        if (kindText == QLatin1String("Line crossing")) kind = QStringLiteral("line");
+        else if (kindText == QLatin1String("Intrusion")) kind = QStringLiteral("intrusion");
+        else if (kindText == QLatin1String("Region entrance")) kind = QStringLiteral("enter");
+        else if (kindText == QLatin1String("Region exit")) kind = QStringLiteral("exit");
+        else if (kindText == QLatin1String("Motion") || kindText == QLatin1String("Tracking")) continue;
+        else kind = QStringLiteral("other");
+        const QDateTime when = QLocale::c().toDateTime(parts.at(0), QStringLiteral("dd MMM yyyy HH:mm:ss"));
+        if (!when.isValid())
+            continue;
+        const qint64 ms = when.toMSecsSinceEpoch();
+        if (ms < startMs || ms > endMs)
+            continue;
+        QVariantMap e;
+        e.insert(QStringLiteral("startTime"), ms);
+        e.insert(QStringLiteral("endTime"), ms + 5000);
+        e.insert(QStringLiteral("kind"), kind);
+        out.append(e);
+    }
+    return out;
 }

@@ -322,6 +322,7 @@ FocusScope {
                     });
                 }
             }
+            adjustedEvents = rootWindow.mergeLogEvents(eventRecorderIp, eventChannelId, startTime.getTime ? startTime.getTime() : new Date(startTime).getTime(), adjustedEvents);
             if (typeof rootWindow !== "undefined" && rootWindow) {
                 var tempEvents = Object.assign({}, rootWindow.playbackEventsCache);
                 tempEvents[cacheKey] = adjustedEvents;
@@ -3204,12 +3205,13 @@ FocusScope {
                                     for (var ei = 0; ei < root.quickPlaybackEvents.length; ei++) {
                                         var ev = root.quickPlaybackEvents[ei];
                                         if (!ev || (ev.kind || "motion") !== kindNow) continue;
+                                        if (ev.log && !rootWindow.overlapsRecording(root.quickPlaybackSegments, ev.startTime, ev.endTime)) continue;
                                         var evStart = Math.max(evWindowStart, ev.startTime);
                                         var evEnd = Math.min(evWindowEnd, ev.endTime);
                                         if (evStart > evEnd) continue;
                                         var ex = ((evStart - evWindowStart) / 1800000) * width;
                                         var ew = Math.max(3, ((evEnd - evStart) / 1800000) * width);
-                                        ctx.fillRect(Math.min(ex, width - ew), 0, ew, height - 8);
+                                        ctx.fillRect(Math.min(ex, width - ew), ev.log ? (height - 8) / 2 : 0, ew, ev.log ? (height - 8) / 2 : height - 8);
                                     }
                                 }
                             }
