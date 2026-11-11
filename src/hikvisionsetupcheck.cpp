@@ -352,7 +352,20 @@ static const char *const kSmartLabel[] = {"Line crossing", "Intrusion", "Region 
 void HikvisionSetupCheck::stepSmart(const JobPtr &j, int index)
 {
     if (index >= 4) {
-        if (j->smartSet.isEmpty() && !j->motionSet)
+        // A camera behind a recorder can also have rules that live in the recorder, which the camera knows nothing about.
+        if (j->behindRecorder)
+            stepNvrSmart(j, 0);
+        else
+            stepSmartDone(j);
+        return;
+    }
+    stepSmartRead(j, index);
+}
+
+void HikvisionSetupCheck::stepSmartDone(const JobPtr &j)
+{
+    {
+        if (j->smartSet.isEmpty() && j->nvrSet.isEmpty() && !j->motionSet)
             add(j, QStringLiteral("rules"), tr("Anything to report"), QStringLiteral("problem"),
                 tr("No motion zone and no line or area is drawn, so this camera has nothing to report."));
         // The centre action matters only when the settings send reports through the recorder.
@@ -360,8 +373,9 @@ void HikvisionSetupCheck::stepSmart(const JobPtr &j, int index)
             QStringList events;
             if (j->motionSet)
                 events << QStringLiteral("VMD");
-            for (const QString &e : j->smartSet)
-                events << e;
+            for (const QString &e : j->smartSet + j->nvrSet)
+                if (!events.contains(e))
+                    events << e;
             if (events.isEmpty())
                 events << QStringLiteral("VMD") << QStringLiteral("linedetection") << QStringLiteral("fielddetection");
             for (const QString &e : events)
@@ -371,8 +385,65 @@ void HikvisionSetupCheck::stepSmart(const JobPtr &j, int index)
         } else {
             finish(j);
         }
+    }
+}
+
+// The recorder's own rules for this channel: the same four kinds, read from the recorder, not the camera.
+void HikvisionSetupCheck::stepNvrSmart(const JobPtr &j, int index)
+{
+    if (index >= 4) {
+        stepSmartDone(j);
         return;
     }
+    const QString path = QStringLiteral("/ISAPI/Smart/%1/%2").arg(QLatin1String(kSmartPath[index])).arg(j->channel);
+    get(j->recorderIp, j->httpPort, path, j->user, j->pass, [this, j, index](int code, const QString &body) {
+        if (code == 401) {
+            add(j, QStringLiteral("login"), tr("Recorder login"), QStringLiteral("problem"),
+                tr("The recorder refused the saved login part way through. Nothing more was asked."));
+            finish(j);
+            return;
+        }
+        if (code != 200) {
+            stepNvrSmart(j, index + 1); // a recorder without this kind of rule: nothing to say
+            return;
+        }
+        const bool overall = tagValue(body, QStringLiteral("enabled")) == QLatin1String("true");
+        QStringList zones; // ids of the zones that have points
+        const QRegularExpression itemRx(QStringLiteral("<%1[ >].*?</%1>").arg(QLatin1String(kSmartItem[index])),
+                                        QRegularExpression::DotMatchesEverythingOption);
+        const QRegularExpression ptRx(QStringLiteral("<positionX>(\\d+)</positionX>\\s*<positionY>(\\d+)</positionY>"));
+        const QRegularExpression idRx(QStringLiteral("<id>(\\d+)</id>"));
+        auto it = itemRx.globalMatch(body);
+        while (it.hasNext()) {
+            const QString item = it.next().captured(0);
+            bool pts = false;
+            auto p = ptRx.globalMatch(item);
+            while (p.hasNext() && !pts) {
+                const auto m = p.next();
+                pts = m.captured(1) != QLatin1String("0") || m.captured(2) != QLatin1String("0");
+            }
+            if (pts)
+                zones << idRx.match(item).captured(1);
+        }
+        if (zones.isEmpty() || !overall) {
+            stepNvrSmart(j, index + 1);
+            return;
+        }
+        j->nvrSet << QLatin1String(kSmartEvent[index]);
+        const QString label = tr(kSmartLabel[index]);
+        const bool inCamera = j->smartSet.contains(QLatin1String(kSmartEvent[index]));
+        const QString where = inCamera ? tr("in the camera and in the recorder") : tr("in the recorder only, not in the camera");
+        add(j, QStringLiteral("nvr%1").arg(index), tr("%1 rule lives %2").arg(label, where), QStringLiteral("note"),
+            tr("The recorder has its own %1 area (zone %2) for this channel%3. Events from it show that area on the saved picture, even where the camera has no such area. "
+               "To remove it, open the recorder's own smart event settings for this channel.")
+                .arg(label.toLower(), zones.join(QStringLiteral(", ")),
+                     inCamera ? tr(", as well as the camera's") : QString()));
+        stepNvrSmart(j, index + 1);
+    });
+}
+
+void HikvisionSetupCheck::stepSmartRead(const JobPtr &j, int index)
+{
     const QString path = QStringLiteral("/ISAPI/Smart/%1/%2").arg(QLatin1String(kSmartPath[index])).arg(j->camId);
     get(j->camIp, j->camPort, path, j->user, j->pass, [this, j, index](int code, const QString &body) {
         const QString label = tr(kSmartLabel[index]);

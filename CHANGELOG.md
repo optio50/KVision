@@ -11,6 +11,11 @@ All notable changes to this project will be documented in this file.
   action. Results open in a window and are also written to `logs/SetupCheck.log`. An optional tick box runs the check
   at start-up (off by default). It only reads, one request at a time, and stops at the first refused login so it cannot
   lock a camera out.
+* **The setup check says where a rule lives.** For a camera behind a recorder it now also reads the recorder's own
+  line and area rules for that channel. If the recorder has a zone of its own it adds a note, "Intrusion rule lives in
+  the camera and in the recorder" (or "in the recorder only"), with the zone numbers. This explains a mystery event
+  whose saved picture shows a zone the camera does not have: the recorder can run its own rule and draws it on the
+  picture. Found on Driveway (channel 16), where the recorder's intrusion zone is not in the camera.
 * **Event pictures.** The picture a camera or recorder sends with a line or area event is kept (the newest 100, in
   `logs/pictures`; older ones are deleted). A recorder sends a link instead of the picture, and KVision downloads it
   with the recorder's login (one try; a refused login stops it). The detection log window has a new **Picture**
@@ -29,6 +34,13 @@ All notable changes to this project will be documented in this file.
   number in the report, whether or not a tile shows that camera.
 
 ### Fixed
+* **The frame label no longer follows plain motion right after a line or intrusion report.** For 10 seconds after a
+  line, intrusion, entrance or exit report, a plain motion report (often somebody elsewhere in the picture) only
+  keeps the frame alive and does not change its label. Before, a person at the desk could rename the frame of a dog
+  in the intrusion zone to "HUMAN". The detection log still records every report.
+* A motion report for another target no longer borrows the earlier kind name ("HUMAN - INTRUSION" when the camera
+  said human motion).
+
 * **Line crossings and intrusions from a camera's own connection were missed whenever the camera attached a picture.**
   The camera sends the picture just before the event. The code that looks for events stopped reading at the first zero
   byte in the picture, so the line or intrusion event after it was never seen, only plain motion before it. They now

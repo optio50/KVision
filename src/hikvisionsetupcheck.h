@@ -65,6 +65,7 @@ private:
         QVariantList items;
         bool motionSet = false;
         QStringList smartSet; // kinds with a line or zone defined: linedetection, fielddetection, ...
+        QStringList nvrSet;   // kinds the recorder itself has a line or zone for (rules that live in the recorder)
         // Trigger reads still to do, each as host, port, path, event name, side ("recorder" or "camera").
         QList<QStringList> trig;
         QStringList recOk, recMissing, camOk, camMissing; // events with and without the centre action, per side
@@ -82,6 +83,9 @@ private:
     void stepMetadata(const JobPtr &j);
     void stepMotion(const JobPtr &j);
     void stepSmart(const JobPtr &j, int index);
+    void stepNvrSmart(const JobPtr &j, int index);
+    void stepSmartDone(const JobPtr &j);
+    void stepSmartRead(const JobPtr &j, int index);
     void stepOnline(const JobPtr &j);
     void stepTriggers(const JobPtr &j, int index);
 

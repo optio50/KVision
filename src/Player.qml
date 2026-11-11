@@ -975,10 +975,16 @@ FocusScope {
                 console.debug("[Target] tile " + root.index + " got " + targetType + " for " + ip + " watching=" + root.targetWatching
                             + " watchedIp=" + root.watchedIp + " hold=" + root.targetHoldMs + " ms");
             if (root.targetWatching && ip === root.watchedIp && root.reportIsMine(channel)) {
-                // A smart event names itself on the frame. A labelled motion report after it keeps
-                // the name while the frame is still up; a new frame from motion alone has none.
-                if (source !== "MOTION" || root.targetType === "")
-                    root.targetSource = source;
+                // A line, intrusion, entrance or exit report is what the user cares about, so for a few seconds after
+                // one, a plain motion report (which is often somebody elsewhere in the picture) does not change the
+                // label. The detection log keeps every report, so nothing is lost.
+                if (source === "MOTION" && root.targetType !== "" && Date.now() - root.lastSmartAt <= root.smartCarryMs) {
+                    root.lastTargetReport = Date.now();
+                    return;
+                }
+                if (source !== "MOTION")
+                    root.lastSmartAt = Date.now();
+                root.targetSource = source;
                 root.targetType = targetType;
                 root.lastTargetReport = Date.now();
                 HikvisionEvents.logFrame(ip, root.targetCaption(" - "), root.index);
@@ -1019,6 +1025,8 @@ FocusScope {
     // The frame is hidden by comparing the clock with the time of the last report, so it does not
     // depend on one long timer interval. (A 30 s one-shot timer was seen to fire after about 19 s.)
     property double lastTargetReport: 0
+    property double lastSmartAt: 0 // when the last line, intrusion, entrance or exit report arrived
+    readonly property int smartCarryMs: 10000 // a smart report holds the label against plain motion this long
     readonly property int targetHoldMs: ((typeof generalSettings !== "undefined") ? generalSettings.targetHoldSeconds : 10) * 1000
 
     Timer {
