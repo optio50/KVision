@@ -2709,6 +2709,24 @@ FocusScope {
                                 onActivated: generalSettings.picturesPerCamera = model[index]
                             }
 
+                            Button {
+                                text: qsTr("Choose cameras...")
+                                enabled: generalSettings.showTargetIndicator
+                                ToolTip.visible: hovered
+                                ToolTip.delay: 600
+                                ToolTip.text: qsTr("Tick the cameras that show a detection frame, all in one list (the same as right-clicking each camera)")
+                                onClicked: {
+                                    var w = detectionFramesComponent.createObject(rootWindow);
+                                    if (w)
+                                        w.show();
+                                }
+                            }
+
+                            Component {
+                                id: detectionFramesComponent
+                                DetectionFramesWindow {}
+                            }
+
                             Text {
                                 text: qsTr("Is each camera set up to report? A read-only check of the camera's settings (metadata, zones, rules, the recorder's centre action). It changes nothing.")
                                 color: "#8898a6"

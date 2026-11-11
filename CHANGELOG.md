@@ -17,6 +17,9 @@ All notable changes to this project will be documented in this file.
   the camera and in the recorder" (or "in the recorder only"), with the zone numbers. This explains a mystery event
   whose saved picture shows a zone the camera does not have: the recorder can run its own rule and draws it on the
   picture. Found on Driveway (channel 16), where the recorder's intrusion zone is not in the camera.
+* **Switch the detection frame on or off for all cameras in one list.** A new *Choose cameras...* button under the detection
+  options opens a window with a tick box for every camera, grouped by recorder, with *All on* / *All off* for everything or
+  for one recorder. It changes the same switches as the tile's right-click item, so the two always agree.
 * **Event pictures are kept per camera, and how many is a setting.** The newest 100, 500 or 1000 pictures of each camera
   are kept (before, 100 in all, so one busy camera pushed out everyone else's). The choice is in the sidebar under the
   detection options; lowering it deletes the surplus at once.
