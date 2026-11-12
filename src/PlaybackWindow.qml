@@ -3388,6 +3388,20 @@ Window {
                                 ToolTip.text: qsTr("LNG_00130")
                             }
                             CctvButton {
+                                id: rw5Btn
+                                text: ""
+                                isSmall: true
+                                iconSource: {
+                                    var colorStr = rw5Btn.hovered ? "%2300f5d4" : "%238898a6"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 1-6.36 2.64'></path><polyline points='12 7 12 3 16 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>5</text></svg>"
+                                }
+                                onClicked: jumpTime(-5000)
+                                ToolTip.delay: Compact.toolTipDelay
+                                ToolTip.timeout: Compact.toolTipTimeout
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Rewind 5 seconds")
+                            }
+                            CctvButton {
                                 id: playPauseBtn
                                 text: ""
                                 isSmall: true
@@ -3419,6 +3433,20 @@ Window {
                                 ToolTip.timeout: Compact.toolTipTimeout
                                 ToolTip.visible: hovered
                                 ToolTip.text: qsTr("LNG_00576")
+                            }
+                            CctvButton {
+                                id: ff5Btn
+                                text: ""
+                                isSmall: true
+                                iconSource: {
+                                    var colorStr = ff5Btn.hovered ? "%2300f5d4" : "%238898a6"
+                                    return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 3a9 9 0 1 0 6.36 2.64'></path><polyline points='12 7 12 3 8 3'></polyline><text x='12' y='15' font-family='sans-serif' font-size='9' font-weight='bold' fill='" + colorStr + "' stroke='none' text-anchor='middle'>5</text></svg>"
+                                }
+                                onClicked: jumpTime(5000)
+                                ToolTip.delay: Compact.toolTipDelay
+                                ToolTip.timeout: Compact.toolTipTimeout
+                                ToolTip.visible: hovered
+                                ToolTip.text: qsTr("Forward 5 seconds")
                             }
                             CctvButton {
                                 id: ff15Btn

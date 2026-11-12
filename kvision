@@ -29,5 +29,6 @@ fi
 # with --verbose, and a value set by the user is left alone.
 export LIBVA_MESSAGING_LEVEL="${LIBVA_MESSAGING_LEVEL:-0}"
 
-# libhpr prints a routine discovery line directly to the console.
-exec "$binary" "$@" 2>&1 | grep -v --line-buffered 'find .* mac and .* ip'
+# libhpr prints a routine discovery line directly to the console, and Qt warns about a harmless binding loop in the
+# width of a wrapped tooltip each time one appears. Both are only shown with --verbose.
+exec "$binary" "$@" 2>&1 | grep -v --line-buffered -e 'find .* mac and .* ip' -e 'QML ToolTip: Binding loop detected for property "implicitWidth"'

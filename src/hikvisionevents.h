@@ -47,7 +47,7 @@ public:
     // camera's own stream names its own channel, and this turns it into the right camera for the detection log.
     Q_INVOKABLE void setLensInfo(const QString &ip, const QString &json);
     // A PTZ lens has started to follow a target the other lens named (target is human, vehicle, animal or other).
-    // Writes a "Tracking" line to the detection log and keeps two snapshots of the PTZ lens, one second apart, that the
+    // Writes a "Tracking" line to the detection log and keeps four snapshots of the PTZ lens (the first at once, then one a second apart), that the
     // log window offers with that line. lensChannel is the camera's own channel of the PTZ lens. Only for a camera
     // on its own connection; ignored if the same lens was logged in the last 10 seconds.
     Q_INVOKABLE void logTracking(const QString &ip, const QString &target, int lensChannel);
@@ -73,7 +73,11 @@ public:
     // {startTime, endTime, kind} with kind line, intrusion, enter, exit or other. Plain motion and tracking lines are
     // left out. Used to draw what the camera reported on a playback timeline where the recorder saved less.
     Q_INVOKABLE QVariantList logEventsBetween(const QString &recorderIp, int channel, qint64 startMs, qint64 endMs, const QString &configDir) const;
-    Q_INVOKABLE QVariantMap readDetections(int skip, int count, const QString &configDir, const QString &filterIp = QString()) const;
+    // fromMs and toMs (milliseconds since 1970, 0 = no limit) limit the entries to a time range, target to one of human,
+    // vehicle, animal or other (empty = all), and includeMotion false leaves out plain labelled motion lines. When any
+    // filter is used the whole range is read and the result also carries "total", the number of matching entries.
+    Q_INVOKABLE QVariantMap readDetections(int skip, int count, const QString &configDir, const QString &filterIp = QString(),
+                                           qint64 fromMs = 0, qint64 toMs = 0, const QString &target = QString(), bool includeMotion = true) const;
     // What the newest event picture from a camera showed: a map with state ("on" if the picture carries the red
     // target frame, "off" if the camera sent a clean picture, empty if none has been seen since KVision started)
     // and time. address is the camera's own address. The picture is only looked at, never kept.
@@ -160,7 +164,7 @@ private:
     void fetchPicture(const QString &ip, const QUrl &url, const QString &address, int lens, const QString &kind, qint64 secs, bool hasRect, const QRectF &rect);
     void judgeJpeg(const QString &address, bool hasRect, const QRectF &rect, const QByteArray &jpeg);
     void savePicture(const QString &address, int lens, const QString &kind, qint64 secs, const QByteArray &jpeg);
-    void takeSnapshot(const QString &ip, int cameraChannel);
+    void takeSnapshot(const QString &ip, int cameraChannel, qint64 secs);
     QHash<QString, qint64> m_lastTrack; // when a lens last logged a track (ms), to ignore a second tile of the same camera
     int pictureLens(const Conn *c, int eventChannel) const;
     // Keeps the newest m_maxPictures pictures of each camera in logs/pictures (or of one camera) and deletes the older ones.

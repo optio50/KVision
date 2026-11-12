@@ -10,9 +10,9 @@ import CCTV_Viewer.Hikvision 1.0
 Window {
     id: logWin
 
-    width: 760
-    height: 420
-    minimumWidth: 520
+    width: 1080
+    height: 460
+    minimumWidth: 760
     minimumHeight: 240
     color: "#0f151b"
     title: qsTr("Detection events")
@@ -26,11 +26,54 @@ Window {
 
     property var entries: []
     property bool more: false
+    property int total: -1 // matching entries when a filter is used, else -1
+
+    // The time range is picked as a number of hours back from now, or from the start of today or yesterday.
+    readonly property var rangeChoices: [
+        { "label": qsTr("All time"), "hours": 0 },
+        { "label": qsTr("Last hour"), "hours": 1 },
+        { "label": qsTr("Last 3 hours"), "hours": 3 },
+        { "label": qsTr("Last 12 hours"), "hours": 12 },
+        { "label": qsTr("Last 24 hours"), "hours": 24 },
+        { "label": qsTr("Today"), "hours": -1 },
+        { "label": qsTr("Yesterday"), "hours": -2 },
+        { "label": qsTr("Last 7 days"), "hours": 168 }
+    ]
+    readonly property var targetChoices: [
+        { "label": qsTr("All targets"), "key": "" },
+        { "label": qsTr("Human"), "key": "human" },
+        { "label": qsTr("Vehicle"), "key": "vehicle" },
+        { "label": qsTr("Animal"), "key": "animal" },
+        { "label": qsTr("Other"), "key": "other" }
+    ]
+
+    function rangeFromMs() {
+        var h = rangeBox.currentIndex >= 0 ? logWin.rangeChoices[rangeBox.currentIndex].hours : 0;
+        var now = new Date();
+        if (h === 0) return 0;
+        if (h === -1 || h === -2) {
+            var d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            return d.getTime() - (h === -2 ? 86400000 : 0);
+        }
+        return now.getTime() - h * 3600000;
+    }
+
+    function rangeToMs() {
+        var h = rangeBox.currentIndex >= 0 ? logWin.rangeChoices[rangeBox.currentIndex].hours : 0;
+        if (h === -2) {
+            var now = new Date();
+            return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - 1;
+        }
+        return 0;
+    }
 
     function load(reset) {
         var skip = reset ? 0 : logWin.entries.length;
         var r = HikvisionEvents.readDetections(skip, logWin.pageSize, Context.configDirPath(),
-                                               onlyThisCamera.checked ? logWin.cameraIp : "");
+                                               onlyThisCamera.checked ? logWin.cameraIp : "",
+                                               logWin.rangeFromMs(), logWin.rangeToMs(),
+                                               logWin.targetChoices[targetBox.currentIndex].key, motionBox.checked);
+        logWin.total = r.total;
         var list = reset ? [] : logWin.entries.slice();
         for (var i = 0; i < r.entries.length; ++i)
             list.push(r.entries[i]);
@@ -75,10 +118,21 @@ Window {
                 items.push({ "path": pics[k],
                              "caption": e.time + "   " + e.target + "   " + e.kind + "   " + e.camera + (pics.length > 1 ? "   (" + (k + 1) + "/" + pics.length + ")" : "") });
         }
+        // Nothing else refers to a window created with no parent, and the garbage collector (which the app runs after
+        // closing windows and every hour) would remove it while it is open, so it is kept in a list until it closes.
         var w = pictureViewer.createObject(null, { "items": items, "shown": start });
-        if (w)
+        if (w) {
+            logWin.viewers.push(w);
+            w.closed.connect(function() {
+                var i = logWin.viewers.indexOf(w);
+                if (i >= 0)
+                    logWin.viewers.splice(i, 1);
+            });
             w.show();
+        }
     }
+
+    property var viewers: []
 
     Component {
         id: pictureViewer
@@ -87,6 +141,7 @@ Window {
             // Every picture in the list as {path, caption}, oldest first; Right goes to the next newest, Left to an older one.
             property var items: []
             property int shown: 0
+            signal closed()
             width: 960
             height: 600
             minimumWidth: 320
@@ -94,7 +149,7 @@ Window {
             color: "#0f151b"
             title: qsTr("Event picture")
             flags: Qt.Window | Qt.WindowStaysOnTopHint
-            onClosing: pv.destroy()
+            onClosing: { pv.closed(); pv.destroy() }
 
             Shortcut { sequence: "Left"; enabled: pv.shown > 0; onActivated: pv.shown-- }
             Shortcut { sequence: "Right"; enabled: pv.shown < pv.items.length - 1; onActivated: pv.shown++ }
@@ -180,7 +235,53 @@ Window {
                 }
             }
 
+            ComboBox {
+                id: rangeBox
+                model: logWin.rangeChoices.map(function(c) { return c.label; })
+                currentIndex: 0
+                implicitWidth: 130
+                onActivated: logWin.load(true)
+                ToolTip.visible: hovered
+                ToolTip.delay: 600
+                ToolTip.text: qsTr("Only events in this time range")
+            }
+
+            ComboBox {
+                id: targetBox
+                model: logWin.targetChoices.map(function(c) { return c.label; })
+                currentIndex: 0
+                implicitWidth: 120
+                onActivated: logWin.load(true)
+                ToolTip.visible: hovered
+                ToolTip.delay: 600
+                ToolTip.text: qsTr("Only events whose target is this")
+            }
+
+            CheckBox {
+                id: motionBox
+                checked: false
+                text: qsTr("Plain motion")
+                onToggled: logWin.load(true)
+                ToolTip.visible: hovered
+                ToolTip.delay: 600
+                ToolTip.text: qsTr("Also list labelled motion reports (no picture, and many more of them). Off: line, intrusion, entrance, exit and tracking only")
+                contentItem: Text {
+                    leftPadding: motionBox.indicator.width + 6
+                    text: motionBox.text
+                    color: "#eeeeee"
+                    font.pixelSize: 12
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+
             Item { Layout.fillWidth: true }
+
+            Text {
+                visible: logWin.total >= 0
+                text: qsTr("%1 events").arg(logWin.total)
+                color: "#8899aa"
+                font.pixelSize: 12
+            }
 
             Button {
                 text: qsTr("Refresh")

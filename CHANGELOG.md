@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+* **Search the detection events by time and target, across all cameras.** The Detection events window has a time range
+  (last hour, 3, 12 or 24 hours, today, yesterday, last 7 days or all time), a target (human, vehicle, animal, other)
+  and a "Plain motion" box, and shows how many events match, for example "124 events". The list is one list across all
+  cameras, newest first, with the picture and play buttons and the picture viewer's arrows as before. Plain labelled
+  motion is left out unless the box is ticked, because there are many more of those and they have no picture. The
+  search reads the detection log, so it covers only the times KVision was running with detection on.
+* **5-second jump buttons in playback.** A "5" rewind and a "5" forward button join the 15, 45 and 60 second ones, next
+  to the play/pause button.
+
+### Changed
+* The launcher no longer prints Qt's "QML ToolTip: Binding loop detected for property implicitWidth" warning, which Qt
+  gives each time a wrapped tooltip appears and which is harmless. It is still shown with `kvision --verbose`.
+* **A track now keeps four snapshots, the first taken at once.** The first snapshot no longer waits a second after the
+  PTZ leaves its park position, and three more follow, one a second apart. Each is named by the second it was asked
+  for, so a slow reply cannot make two of them share a file. The first may show the PTZ still swinging.
+
 ## [3.4.0] - 2026-11-11
 
 ### Added

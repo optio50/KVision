@@ -696,11 +696,15 @@ void HikvisionEvents::logFrame(const QString &ip, const QString &text, int tile,
     QTextStream(&f) << when << ", Frame shown, " << text << ", tile " << tile << ", " << (!name.isEmpty() ? name : (c && !c->name.isEmpty() ? c->name : ip)) << ", " << ip << "\n";
 }
 
-QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &configDir, const QString &filterIp) const
+QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &configDir, const QString &filterIp,
+                                            qint64 fromMs, qint64 toMs, const QString &target, bool includeMotion) const
 {
     QVariantMap result;
     QVariantList entries;
     bool more = false;
+    const QString wantTarget = target.trimmed().toLower();
+    const bool filtering = !filterIp.isEmpty() || fromMs > 0 || toMs > 0 || !wantTarget.isEmpty() || !includeMotion;
+    int total = 0;
     QFile f(configDir + QStringLiteral("/logs/Detection.log"));
     if (skip < 0)
         skip = 0;
@@ -714,11 +718,20 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
         QByteArray data;
         const int need = skip + count + 1; // one extra line tells us whether older entries remain
         // With a camera filter any part of the file may hold matches, so read it all.
-        while (pos > 0 && (!filterIp.isEmpty() || data.count('\n') <= need)) {
+        while (pos > 0 && (filtering || data.count('\n') <= need)) {
             const qint64 start = qMax<qint64>(0, pos - block);
             f.seek(start);
             data.prepend(f.read(pos - start));
             pos = start;
+            if (fromMs > 0 && pos > 0) {
+                // The log is in time order: once its oldest complete line is before the range, nothing older is wanted.
+                const int nl = data.indexOf('\n');
+                if (nl >= 0) {
+                    const QDateTime first = QLocale::c().toDateTime(QString::fromUtf8(data.mid(nl + 1, 20)), QStringLiteral("dd MMM yyyy HH:mm:ss"));
+                    if (first.isValid() && first.toMSecsSinceEpoch() < fromMs)
+                        break;
+                }
+            }
         }
         QList<QByteArray> lines = data.split('\n');
         if (pos > 0 && !lines.isEmpty())
@@ -766,6 +779,31 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
             if (!filterIp.isEmpty() && e.value(QStringLiteral("ip")).toString() != filterIp)
                 continue;
             {
+                const qint64 when2 = e.value(QStringLiteral("epochMs")).toLongLong();
+                if ((fromMs > 0 && when2 < fromMs) || (toMs > 0 && when2 > toMs))
+                    continue;
+                if (!includeMotion && e.value(QStringLiteral("kind")).toString() == QLatin1String("Motion"))
+                    continue;
+                if (!wantTarget.isEmpty()) {
+                    QString tg = e.value(QStringLiteral("target")).toString().toLower();
+                    if (tg == QLatin1String("object"))
+                        tg = QStringLiteral("other");
+                    if (tg != wantTarget)
+                        continue;
+                }
+            }
+            ++total;
+            if (skip > 0) {
+                --skip;
+                continue;
+            }
+            if (entries.size() >= count) {
+                more = true;
+                if (filtering)
+                    continue; // keep counting for the total, without looking for pictures
+                break;
+            }
+            {
                 const qint64 ms = e.value(QStringLiteral("epochMs")).toLongLong();
                 const QString picIp = e.value(QStringLiteral("ip")).toString();
                 const QString kindText = e.value(QStringLiteral("kind")).toString();
@@ -785,8 +823,8 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
                 }
                 QStringList all;
                 if (e.value(QStringLiteral("kind")).toString() == QLatin1String("Tracking") && ms > 0) {
-                    // The snapshots are saved a second or two after the line is written.
-                    for (qint64 sec = ms / 1000; sec <= ms / 1000 + 4; ++sec) {
+                    // The snapshots are named by the seconds from the line's own second to three seconds after it.
+                    for (qint64 sec = ms / 1000; sec <= ms / 1000 + 3; ++sec) {
                         const QString one = picturePath(configDir, picIp, sec, channel > 0 ? channel : 0);
                         if (QFile::exists(one))
                             all << one;
@@ -799,17 +837,10 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
                 e.insert(QStringLiteral("pictures"), all);
                 e.insert(QStringLiteral("picture"), (!pic.isEmpty() && QFile::exists(pic)) ? pic : QString());
             }
-            if (skip > 0) {
-                --skip;
-                continue;
-            }
-            if (entries.size() >= count) {
-                more = true;
-                break;
-            }
             entries.append(e);
         }
     }
+    result.insert(QStringLiteral("total"), filtering ? total : -1);
     result.insert(QStringLiteral("entries"), entries);
     result.insert(QStringLiteral("more"), more);
     return result;
@@ -870,17 +901,24 @@ void HikvisionEvents::logTracking(const QString &ip, const QString &target, int 
     if (now - m_lastTrack.value(key, 0) < 10000)
         return;
     m_lastTrack.insert(key, now);
+    const QDateTime start = QDateTime::currentDateTime();
     logDetection(c, target.isEmpty() ? QStringLiteral("other") : target, QStringLiteral("Tracking"),
-                 QDateTime::currentDateTime().toString(Qt::ISODate), lensChannel);
-    // The PTZ is still swinging when it leaves its park position, so the first snapshot waits a second.
-    QTimer::singleShot(1000, this, [this, ip, lensChannel]() { takeSnapshot(ip, lensChannel); });
-    QTimer::singleShot(2000, this, [this, ip, lensChannel]() { takeSnapshot(ip, lensChannel); });
+                 start.toString(Qt::ISODate), lensChannel);
+    // Four snapshots: the first at once, then one a second apart. Each is named by the second it was asked for (the
+    // second of the log line, then the next ones), so a slow reply cannot make two of them share a name.
+    const qint64 base = start.toSecsSinceEpoch();
+    for (int n = 0; n < 4; ++n) {
+        if (n == 0)
+            takeSnapshot(ip, lensChannel, base);
+        else
+            QTimer::singleShot(n * 1000, this, [this, ip, lensChannel, base, n]() { takeSnapshot(ip, lensChannel, base + n); });
+    }
 }
 
 // A still picture of one lens of the camera, from the camera's own picture address (main stream of that channel,
 // channel 1 = 101, channel 2 = 201). One request with the connection's login; a refused login stops all picture
 // requests for this camera, like the event pictures.
-void HikvisionEvents::takeSnapshot(const QString &ip, int cameraChannel)
+void HikvisionEvents::takeSnapshot(const QString &ip, int cameraChannel, qint64 secs)
 {
     Conn *c = m_conns.value(ip, nullptr);
     if (!c || c->pictureRefused || c->pictureFetches >= 2 || m_logDir.isEmpty())
@@ -896,7 +934,7 @@ void HikvisionEvents::takeSnapshot(const QString &ip, int cameraChannel)
     QNetworkReply *reply = m_net->get(req);
     reply->setProperty("evUser", c->user);
     reply->setProperty("evPass", c->pass);
-    connect(reply, &QNetworkReply::finished, this, [this, ip, reply, cameraChannel]() {
+    connect(reply, &QNetworkReply::finished, this, [this, ip, reply, cameraChannel, secs]() {
         reply->deleteLater();
         Conn *conn = m_conns.value(ip, nullptr);
         if (conn && conn->pictureFetches > 0)
@@ -913,7 +951,7 @@ void HikvisionEvents::takeSnapshot(const QString &ip, int cameraChannel)
         const QByteArray jpeg = reply->readAll();
         if (jpeg.size() < 1000 || jpeg.left(3) != QByteArray("\xff\xd8\xff", 3))
             return;
-        savePicture(cameraAddress(conn, cameraChannel), pictureLens(conn, cameraChannel), QString(), QDateTime::currentSecsSinceEpoch(), jpeg);
+        savePicture(cameraAddress(conn, cameraChannel), pictureLens(conn, cameraChannel), QString(), secs, jpeg);
     });
 }
 
