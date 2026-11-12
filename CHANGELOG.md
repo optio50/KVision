@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Detection logging is separate from the on-screen frame, and can keep running after KVision is closed.** While KVision
+  is open it now always logs every configured camera, whether or not a tile shows it. The global frame setting and the
+  right-click *Detection frame* switch only decide what is drawn. A new *Keep logging detection events after KVision is
+  closed* option in General settings controls what happens when the window closes. Turning it on installs a small systemd user service (`kvision-events.service`,
+  running `kvision --headless-events`: no window, no video) that keeps the detection log and pictures going while KVision is
+  closed. It steps aside while a KVision window is open (the window holds `kvision-ui.lock`), so only one of them holds a
+  camera's event stream. It watches itself: dead streams are reopened, systemd restarts it if it hangs, and it writes
+  `logs/EventLogger.status`, which the settings page shows as a one-line health summary. A second toolbar icon (green, or
+  red and pulsing like the recorder one when the service is down, hung or a camera stream is dead) opens a menu with the
+  problem and a *Restart background logging* action; while KVision is open it restarts the service by itself when it is down or hung (checked every 10 s, two bad
+  readings in a row, backing off from 1 to 10 minutes if it keeps failing) and says so in a notice; opening KVision also
+  restarts a service that was stopped. Off by default (with it off, nothing is logged while KVision is closed). Cameras
+  that were switched off for the frame are now logged too while KVision is open.
 * **Check again from the setup check window.** The window's *Refresh* button now asks the cameras again (it used to only
   re-read the saved results, so nothing seemed to happen): it checks every camera in the list. Each opened card also has
   a small *Check this camera again* button that checks only that one camera, and both wait while a check is running.
@@ -26,6 +39,11 @@ All notable changes to this project will be documented in this file.
   away because a decoder's queue was full, and the demux or decode hiccups that were seen. The CPU line also names the
   machine's busiest core, and on NVIDIA the GPU line names the decode engine's load. All of them are part of the kept
   history too.
+* **Unstick event detection button in NVR settings.** A new "Troubleshooting" section in the NVR settings panel with
+  a camera picker and "Unstick event detection" button. When clicked, it toggles the \"center\" (Surveillance Center / LAN
+  push) notification method off and back on for every event trigger of the selected camera or NVR channel (motion, line
+  crossing, intrusion, tamper, ...), restoring the original config. This fixes
+  a wedged event-detection dispatcher that accepts connections and heartbeats but delivers zero detection events.
 
 ### Fixed
 * **CPU read zero.** The per-core reading reads `/proc/stat` with an until-end-of-file loop — but `/proc` files report a

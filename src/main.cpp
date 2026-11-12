@@ -62,6 +62,11 @@ int qmlRegisterSingletonInstance(const char *uri, int versionMajor, int versionM
 #include "hikvisiondownloader.h"
 #include "hikvisiontalk.h"
 #include "hikvisionevents.h"
+#include "hikvisioneventlogger.h"
+#include "headlessevents.h"
+#include "eventservice.h"
+#include <QLockFile>
+#include <memory>
 #include "overlaytext.h"
 #include "hikvisionsetupcheck.h"
 
@@ -317,6 +322,10 @@ int countAuxiliaryProcesses()
 
 int main(int argc, char *argv[])
 {
+    // Background detection logger: no window, no QML, no video. Handled before anything else is set up.
+    if (wantsHeadlessEvents(argc, argv))
+        return runHeadlessEvents(argc, argv);
+
     qInstallMessageHandler(customMessageHandler);
     av_log_set_callback(custom_ffmpeg_log_callback);
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
@@ -410,6 +419,17 @@ int main(int argc, char *argv[])
         }
     }
 
+    // While this window process runs it holds a lock file, so the background detection logger (if it is
+    // running) sees it and steps aside: only one of them holds a camera's event stream at a time.
+    std::unique_ptr<QLockFile> uiLock;
+    if (!Context::isAuxiliary()) {
+        const QString cfg = Context::config() ? Context::config()->fileName() : QSettings().fileName();
+        uiLock.reset(new QLockFile(EventService::lockPath(QFileInfo(cfg).absolutePath())));
+        uiLock->setStaleLockTime(0); // a lock is stale as soon as its process is gone
+        if (!uiLock->tryLock(100))
+            qWarning() << "[Events] could not take the UI lock; the background logger may keep logging alongside the window";
+    }
+
     QQmlApplicationEngine engine;
     Context::setEngine(&engine);
     engine.rootContext()->setContextProperty("SingleApplication", &singleApp);
@@ -425,6 +445,9 @@ int main(int argc, char *argv[])
 
     auto *hikvisionEvents = new HikvisionEvents();
     qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "HikvisionEvents", hikvisionEvents);
+
+    auto *hikvisionEventLogger = new HikvisionEventLogger(hikvisionEvents);
+    qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "HikvisionEventLogger", hikvisionEventLogger);
 
     auto *overlayText = new OverlayText();
     qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "OverlayText", overlayText);

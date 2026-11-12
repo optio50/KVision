@@ -2,6 +2,7 @@
 #include "context.h"
 #include <QDebug>
 #include <QDateTime>
+#include <QTemporaryFile>
 #include <cstring>
 #include <QProcess>
 #include <QRegularExpression>
@@ -112,6 +113,164 @@ static QByteArray fetchUrl(const QString &ip, int port, const QString &username,
     return QByteArray();
 }
 
+// PUT an XML body to an ISAPI endpoint on the camera. Same auth/timeout/fallback
+// semantics as fetchUrl(). Returns the response body (usually a ResponseStatus XML).
+static QByteArray putUrl(const QString &ip, int port, const QString &username, const QString &password,
+                         const QString &path, const QByteArray &body)
+{
+    const QString tmpFile = QStringLiteral("/tmp/kvision-put-XXXXXX.xml");
+    QTemporaryFile tf(tmpFile);
+    if (!tf.open()) {
+        qWarning() << "[Hikvision ISAPI] Cannot create temp file for PUT body";
+        return QByteArray();
+    }
+    tf.write(body);
+    tf.close();
+    const QString tfPath = tf.fileName();
+
+    QStringList args;
+    args << "-s" << "-k" << "--anyauth" << "-u" << QString("%1:%2").arg(username, password)
+         << "--max-time" << "4" << "-X" << "PUT"
+         << "--data-binary" << QString("@%1").arg(tfPath)
+         << "-H" << "Content-Type: application/xml"
+         << QString("http://%1:%2%3").arg(ip).arg(port).arg(path);
+
+    qDebug() << "[Hikvision ISAPI] PUT:" << args.last();
+    QProcess process;
+    process.start("curl", args);
+    QByteArray res;
+    if (process.waitForFinished(5000))
+        res = process.readAllStandardOutput();
+
+    // Fallback to HTTPS if HTTP failed
+    if (res.isEmpty()) {
+        QStringList httpsArgs;
+        httpsArgs << "-s" << "-k" << "--anyauth" << "-u" << QString("%1:%2").arg(username, password)
+                  << "--max-time" << "4" << "-X" << "PUT"
+                  << "--data-binary" << QString("@%1").arg(tfPath)
+                  << "-H" << "Content-Type: application/xml"
+                  << QString("https://%1:%2%3").arg(ip).arg(port).arg(path);
+        process.start("curl", httpsArgs);
+        if (process.waitForFinished(5000))
+            res = process.readAllStandardOutput();
+    }
+
+    tf.remove();
+    return res;
+}
+
+// Unstick a camera whose LAN event-push dispatcher has wedged. For every event trigger of the
+// given channel (motion, line crossing, intrusion, tamper, ...) that has the "center"
+// (Surveillance Center / LAN push) notification enabled, toggles that notification off and back
+// on, restoring the original config. Works for standalone cameras and NVR channels.
+// Returns "ok..." or an error/warning string.
+QString HikvisionManager::unstickEventDetection(const QString &ip, int httpPort, const QString &username,
+                                                const QString &password, int channelId, const QString &label)
+{
+    const QString cleanIp = ip.trimmed();
+    if (cleanIp.isEmpty())
+        return QStringLiteral("error: empty ip");
+
+    const int port = httpPort > 0 ? httpPort : 80;
+    const int channel = channelId > 0 ? channelId : 1;
+
+    emit unstickProgress(label, QStringLiteral("Reading event triggers..."));
+
+    // 1. Find the triggers that belong to this channel
+    QStringList triggerIds;
+    const QByteArray listXml = fetchUrl(cleanIp, port, username, password, QStringLiteral("/ISAPI/Event/triggers"));
+    if (!listXml.isEmpty()) {
+        const QString text = QString::fromUtf8(listXml);
+        QRegularExpression blockRx(QStringLiteral("<EventTrigger(?:\\s[^>]*)?>([\\s\\S]*?)</EventTrigger>"));
+        QRegularExpression idRx(QStringLiteral("<id>([^<]+)</id>"));
+        QRegularExpression chanRx(QStringLiteral("<(?:dynVideoInputChannelID|videoInputChannelID)>(\\d+)</"));
+        auto it = blockRx.globalMatch(text);
+        while (it.hasNext()) {
+            const QString block = it.next().captured(1);
+            const QString id = idRx.match(block).captured(1).trimmed();
+            if (id.isEmpty())
+                continue;
+            bool onChannel = false;
+            auto cit = chanRx.globalMatch(block);
+            while (cit.hasNext()) {
+                if (cit.next().captured(1).toInt() == channel)
+                    onChannel = true;
+            }
+            if (onChannel)
+                triggerIds << id;
+        }
+    }
+    if (triggerIds.isEmpty()) // older firmware without a trigger list: fall back to motion detection
+        triggerIds << QStringLiteral("VMD-%1").arg(channel);
+
+    QRegularExpression centerBlock(
+        QStringLiteral("<EventTriggerNotification>\\s*<id>center</id>.*?</EventTriggerNotification>"),
+        QRegularExpression::DotMatchesEverythingOption);
+    emit unstickProgress(label, QStringLiteral("Checking %1 trigger(s)...").arg(triggerIds.size()));
+    auto accepted = [](const QByteArray &r) {
+        return r.contains("<statusCode>1</statusCode>") || r.contains("<statusString>OK</statusString>");
+    };
+
+    int fixed = 0;
+    QStringList problems;
+    for (const QString &id : triggerIds) {
+        const QString path = QStringLiteral("/ISAPI/Event/triggers/") + id;
+        emit unstickProgress(label, QStringLiteral("Checking %1...").arg(id));
+
+        // 2. Read the trigger's current config; skip triggers that don't push to the center
+        const QByteArray original = fetchUrl(cleanIp, port, username, password, path);
+        if (original.isEmpty())
+            continue;
+        QString centerOffXml = QString::fromUtf8(original);
+        if (!centerBlock.match(centerOffXml).hasMatch())
+            continue;
+        centerOffXml.remove(centerBlock);
+
+        // 3. PUT center OFF
+        emit unstickProgress(label, QStringLiteral("Resetting %1...").arg(id));
+        const QByteArray putOff = putUrl(cleanIp, port, username, password, path, centerOffXml.toUtf8());
+        if (putOff.isEmpty() || !accepted(putOff)) {
+            problems << QStringLiteral("%1: center OFF %2").arg(id, putOff.isEmpty() ? QStringLiteral("failed (no response)")
+                                                                                   : QStringLiteral("rejected"));
+            continue;
+        }
+
+        // 4. PUT original back (center ON - restores the user's config)
+        const QByteArray putOn = putUrl(cleanIp, port, username, password, path, original);
+        if (putOn.isEmpty() || !accepted(putOn)) {
+            problems << QStringLiteral("%1: center left OFF, restore failed - run again").arg(id);
+            continue;
+        }
+        ++fixed;
+    }
+
+    if (!problems.isEmpty())
+        return QStringLiteral("warning: ") + problems.join(QStringLiteral("; "));
+    if (fixed == 0)
+        return QStringLiteral("error: no event triggers with center push found for channel %1 (check credentials/connectivity)").arg(channel);
+    return QStringLiteral("ok (%1 trigger(s) reset)").arg(fixed);
+}
+
+void HikvisionManager::unstickEventDetectionAsync(const QString &ip, int httpPort, const QString &username,
+                                                  const QString &password, int channelId, const QString &label)
+{
+    QThread *thread = QThread::create([this, ip, httpPort, username, password, channelId, label]() {
+        const QString result = unstickEventDetection(ip, httpPort, username, password, channelId, label);
+        emit unstickFinished(label, result);
+    });
+
+    {
+        std::lock_guard<std::mutex> lock(m_discoveryMutex);
+        m_discoveryThreads.append(thread);
+    }
+    connect(thread, &QThread::finished, this, [this, thread]() {
+        std::lock_guard<std::mutex> lock(m_discoveryMutex);
+        m_discoveryThreads.removeOne(thread);
+    });
+    connect(thread, &QThread::finished, thread, &QThread::deleteLater);
+    thread->start();
+}
+
 QString HikvisionManager::fetchStreamingChannels(const QString &ip, int httpPort, const QString &username, const QString &password)
 {
     QString cleanIp = ip.trimmed();
@@ -170,6 +329,42 @@ QVariantMap HikvisionManager::proxyCameraCached(const QString &nvrIp, int httpPo
         m_proxyCache.insert(cleanIp, channels);
     }
     return m_proxyCache.value(cleanIp).value(channelId);
+}
+
+QHash<int, QVariantMap> HikvisionManager::fetchProxyChannels(const QString &nvrIp, int httpPort, const QString &username, const QString &password)
+{
+    QHash<int, QVariantMap> channels;
+    QString cleanIp = nvrIp.trimmed();
+    if (cleanIp.contains(QLatin1Char(':')))
+        cleanIp = cleanIp.section(QLatin1Char(':'), 0, 0);
+    if (httpPort <= 0)
+        httpPort = 80;
+    const QByteArray xml = fetchUrl(cleanIp, httpPort, username, password, QStringLiteral("/ISAPI/ContentMgmt/InputProxy/channels"));
+    if (xml.isEmpty())
+        return channels;
+    const QString text = QString::fromUtf8(xml);
+    QRegularExpression blockRx(QStringLiteral("<InputProxyChannel[^>]*>([\\s\\S]*?)</InputProxyChannel>"));
+    QRegularExpression idRx(QStringLiteral("<id>(\\d+)</id>"));
+    QRegularExpression ipRx(QStringLiteral("<ipAddress>([^<]+)</ipAddress>"));
+    QRegularExpression srcRx(QStringLiteral("<srcInputPort>(\\d+)</srcInputPort>"));
+    QRegularExpression mgmtPortRx(QStringLiteral("<managePortNo>(\\d+)</managePortNo>"));
+    auto it = blockRx.globalMatch(text);
+    while (it.hasNext()) {
+        const QString block = it.next().captured(1);
+        const int id = idRx.match(block).captured(1).toInt();
+        if (id <= 0)
+            continue;
+        int sourceChannel = srcRx.match(block).captured(1).toInt();
+        if (sourceChannel <= 0)
+            sourceChannel = 1;
+        const int mgmtPort = mgmtPortRx.match(block).captured(1).toInt();
+        QVariantMap cam;
+        cam.insert(QStringLiteral("ip"), ipRx.match(block).captured(1).trimmed());
+        cam.insert(QStringLiteral("channel"), sourceChannel);
+        cam.insert(QStringLiteral("sdkPort"), mgmtPort > 0 ? mgmtPort : 8000);
+        channels.insert(id, cam);
+    }
+    return channels;
 }
 
 QVariantMap HikvisionManager::proxyCamera(const QString &nvrIp, int httpPort, const QString &username, const QString &password, int channelId)

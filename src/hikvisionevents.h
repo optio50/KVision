@@ -7,6 +7,7 @@
 #include <QSet>
 #include <QObject>
 #include <QString>
+#include <QVariantList>
 #include <QVariantMap>
 #include <QTimer>
 
@@ -57,6 +58,9 @@ public:
     Q_INVOKABLE void setAllowedKinds(const QString &kinds);
     // Which targets may show a frame and be logged: a comma list of human, vehicle, animal, other.
     Q_INVOKABLE void setAllowedTargets(const QString &targets);
+    // Health of every connection, for the background logger's status file: a list of maps with ip, name, open (a
+    // stream is up and data has arrived on it), lastDataMs (ms since 1970, 0 if never), failures, authFailed, unsupported.
+    QVariantList connectionStates() const;
     // How many event pictures are kept for each camera (the newest ones). Older ones are deleted at once.
     Q_INVOKABLE void setMaxPictures(int count);
     // A tile calls this when it shows a detection frame, so logs/Frames.log records what was on screen.
@@ -140,6 +144,7 @@ private:
         QTimer *retry = nullptr;
         QTimer *watchdog = nullptr; // fires when nothing has arrived for too long: a stalled stream is reopened
         qint64 openedMs = 0;        // when the stream was last opened
+        qint64 lastDataMs = 0;      // when anything (an event or a heartbeat) last arrived
         bool unsupported = false;   // the device has no event stream (HTTP 404/405/501): do not ask again
         // The target rectangle (0..1) of the last smart event, waiting for the picture that follows it.
         bool pendingValid = false;  // a picture is expected after the last smart event

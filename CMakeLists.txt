@@ -177,6 +177,9 @@ set(PROJ_FILES
     src/hikvisiontalk.cpp src/hikvisiontalk.h src/talkaudio.h
     src/talkaacencoder.cpp src/talkaacencoder.h
     src/hikvisionevents.cpp src/hikvisionevents.h
+    src/hikvisioneventlogger.cpp src/hikvisioneventlogger.h
+    src/eventservice.cpp src/eventservice.h
+    src/headlessevents.cpp src/headlessevents.h
     src/hikvisionsetupcheck.cpp src/hikvisionsetupcheck.h
     src/mqttonce.cpp src/mqttonce.h
     src/overlaytext.cpp src/overlaytext.h

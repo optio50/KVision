@@ -2350,6 +2350,62 @@ FocusScope {
                             }
 
                             CheckBox {
+                                id: logDetectionsBox
+                                text: qsTr("Keep logging detection events after KVision is closed")
+                                checked: generalSettings.logDetectionEvents
+                                onToggled: {
+                                    generalSettings.logDetectionEvents = checked;
+                                    var err = HikvisionEventLogger.setBackgroundService(checked, Context.config.fileName);
+                                    logDetectionsNote.text = err !== "" ? qsTr("Could not change the background service: %1").arg(err) : "";
+                                    bgStatusTimer.restart();
+                                    logDetectionsStatus.text = HikvisionEventLogger.backgroundStatus(Context.configDirPath());
+                                }
+                                Layout.fillWidth: true
+                            }
+
+                            Text {
+                                text: qsTr("While KVision is open it always logs every configured camera, whether or not it is on screen. With this on, a small background service takes over when KVision closes and steps aside when it opens again. With this off, nothing is logged while KVision is closed. The frame and label in User Interface Settings only control what is drawn on screen; they do not affect the log.")
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            Text {
+                                id: logDetectionsStatus
+                                visible: generalSettings.logDetectionEvents
+                                color: text.indexOf("OK") >= 0 || text.indexOf("standing by") >= 0 ? "#00f5d4" : "#ff9f43"
+                                font.pixelSize: 11
+                                font.bold: true
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            Text {
+                                id: logDetectionsNote
+                                visible: text !== ""
+                                color: "#ff4d4d"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            Timer {
+                                id: bgStatusTimer
+                                interval: 5000
+                                repeat: true
+                                running: generalSettings.logDetectionEvents && logDetectionsBox.visible
+                                triggeredOnStart: true
+                                onTriggered: logDetectionsStatus.text = HikvisionEventLogger.backgroundStatus(Context.configDirPath())
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 1
+                                color: "#2a3540"
+                            }
+
+                            CheckBox {
                                 text: qsTr("LNG_00270")
                                 checked: NvrStatusManager.monitoringEnabled
                                 onCheckedChanged: NvrStatusManager.monitoringEnabled = checked

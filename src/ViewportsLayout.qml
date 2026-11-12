@@ -1465,7 +1465,7 @@ FocusScope {
 
                             ToolTip.visible: hovered
                             ToolTip.delay: 600
-                            ToolTip.text: generalSettings.showTargetIndicator ? qsTr("Show a frame and label on this camera when it detects a human, vehicle or animal") : qsTr("Turn on the detection frame in the settings window first")
+                            ToolTip.text: generalSettings.showTargetIndicator ? qsTr("Show a frame and label on this camera when it detects a human, vehicle or animal (only what is drawn; the detection log is set in General settings)") : qsTr("Turn on the detection frame in the settings window first")
 
                             onHoveredChanged: {
                                 if (hovered) {

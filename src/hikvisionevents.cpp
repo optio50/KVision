@@ -193,6 +193,25 @@ void HikvisionEvents::close(const QString &ip)
     delete c;
 }
 
+QVariantList HikvisionEvents::connectionStates() const
+{
+    QVariantList out;
+    for (auto it = m_conns.constBegin(); it != m_conns.constEnd(); ++it) {
+        const Conn *c = it.value();
+        QVariantMap m;
+        m.insert(QStringLiteral("ip"), c->ip);
+        m.insert(QStringLiteral("name"), c->name.isEmpty() ? c->ip : c->name);
+        m.insert(QStringLiteral("open"), c->reply != nullptr && c->lastDataMs >= c->openedMs && c->lastDataMs > 0);
+        m.insert(QStringLiteral("lastDataMs"), c->lastDataMs);
+        m.insert(QStringLiteral("openedMs"), c->openedMs);
+        m.insert(QStringLiteral("failures"), c->failures);
+        m.insert(QStringLiteral("authFailed"), c->authFailed);
+        m.insert(QStringLiteral("unsupported"), c->unsupported);
+        out.append(m);
+    }
+    return out;
+}
+
 void HikvisionEvents::open(const QString &ip)
 {
     Conn *c = m_conns.value(ip, nullptr);
@@ -227,6 +246,7 @@ void HikvisionEvents::onReadyRead(const QString &ip)
     if (QDateTime::currentMSecsSinceEpoch() - c->openedMs >= kHealthyMs)
         c->failures = 0;
     c->watchdog->start(); // and the stream is alive: start the stall timer again
+    c->lastDataMs = QDateTime::currentMSecsSinceEpoch();
     c->buffer += c->reply->readAll();
     if (c->buffer.size() > kMaxBuffer) {
         c->buffer = c->buffer.right(kMaxBuffer / 2);

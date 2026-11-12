@@ -28,6 +28,55 @@ ColumnLayout {
     property int editingIndex: -1
     property bool isDiscovering: false
 
+    // Flat camera list for the "Unstick event detection" tool.
+    // Each entry: { name, ip, httpPort, user, pass, channelId }
+    property var unstickCameraModel: []
+    property bool unstickBusy: false
+    property string unstickLabel: ""
+
+    // Builds one entry per camera: standalone recorders count as themselves,
+    // NVR recorders expand to one entry per channel.
+    function buildUnstickCameraModel() {
+        var model = [];
+        try {
+            var recs = rootWindow.hikvisionRecordersJson ? JSON.parse(rootWindow.hikvisionRecordersJson) : [];
+            for (var i = 0; i < recs.length; i++) {
+                var rec = recs[i];
+                var ip = rec.ip;
+                var httpP = parseInt(rec.httpPort) || (rec.port == 8000 ? 80 : rec.port) || 80;
+                var user = rec.username || "";
+                var pass = rec.password || "";
+                var cams = rec.cameras || [];
+                if (cams.length <= 1) {
+                    // Standalone camera (recorder with a single channel): shown by
+                    // recorder name, exactly like the "Connected Recorders" list.
+                    model.push({
+                        name: rec.name ? rec.name + " (" + ip + ")" : ip,
+                        ip: ip,
+                        httpPort: httpP,
+                        user: user,
+                        pass: pass,
+                        channelId: cams.length === 1 ? cams[0].channelId : 1
+                    });
+                } else {
+                    for (var j = 0; j < cams.length; j++) {
+                        model.push({
+                            name: (rec.name ? rec.name + " (" + ip + ")" : ip) + " - " + (cams[j].name ? cams[j].name : "Channel " + cams[j].channelId),
+                            ip: ip,
+                            httpPort: httpP,
+                            user: user,
+                            pass: pass,
+                            channelId: cams[j].channelId
+                        });
+                    }
+                }
+            }
+        } catch (e) {
+            console.log("[Hikvision QML] buildUnstickCameraModel failed:", e);
+        }
+        unstickCameraModel = model;
+    }
+
     // ── NvrCamerasWindow Component ──────────────────────────────────────
     // Declared here (outside the Repeater) so its QML creation context
     // belongs to rootPanel, NOT to any Repeater delegate.  When the
@@ -79,12 +128,14 @@ ColumnLayout {
 
     Component.onCompleted: {
         loadRecorders();
+        buildUnstickCameraModel();
     }
 
     Connections {
         target: rootWindow
         function onHikvisionRecordersJsonChanged() {
             rootPanel.loadRecorders();
+            rootPanel.buildUnstickCameraModel();
         }
     }
 
@@ -94,6 +145,21 @@ ColumnLayout {
             var states = Object.assign({}, rootPanel.activeSessionIps);
             states[ip] = loggedIn;
             rootPanel.activeSessionIps = states;
+        }
+
+        function onUnstickProgress(label, text) {
+            if (label !== rootPanel.unstickLabel) return;
+            rootWindow.showNotice(qsTr("LNG_00582") + "\n" + label + "\n" + text, "#00f5d4", 0);
+        }
+
+        function onUnstickFinished(label, result) {
+            if (label !== rootPanel.unstickLabel) return;
+            rootPanel.unstickBusy = false;
+            if (result.indexOf("ok") === 0) {
+                rootWindow.showNotice(qsTr("LNG_00583") + "\n" + label + "\n" + result, "#00ff66", 6000);
+            } else {
+                rootWindow.showNotice(label + "\n" + result, "#ff3333", 10000);
+            }
         }
 
         function onDiscoveryFinished(ip, cameras, success, errorMsg) {
@@ -959,6 +1025,145 @@ ColumnLayout {
                         ToolTip.text: qsTr("LNG_00079")
                     }
                 }
+            }
+        }
+    }
+
+    // ── Troubleshooting: unstick a wedged event-detection push ──────────────────────
+    Frame {
+        Layout.fillWidth: true
+        background: Rectangle {
+            color: "#1c242c"
+            radius: 6
+            border.color: "#2a3540"
+            border.width: 1
+        }
+
+        ColumnLayout {
+            width: parent.width
+            spacing: 8
+
+            Text {
+                text: qsTr("LNG_00580")
+                color: "white"
+                font.pixelSize: 13
+                font.bold: true
+                Layout.fillWidth: true
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                ComboBox {
+                    id: unstickCameraCombo
+                    Layout.fillWidth: true
+                    model: rootPanel.unstickCameraModel
+                    textRole: "name"
+
+                    background: Rectangle {
+                        implicitHeight: 32
+                        color: "#0f151b"
+                        border.color: unstickCameraCombo.activeFocus ? "#ff7a00" : "#2a3540"
+                        border.width: 1
+                        radius: 4
+                    }
+
+                    contentItem: Text {
+                        text: unstickCameraCombo.displayText
+                        color: "white"
+                        font.pixelSize: 11
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 10
+                    }
+
+                    delegate: ItemDelegate {
+                        width: unstickCameraCombo.width
+                        height: 32
+                        contentItem: Text {
+                            text: modelData.name
+                            color: hovered ? "#ff7a00" : "white"
+                            font.pixelSize: 11
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 10
+                        }
+                        background: Rectangle {
+                            color: hovered ? "#2a3540" : "transparent"
+                            border.color: hovered ? "#ff7a00" : "transparent"
+                            border.width: 1
+                            radius: 4
+                        }
+                    }
+
+                    popup: Popup {
+                        y: unstickCameraCombo.height + 2
+                        width: unstickCameraCombo.width
+                        implicitHeight: Math.min(320, unstickCameraCombo.popup.visible ? contentItem.implicitHeight : 0)
+                        padding: 4
+
+                        contentItem: ListView {
+                            clip: true
+                            implicitHeight: contentHeight
+                            model: unstickCameraCombo.popup.visible ? unstickCameraCombo.delegateModel : null
+                            currentIndex: unstickCameraCombo.highlightedIndex
+                        }
+
+                        background: Rectangle {
+                            color: "#0f151b"
+                            border.color: "#ff7a00"
+                            border.width: 1
+                            radius: 6
+                        }
+                    }
+                }
+
+                Button {
+                    id: unstickBtn
+                    text: qsTr("LNG_00581")
+                    enabled: !rootPanel.unstickBusy
+                    Layout.fillHeight: true
+
+                    contentItem: Text {
+                        text: unstickBtn.text
+                        font.bold: true
+                        color: "white"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+
+                    background: Rectangle {
+                        color: unstickBtn.pressed ? "#d66600" : (unstickBtn.hovered ? "#ff8c00" : "#ff7a00")
+                        radius: 4
+                    }
+
+                    onClicked: {
+                        var sel = (unstickCameraCombo.currentIndex >= 0)
+                                  ? rootPanel.unstickCameraModel[unstickCameraCombo.currentIndex]
+                                  : null;
+                        if (!sel) {
+                            rootPanel.statusColor = "#ff3333";
+                            rootPanel.statusMessage = qsTr("LNG_00585");
+                            return;
+                        }
+                        rootPanel.unstickBusy = true;
+                        rootPanel.unstickLabel = sel.name;
+                        rootWindow.showNotice(qsTr("LNG_00582") + "\n" + sel.name, "#00f5d4", 0);
+                        HikvisionManager.unstickEventDetectionAsync(sel.ip, sel.httpPort, sel.user, sel.pass, sel.channelId, sel.name);
+                    }
+
+                    ToolTip.delay: Compact.toolTipDelay
+                    ToolTip.timeout: Compact.toolTipTimeout
+                    ToolTip.visible: unstickBtn.hovered
+                    ToolTip.text: qsTr("LNG_00586")
+                }
+            }
+
+            Text {
+                text: qsTr("LNG_00584")
+                color: "#8898a6"
+                font.pixelSize: 9
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
             }
         }
     }

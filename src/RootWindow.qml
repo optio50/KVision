@@ -135,6 +135,7 @@ ApplicationWindow {
     }
 
     property alias hikvisionRecordersJson: hikvisionSettings.recordersJson
+    onHikvisionRecordersJsonChanged: rootWindow.applyEventLogger()
     property alias layoutRepeater: layoutRepeater
     property alias layoutIndex: stackLayout.currentIndex
     property alias generalSettings: generalSettings
@@ -274,6 +275,10 @@ ApplicationWindow {
         // targets (human,vehicle,animal,other).
         property string targetKinds: "motion,line,intrusion,enter,exit,other"
         property string overlayText: "{}" // JSON: the settings of the MQTT overlay text (Overlay text from MQTT window)
+        // Keep logging after the window is closed (the background service). While the window is open every camera is
+        // always logged, whether or not a tile shows it; the on-screen frame (showTargetIndicator and the right-click
+        // switch) only decides what is drawn.
+        property bool logDetectionEvents: false
         property bool checkSetupAtStart: false // read each camera's detection setup once when KVision starts
         property string targetTargets: "human,vehicle,animal,other"
         property string targetOffCameras: "[]" // JSON list of camera addresses with the indicator switched off
@@ -573,6 +578,10 @@ ApplicationWindow {
             if (diskTargetSource !== "camera" && diskTargetSource !== "recorder") diskTargetSource = "camera";
             if (generalSettings.targetSource !== diskTargetSource) {
                 generalSettings.targetSource = diskTargetSource;
+            }
+            var diskLogDetections = Context.readSetting("", "logDetectionEvents", false);
+            if (generalSettings.logDetectionEvents !== diskLogDetections) {
+                generalSettings.logDetectionEvents = diskLogDetections;
             }
             var diskCheckSetup = Context.readSetting("", "checkSetupAtStart", false);
             if (generalSettings.checkSetupAtStart !== diskCheckSetup) {
@@ -1584,12 +1593,97 @@ ApplicationWindow {
                 ToolTip.text: NvrStatusManager.hasErrors ? qsTr("LNG_00214") : qsTr("LNG_00213")
             }
 
+            Button {
+                id: bgLogButton
+                visible: HikvisionEventLogger.backgroundMonitored
+                Layout.preferredWidth: 30
+                Layout.preferredHeight: 30
+                Layout.alignment: Qt.AlignVCenter
+
+                contentItem: Item {
+                    anchors.fill: parent
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 30
+                        height: 30
+                        radius: 15
+                        color: "#ef4444"
+                        opacity: 0.0
+                        visible: HikvisionEventLogger.backgroundProblem
+
+                        SequentialAnimation on scale {
+                            running: HikvisionEventLogger.backgroundProblem
+                            loops: Animation.Infinite
+                            PropertyAnimation { from: 1.0; to: 2.3; duration: 800; easing.type: Easing.OutQuad }
+                            PropertyAnimation { from: 2.3; to: 1.0; duration: 800; easing.type: Easing.InQuad }
+                        }
+                        SequentialAnimation on opacity {
+                            running: HikvisionEventLogger.backgroundProblem
+                            loops: Animation.Infinite
+                            PropertyAnimation { from: 0.85; to: 0.0; duration: 800; easing.type: Easing.OutQuad }
+                            PropertyAnimation { from: 0.0; to: 0.85; duration: 800; easing.type: Easing.InQuad }
+                        }
+                    }
+
+                    Rectangle {
+                        anchors.centerIn: parent
+                        width: 30
+                        height: 30
+                        radius: 15
+                        color: "#ef4444"
+                        opacity: 0.0
+                        visible: HikvisionEventLogger.backgroundProblem
+
+                        SequentialAnimation on scale {
+                            running: HikvisionEventLogger.backgroundProblem
+                            loops: Animation.Infinite
+                            PropertyAnimation { from: 1.0; to: 1.6; duration: 600; easing.type: Easing.OutQuad }
+                            PropertyAnimation { from: 1.6; to: 1.0; duration: 600; easing.type: Easing.InQuad }
+                        }
+                        SequentialAnimation on opacity {
+                            running: HikvisionEventLogger.backgroundProblem
+                            loops: Animation.Infinite
+                            PropertyAnimation { from: 0.6; to: 0.1; duration: 600; easing.type: Easing.OutQuad }
+                            PropertyAnimation { from: 0.1; to: 0.6; duration: 600; easing.type: Easing.InQuad }
+                        }
+                    }
+
+                    Image {
+                        anchors.centerIn: parent
+                        width: 16
+                        height: 16
+                        sourceSize.width: 16
+                        sourceSize.height: 16
+                        fillMode: Image.PreserveAspectFit
+                        source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23121214' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='22 12 18 12 15 21 9 3 6 12 2 12'></polyline></svg>"
+                    }
+                }
+
+                background: Rectangle {
+                    color: HikvisionEventLogger.backgroundProblem
+                           ? (bgLogButton.pressed ? "#b91c1c" : (bgLogButton.hovered ? "#ef4444" : "#dc2626"))
+                           : (bgLogButton.pressed ? "#15803d" : (bgLogButton.hovered ? "#22c55e" : "#16a34a"))
+                    radius: 15
+                    border.color: HikvisionEventLogger.backgroundProblem ? "#ef4444" : "#22c55e"
+                    border.width: 1
+                }
+
+                onClicked: bgLogMenu.popup(bgLogButton, 0, bgLogButton.height)
+
+                ToolTip.delay: Compact.toolTipDelay
+                ToolTip.timeout: Compact.toolTipTimeout
+                ToolTip.visible: bgLogButton.hovered
+                ToolTip.text: HikvisionEventLogger.backgroundText !== "" ? HikvisionEventLogger.backgroundText
+                              : qsTr("Background detection logging")
+            }
+
             Rectangle {
                 width: 1
                 height: 20
                 color: "#2a3540"
                 Layout.alignment: Qt.AlignVCenter
-                visible: nvrStatusButton.visible
+                visible: nvrStatusButton.visible || bgLogButton.visible
             }
 
             RowLayout {
@@ -1819,12 +1913,14 @@ ApplicationWindow {
         id: topEdgeErrorIndicator
         width: 48
         height: 24
-        x: topToolBar.x + 12 + nvrStatusButton.x + nvrStatusButton.width / 2 - width / 2
+        readonly property bool nvrProblem: NvrStatusManager.monitoringEnabled && NvrStatusManager.hasConfiguredRecorders && NvrStatusManager.hasErrors
+        readonly property Item anchorButton: nvrProblem ? nvrStatusButton : bgLogButton
+        x: topToolBar.x + 12 + anchorButton.x + anchorButton.width / 2 - width / 2
         anchors.top: parent.top
         color: "transparent"
         z: 100000 // On top of everything
 
-        visible: NvrStatusManager.monitoringEnabled && NvrStatusManager.hasConfiguredRecorders && NvrStatusManager.hasErrors
+        visible: nvrProblem || HikvisionEventLogger.backgroundProblem
         opacity: (topToolBar.y < -12) ? 1.0 : 0.0
         Behavior on opacity {
             NumberAnimation { duration: 200 }
@@ -1905,13 +2001,16 @@ ApplicationWindow {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    nvrStatusDialog.open();
+                    if (topEdgeErrorIndicator.nvrProblem)
+                        nvrStatusDialog.open();
+                    else
+                        bgLogMenu.popup(topEdgeErrorIndicator, 0, topEdgeErrorIndicator.height);
                 }
 
                 ToolTip.delay: Compact.toolTipDelay
                 ToolTip.timeout: Compact.toolTipTimeout
                 ToolTip.visible: containsMouse
-                ToolTip.text: qsTr("LNG_00211")
+                ToolTip.text: topEdgeErrorIndicator.nvrProblem ? qsTr("LNG_00211") : HikvisionEventLogger.backgroundText
             }
         }
     }
@@ -2112,6 +2211,14 @@ ApplicationWindow {
         }
     }
 
+    // Keeps the background service in step with the saved setting (it also repairs a moved program path).
+    Timer {
+        id: backgroundServiceTimer
+        interval: 8000
+        repeat: false
+        onTriggered: if (generalSettings.logDetectionEvents) HikvisionEventLogger.ensureBackground(Context.config.fileName)
+    }
+
     function flushSettingsToDisk() {
         if (saveTimer.running) {
             saveTimer.stop();
@@ -2137,6 +2244,7 @@ ApplicationWindow {
         Context.writeSetting("", "targetSource", generalSettings.targetSource);
         Context.writeSetting("", "targetKinds", generalSettings.targetKinds);
         Context.writeSetting("", "overlayText", generalSettings.overlayText);
+        Context.writeSetting("", "logDetectionEvents", generalSettings.logDetectionEvents);
         Context.writeSetting("", "checkSetupAtStart", generalSettings.checkSetupAtStart);
         Context.writeSetting("", "targetTargets", generalSettings.targetTargets);
         Context.writeSetting("", "targetOffCameras", generalSettings.targetOffCameras);
@@ -2232,8 +2340,21 @@ ApplicationWindow {
         HikvisionEvents.setMaxPictures(generalSettings.picturesPerCamera);
     }
 
+    // The logger keeps one watcher on every camera while the log switch is on, independent of the tiles.
+    function applyEventLogger() {
+        if (Context.isAuxiliary)
+            return;
+        // While this window is open it always logs every configured camera. The setting only decides whether the
+        // background service takes over after the window is closed.
+        HikvisionEventLogger.configure(true, rootWindow.hikvisionRecordersJson || "[]",
+                                       generalSettings.targetSource, Context.configDirPath());
+        HikvisionEventLogger.monitorBackground(generalSettings.logDetectionEvents, Context.configDirPath(), Context.config.fileName);
+    }
+
     Connections {
         target: generalSettings
+        onLogDetectionEventsChanged: rootWindow.applyEventLogger()
+        onTargetSourceChanged: rootWindow.applyEventLogger()
         onTargetKindsChanged: rootWindow.applyDetectionFilters()
         onTargetTargetsChanged: rootWindow.applyDetectionFilters()
         onPicturesPerCameraChanged: rootWindow.applyDetectionFilters()
@@ -2242,6 +2363,9 @@ ApplicationWindow {
     Component.onCompleted: {
         stackLayout.visible = true;
         rootWindow.applyDetectionFilters();
+        rootWindow.applyEventLogger();
+        if (!Context.isAuxiliary && generalSettings.logDetectionEvents)
+            backgroundServiceTimer.start();
         if (!Context.isAuxiliary) {
             try { OverlayText.apply(JSON.parse(generalSettings.overlayText || "{}")); } catch (e) {}
         }
@@ -3180,6 +3304,90 @@ ApplicationWindow {
                    (!Context.config.fullScreen && viewSettings.hideCursorWhenWindowed))
         autoHideTimeout: 3000
         anchors.fill: parent
+    }
+
+    // Click menu for the background logging icon: says what is wrong and offers a restart.
+    Menu {
+        id: bgLogMenu
+        MenuItem {
+            enabled: false
+            text: HikvisionEventLogger.backgroundText !== "" ? HikvisionEventLogger.backgroundText : qsTr("Background logging: checking...")
+        }
+        MenuSeparator {}
+        MenuItem {
+            text: qsTr("Restart background logging")
+            enabled: !HikvisionEventLogger.backgroundRestarting
+            onTriggered: {
+                rootWindow.showNotice(qsTr("Restarting background logging..."), "#00f5d4", 0);
+                HikvisionEventLogger.restartBackground(Context.config.fileName);
+            }
+        }
+    }
+
+    Connections {
+        target: HikvisionEventLogger
+        onBackgroundAutoRestarted: {
+            if (error === "")
+                rootWindow.showNotice(qsTr("Background logging had stopped and was restarted automatically"), "#ff9f43", 8000);
+            else
+                rootWindow.showNotice(qsTr("Background logging is down and could not be restarted: %1").arg(error), "#ff3333", 10000);
+        }
+        onBackgroundRestartFinished: {
+            if (error === "")
+                rootWindow.showNotice(qsTr("Background logging restarted"), "#00ff66", 5000);
+            else
+                rootWindow.showNotice(qsTr("Could not restart background logging: %1").arg(error), "#ff3333", 10000);
+        }
+    }
+
+    // Small status popup for long-running actions. holdMs <= 0 keeps it up until replaced.
+    function showNotice(text, color, holdMs) {
+        noticeText.text = text;
+        noticeText.color = color;
+        notice.border.color = color;
+        notice.opacity = 1.0;
+        if (holdMs > 0) {
+            noticeHideTimer.interval = holdMs;
+            noticeHideTimer.restart();
+        } else {
+            noticeHideTimer.stop();
+        }
+    }
+
+    Timer {
+        id: noticeHideTimer
+        onTriggered: notice.opacity = 0.0
+    }
+
+    Rectangle {
+        id: notice
+        z: 1000001
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 76
+        width: Math.min(parent.width - 40, noticeText.implicitWidth + 36)
+        height: noticeText.implicitHeight + 18
+        radius: 10
+        color: "#f2121214"
+        border.color: "#00f5d4"
+        border.width: 1
+        opacity: 0.0
+        visible: opacity > 0.01
+
+        Behavior on opacity {
+            NumberAnimation { duration: 160 }
+        }
+
+        Text {
+            id: noticeText
+            anchors.centerIn: parent
+            width: Math.min(implicitWidth, notice.parent.width - 76)
+            wrapMode: Text.Wrap
+            horizontalAlignment: Text.AlignHCenter
+            color: "#00f5d4"
+            font.bold: true
+            font.pixelSize: 12
+        }
     }
 
     Rectangle {

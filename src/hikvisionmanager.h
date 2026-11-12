@@ -52,6 +52,20 @@ public:
     Q_INVOKABLE QVariantMap proxyCameraCached(const QString &nvrIp, int httpPort, const QString &username, const QString &password, int channelId);
     Q_INVOKABLE QVariantMap proxyCamera(const QString &nvrIp, int httpPort, const QString &username, const QString &password, int channelId);
 
+    // Every channel of a recorder with the camera behind it (channel -> {ip, channel, sdkPort}). Keeps no state,
+    // so it is safe to call from any thread; it blocks while it talks to the recorder. Empty on failure.
+    static QHash<int, QVariantMap> fetchProxyChannels(const QString &nvrIp, int httpPort, const QString &username, const QString &password);
+
+    // Unstick a camera whose LAN event-push dispatcher has wedged (accepts connections,
+    // heartbeats, but delivers zero detection events). Toggles the "center" (Surveillance
+    // Center / LAN push) notification method off and back on for every event trigger of the
+    // given channel (motion, line crossing, intrusion, ...), restoring the original config.
+    // Returns "ok (N trigger(s) reset)" or an error/warning string.
+    // Blocking worker; emits unstickProgress() while it runs. Use the async variant from the UI.
+    QString unstickEventDetection(const QString &ip, int httpPort, const QString &username, const QString &password, int channelId, const QString &label);
+    // Runs unstickEventDetection() on a background thread; emits unstickProgress()/unstickFinished().
+    Q_INVOKABLE void unstickEventDetectionAsync(const QString &ip, int httpPort, const QString &username, const QString &password, int channelId, const QString &label);
+
     // Shared session management for playback players
     struct SharedSession {
         LONG lUserID = -1;
@@ -69,6 +83,8 @@ public:
 signals:
     void sessionStatusChanged(const QString &ip, bool loggedIn);
     void discoveryFinished(const QString &ip, const QVariantList &cameras, bool success, const QString &errorMsg);
+    void unstickProgress(const QString &label, const QString &text);
+    void unstickFinished(const QString &label, const QString &result);
 
 private:
     struct SessionInfo {

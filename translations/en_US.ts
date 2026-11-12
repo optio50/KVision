@@ -706,6 +706,41 @@
             <source>LNG_00534</source>
             <translation>RTSP Port (554)</translation>
         </message>
+        <message>
+            <location filename="../src/NvrSettingsPanel.qml" line="1029" />
+            <source>LNG_00580</source>
+            <translation>Troubleshooting</translation>
+        </message>
+        <message>
+            <location filename="../src/NvrSettingsPanel.qml" line="1104" />
+            <source>LNG_00581</source>
+            <translation>Unstick event detection</translation>
+        </message>
+        <message>
+            <location filename="../src/NvrSettingsPanel.qml" line="1129" />
+            <source>LNG_00582</source>
+            <translation>Unsticking...</translation>
+        </message>
+        <message>
+            <location filename="../src/NvrSettingsPanel.qml" line="1133" />
+            <source>LNG_00583</source>
+            <translation>Done — event push restored</translation>
+        </message>
+        <message>
+            <location filename="../src/NvrSettingsPanel.qml" line="1148" />
+            <source>LNG_00584</source>
+            <translation>Undoes the "event push to a channel" setting that can wedge after camera reinstallation or network issues. Requires Hikvision firmware version supporting this feature.</translation>
+        </message>
+        <message>
+            <location filename="../src/NvrSettingsPanel.qml" line="1125" />
+            <source>LNG_00585</source>
+            <translation>Select a camera first</translation>
+        </message>
+        <message>
+            <location filename="../src/NvrSettingsPanel.qml" line="1143" />
+            <source>LNG_00586</source>
+            <translation>Unstick event detection (tooltip)</translation>
+        </message>
     </context>
     <context>
         <name>NvrStatusDialog</name>
