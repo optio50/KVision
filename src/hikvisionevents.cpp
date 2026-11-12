@@ -697,13 +697,16 @@ void HikvisionEvents::logFrame(const QString &ip, const QString &text, int tile,
 }
 
 QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &configDir, const QString &filterIp,
-                                            qint64 fromMs, qint64 toMs, const QString &target, bool includeMotion) const
+                                            qint64 fromMs, qint64 toMs, const QString &target, const QString &kinds) const
 {
     QVariantMap result;
     QVariantList entries;
     bool more = false;
     const QString wantTarget = target.trimmed().toLower();
-    const bool filtering = !filterIp.isEmpty() || fromMs > 0 || toMs > 0 || !wantTarget.isEmpty() || !includeMotion;
+    // No type chosen means every kind of smart event; plain labelled motion is then left out, as it has no picture and
+    // far outnumbers the rest. Choosing "Motion" lists it.
+    const QStringList wantKinds = splitList(kinds);
+    const bool filtering = true;
     int total = 0;
     QFile f(configDir + QStringLiteral("/logs/Detection.log"));
     if (skip < 0)
@@ -782,7 +785,8 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
                 const qint64 when2 = e.value(QStringLiteral("epochMs")).toLongLong();
                 if ((fromMs > 0 && when2 < fromMs) || (toMs > 0 && when2 > toMs))
                     continue;
-                if (!includeMotion && e.value(QStringLiteral("kind")).toString() == QLatin1String("Motion"))
+                const QString kindNow = e.value(QStringLiteral("kind")).toString();
+                if (wantKinds.isEmpty() ? kindNow == QLatin1String("Motion") : !wantKinds.contains(kindNow))
                     continue;
                 if (!wantTarget.isEmpty()) {
                     QString tg = e.value(QStringLiteral("target")).toString().toLower();
@@ -1011,4 +1015,12 @@ QVariantList HikvisionEvents::logEventsBetween(const QString &recorderIp, int ch
         out.append(e);
     }
     return out;
+}
+
+bool HikvisionEvents::copyPicture(const QString &fromPath, const QString &toPath) const
+{
+    if (fromPath.isEmpty() || toPath.isEmpty() || !QFile::exists(fromPath))
+        return false;
+    QFile::remove(toPath);
+    return QFile::copy(fromPath, toPath);
 }

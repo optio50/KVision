@@ -4,6 +4,7 @@ import QtQuick.Layouts 1.11
 import QtQuick.Controls 2.4
 import CCTV_Viewer.Core 1.0
 import CCTV_Viewer.Hikvision 1.0
+import CCTV_Viewer.Utils 1.0
 
 // A small window that shows the newest entries of the detection log (logs/Detection.log), ten at a
 // time, with a button to load older ones. Opened from a tile's right-click menu.
@@ -47,6 +48,18 @@ Window {
         { "label": qsTr("Other"), "key": "other" }
     ]
 
+    // The types to pick from. "kinds" holds the words the log uses for them, joined with commas.
+    readonly property var kindChoices: [
+        { "label": qsTr("All types"), "kinds": "" },
+        { "label": qsTr("Line crossing"), "kinds": "Line crossing" },
+        { "label": qsTr("Intrusion"), "kinds": "Intrusion" },
+        { "label": qsTr("Region entrance"), "kinds": "Region entrance" },
+        { "label": qsTr("Region exit"), "kinds": "Region exit" },
+        { "label": qsTr("Tracking"), "kinds": "Tracking" },
+        { "label": qsTr("Motion"), "kinds": "Motion" },
+        { "label": qsTr("Other smart events"), "kinds": "Loitering,People gathering,Rapid movement,Parking,Unattended object,Object removed" }
+    ]
+
     function rangeFromMs() {
         var h = rangeBox.currentIndex >= 0 ? logWin.rangeChoices[rangeBox.currentIndex].hours : 0;
         var now = new Date();
@@ -72,7 +85,8 @@ Window {
         var r = HikvisionEvents.readDetections(skip, logWin.pageSize, Context.configDirPath(),
                                                onlyThisCamera.checked ? logWin.cameraIp : "",
                                                logWin.rangeFromMs(), logWin.rangeToMs(),
-                                               logWin.targetChoices[targetBox.currentIndex].key, motionBox.checked);
+                                               logWin.targetChoices[targetBox.currentIndex].key,
+                                               logWin.kindChoices[kindBox.currentIndex].kinds);
         logWin.total = r.total;
         var list = reset ? [] : logWin.entries.slice();
         for (var i = 0; i < r.entries.length; ++i)
@@ -115,7 +129,7 @@ Window {
             if (e.raw === entry.raw && e.picture === entry.picture)
                 start = items.length;
             for (var k = 0; k < pics.length; ++k)
-                items.push({ "path": pics[k],
+                items.push({ "path": pics[k], "epochMs": e.epochMs + k * 1000, "camera": e.camera, "channel": e.channel, "kind": e.kind,
                              "caption": e.time + "   " + e.target + "   " + e.kind + "   " + e.camera + (pics.length > 1 ? "   (" + (k + 1) + "/" + pics.length + ")" : "") });
         }
         // Nothing else refers to a window created with no parent, and the garbage collector (which the app runs after
@@ -151,6 +165,33 @@ Window {
             flags: Qt.Window | Qt.WindowStaysOnTopHint
             onClosing: { pv.closed(); pv.destroy() }
 
+            // Saves the picture on screen in the snapshot folder (Settings), like the snapshot button of a live tile: a folder
+            // for the day, and a name made of the channel, camera, date and time. The kind of event is added to the name so
+            // two events in the same second keep their own file.
+            function saveSnapshot() {
+                if (pv.items.length === 0)
+                    return;
+                var it = pv.items[pv.shown];
+                var when = it.epochMs > 0 ? new Date(it.epochMs) : new Date();
+                var path = Utils.snapshotSavePath("", it.channel, it.camera, when);
+                var tag = String(it.kind || "").replace(/[^A-Za-z0-9]/g, "");
+                if (tag !== "")
+                    path = path.replace(/(\.[^.\/]+)$/, "_" + tag + "$1");
+                if (HikvisionEvents.copyPicture(it.path, path)) {
+                    saved.filePath = path;
+                    saved.open();
+                } else {
+                    saved.filePath = qsTr("(the picture could not be saved)");
+                    saved.open();
+                }
+            }
+
+            SnapshotSavedDialog {
+                id: saved
+                z: 99
+            }
+
+            Shortcut { sequence: "S"; onActivated: pv.saveSnapshot() }
             Shortcut { sequence: "Left"; enabled: pv.shown > 0; onActivated: pv.shown-- }
             Shortcut { sequence: "Right"; enabled: pv.shown < pv.items.length - 1; onActivated: pv.shown++ }
 
@@ -168,15 +209,25 @@ Window {
             }
             Row {
                 id: stepRow
-                visible: pv.items.length > 1
                 anchors.top: parent.top
                 anchors.right: parent.right
                 anchors.margins: 6
                 spacing: 6
-                Button { text: "\u2039"; enabled: pv.shown > 0; onClicked: pv.shown--
+                Button {
+                    id: snapBtn
+                    implicitWidth: 34
+                    onClicked: pv.saveSnapshot()
+                    ToolTip.visible: hovered; ToolTip.delay: 500; ToolTip.text: qsTr("Save this picture in the snapshot folder (S key)")
+                    contentItem: Image {
+                        sourceSize: Qt.size(20, 20)
+                        fillMode: Image.PreserveAspectFit
+                        source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + (snapBtn.hovered ? "%2300f5d4" : "%23ffffff") + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'></path><circle cx='12' cy='13' r='4'></circle></svg>"
+                    }
+                }
+                Button { visible: pv.items.length > 1; text: "\u2039"; enabled: pv.shown > 0; onClicked: pv.shown--
                          ToolTip.visible: hovered; ToolTip.delay: 500; ToolTip.text: qsTr("Older picture (Left key)") }
-                Text { text: (pv.shown + 1) + " / " + pv.items.length; color: "#cccccc"; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
-                Button { text: "\u203a"; enabled: pv.shown < pv.items.length - 1; onClicked: pv.shown++
+                Text { visible: pv.items.length > 1; text: (pv.shown + 1) + " / " + pv.items.length; color: "#cccccc"; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
+                Button { visible: pv.items.length > 1; text: "\u203a"; enabled: pv.shown < pv.items.length - 1; onClicked: pv.shown++
                          ToolTip.visible: hovered; ToolTip.delay: 500; ToolTip.text: qsTr("Next newest picture (Right key)") }
             }
             Image {
@@ -257,21 +308,15 @@ Window {
                 ToolTip.text: qsTr("Only events whose target is this")
             }
 
-            CheckBox {
-                id: motionBox
-                checked: false
-                text: qsTr("Plain motion")
-                onToggled: logWin.load(true)
+            ComboBox {
+                id: kindBox
+                model: logWin.kindChoices.map(function(c) { return c.label; })
+                currentIndex: 0
+                implicitWidth: 160
+                onActivated: logWin.load(true)
                 ToolTip.visible: hovered
                 ToolTip.delay: 600
-                ToolTip.text: qsTr("Also list labelled motion reports (no picture, and many more of them). Off: line, intrusion, entrance, exit and tracking only")
-                contentItem: Text {
-                    leftPadding: motionBox.indicator.width + 6
-                    text: motionBox.text
-                    color: "#eeeeee"
-                    font.pixelSize: 12
-                    verticalAlignment: Text.AlignVCenter
-                }
+                ToolTip.text: qsTr("Only this type of event. All types leaves out plain labelled motion, which has no picture and is far more numerous; choose Motion to list it")
             }
 
             Item { Layout.fillWidth: true }

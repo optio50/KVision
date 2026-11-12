@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Save the picture you are looking at.** The Detection events picture viewer has a camera button (or press S) that
+  saves the picture on screen in the snapshot folder from the settings, in a folder for the day, named like the
+  snapshots of a live tile (channel, camera, date and time) with the kind of event added, for example
+  `14_NVR_Ch._14_PTZ_2026-11-11_143337_Linecrossing.jpg`. The same "Snapshot saved" box with a folder button appears.
+  The time in the name is the event's time from the log.
+* **Search the detection events by type.** A new type list in the Detection events window picks line crossing,
+  intrusion, region entrance, region exit, tracking, motion or the other smart events, and it works together with the
+  time range and the target. It replaces the "Plain motion" box: "All types" still leaves out plain motion, and choosing
+  "Motion" lists it.
 * **Search the detection events by time and target, across all cameras.** The Detection events window has a time range
   (last hour, 3, 12 or 24 hours, today, yesterday, last 7 days or all time), a target (human, vehicle, animal, other)
   and a "Plain motion" box, and shows how many events match, for example "124 events". The list is one list across all

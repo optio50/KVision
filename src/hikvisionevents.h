@@ -72,12 +72,16 @@ public:
     // between two moments (milliseconds since 1970, this computer's local time as the log is written), as a list of
     // {startTime, endTime, kind} with kind line, intrusion, enter, exit or other. Plain motion and tracking lines are
     // left out. Used to draw what the camera reported on a playback timeline where the recorder saved less.
+    // Copies a saved picture to another file (an existing file there is replaced) and returns true when it worked. Used to
+    // save the picture on screen in the snapshot folder.
+    Q_INVOKABLE bool copyPicture(const QString &fromPath, const QString &toPath) const;
     Q_INVOKABLE QVariantList logEventsBetween(const QString &recorderIp, int channel, qint64 startMs, qint64 endMs, const QString &configDir) const;
     // fromMs and toMs (milliseconds since 1970, 0 = no limit) limit the entries to a time range, target to one of human,
-    // vehicle, animal or other (empty = all), and includeMotion false leaves out plain labelled motion lines. When any
+    // vehicle, animal or other (empty = all), and kinds is a list of the log's words for the type of event (such as
+    // "Line crossing,Intrusion"; empty = every kind except plain labelled Motion). When any
     // filter is used the whole range is read and the result also carries "total", the number of matching entries.
     Q_INVOKABLE QVariantMap readDetections(int skip, int count, const QString &configDir, const QString &filterIp = QString(),
-                                           qint64 fromMs = 0, qint64 toMs = 0, const QString &target = QString(), bool includeMotion = true) const;
+                                           qint64 fromMs = 0, qint64 toMs = 0, const QString &target = QString(), const QString &kinds = QString()) const;
     // What the newest event picture from a camera showed: a map with state ("on" if the picture carries the red
     // target frame, "off" if the camera sent a clean picture, empty if none has been seen since KVision started)
     // and time. address is the camera's own address. The picture is only looked at, never kept.
