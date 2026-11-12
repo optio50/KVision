@@ -265,6 +265,7 @@ The same changes as the list above, in more detail. The original application alr
   * **CPU & RAM**: Total system CPU load (%) and the memory consumed by `kvision` and its download subprocesses.
   * **GPU & VRAM**: Core graphics card utilization and video memory usage (real-time XML parsing of `nvidia-smi` data, filtering only relevant process allocations).
   * **Network Bandwidth**: Live download speed aggregated from all active video players and download subprocesses.
+  * **History**: one sample a second is kept in a rolling window (5, 15, 30 or 60 minutes, switched with the small button in the panel's title bar) even while the panel is closed, so the charts open with the recent past instead of starting from zero; longer windows are averaged down to the charts' slots.
 * **Pin Feature**: Click the pin icon to keep the stats panel locked open, or let it slide away automatically.
 * **Stutter-Free Video Rendering**: Calculations are performed on a separate thread (`StatsWorker`) to guarantee zero frames are dropped during 60 FPS video rendering.
 

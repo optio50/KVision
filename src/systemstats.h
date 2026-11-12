@@ -8,6 +8,7 @@
 #include <atomic>
 #include <QElapsedTimer>
 #include <QThread>
+#include <QVariant>
 
 class StatsWorker : public QObject
 {
@@ -53,6 +54,19 @@ private:
     std::atomic<bool> m_uiActive{false};
 };
 
+// One point of the rolling history the statistics panel keeps. The worker
+// delivers roughly one a second; the ring below keeps the last
+// historyMinutes minutes of them, so the panel can be opened with a past
+// instead of starting from zero.
+struct StatsSample {
+    qint64 timestampMs = 0;
+    double cpu = 0.0;   // per cent
+    double ram = 0.0;   // MiB
+    double gpu = 0.0;   // per cent
+    double vram = 0.0;  // MiB
+    double net = 0.0;   // Mbps
+};
+
 class SystemStats : public QObject
 {
     Q_OBJECT
@@ -62,6 +76,7 @@ class SystemStats : public QObject
     Q_PROPERTY(double ramUsage READ ramUsage NOTIFY statsChanged)
     Q_PROPERTY(double vramUsage READ vramUsage NOTIFY statsChanged)
     Q_PROPERTY(double netUsage READ netUsage NOTIFY statsChanged)
+    Q_PROPERTY(int historyMinutes READ historyMinutes WRITE setHistoryMinutes NOTIFY historyMinutesChanged)
 
 public:
     explicit SystemStats(QObject *parent = nullptr);
@@ -73,23 +88,39 @@ public:
     double vramUsage() const { return m_vramUsage; }
     double netUsage() const { return m_netUsage; }
 
+    int historyMinutes() const { return m_historyMinutes; }
+    void setHistoryMinutes(int minutes);
+
+    // The kept history, oldest sample first, decimated down to maxPoints by
+    // averaging bins, so a whole window fits the charts' fixed slot count.
+    Q_INVOKABLE QVariantList historySnapshot(const QString &metric, int maxPoints) const;
+
     bool active() const;
     void setActive(bool active);
 
 signals:
     void activeChanged();
     void statsChanged();
+    void historyMinutesChanged();
 
 private slots:
     void onWorkDone(double cpu, double gpu, double ram, double vram, double net);
 
 private:
+    void appendHistory(const StatsSample &sample);
+
     double m_cpuUsage = 0.0;
     double m_gpuUsage = 0.0;
     double m_ramUsage = 0.0;
     double m_vramUsage = 0.0;
     double m_netUsage = 0.0;
     bool m_active = false;
+
+    // The rolling window of collected samples (see StatsSample).
+    int m_historyMinutes = 0;
+    QVector<StatsSample> m_history; // ring; one slot per second of the chosen window
+    int m_historyHead = 0;          // where the next sample is written
+    int m_historyCount = 0;         // kept samples; grows up to the ring's size
 
     QTimer *m_timer;
     QThread *m_workerThread;

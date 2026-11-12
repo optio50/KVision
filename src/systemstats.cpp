@@ -1,4 +1,5 @@
 #include "systemstats.h"
+#include "context.h"
 #include "qmlav/src/qmlavdemuxer.h"
 #include <QDir>
 #include <QFile>
@@ -8,6 +9,8 @@
 #include <QFileInfo>
 #include <QRegularExpression>
 #include <QLibrary>
+#include <QSettings>
+#include <QDateTime>
 #include <cstring>
 #include <unistd.h>
 #include <sys/types.h>
@@ -166,10 +169,6 @@ void StatsWorker::doWork()
     m_pidCacheTicks--;
 
     QVector<qint64> pids = m_cachedPids;
-    qint64 selfPid = getpid();
-
-    bool active = m_uiActive.load(std::memory_order_relaxed);
-    const QVector<qint64> targetPids = active ? pids : QVector<qint64>{selfPid};
 
     double cpu = 0.0;
     double ram = 0.0;
@@ -177,9 +176,12 @@ void StatsWorker::doWork()
     double vram = 0.0;
     double net = 0.0;
 
+    // Full fidelity at all times: while the panel is closed the history buffer
+    // collects the same numbers an open panel would show, so the past it keeps
+    // is not a downgraded view of what happened.
     calculateCpuAndRam(pids, cpu, ram);
-    calculateGpuAndVram(targetPids, gpu, vram);
-    calculateNetUsage(targetPids, net);
+    calculateGpuAndVram(pids, gpu, vram);
+    calculateNetUsage(pids, net);
 
     m_lastCpu = cpu;
     m_lastGpu = gpu;
@@ -187,9 +189,9 @@ void StatsWorker::doWork()
     m_lastVram = vram;
     m_lastNet = net;
 
-    if (active) {
-        emit workDone(cpu, gpu, ram, vram, net);
-    }
+    // Always emit: the rolling buffer in SystemStats gathers the samples even
+    // while the panel is closed.
+    emit workDone(cpu, gpu, ram, vram, net);
 }
 
 void StatsWorker::emitLatest()
@@ -200,6 +202,15 @@ void StatsWorker::emitLatest()
 SystemStats::SystemStats(QObject *parent)
     : QObject(parent)
 {
+    // The history window is a saved setting so every KVision process (the
+    // main window and the auxiliary ones) starts with the same length. Set
+    // before anything else so the ring exists before the first sample arrives.
+    {
+        QSettings settings(Context::config() ? Context::config()->fileName() : QSettings().fileName(),
+                           QSettings::IniFormat);
+        setHistoryMinutes(settings.value("statsHistoryMinutes", 15).toInt());
+    }
+
     m_worker = new StatsWorker();
     m_workerThread = new QThread(this);
     m_worker->moveToThread(m_workerThread);
@@ -228,6 +239,16 @@ void SystemStats::onWorkDone(double cpu, double gpu, double ram, double vram, do
     m_ramUsage = ram;
     m_vramUsage = vram;
     m_netUsage = net;
+
+    StatsSample sample;
+    sample.timestampMs = QDateTime::currentMSecsSinceEpoch();
+    sample.cpu = cpu;
+    sample.ram = ram;
+    sample.gpu = gpu;
+    sample.vram = vram;
+    sample.net = net;
+    appendHistory(sample);
+
     emit statsChanged();
 }
 
@@ -253,6 +274,79 @@ void SystemStats::setActive(bool active)
         emit statsChanged();
     }
     emit activeChanged();
+}
+
+static double sampleMetric(const StatsSample &s, const QString &metric)
+{
+    if (metric == QLatin1String("cpu"))
+        return s.cpu;
+    if (metric == QLatin1String("ram"))
+        return s.ram;
+    if (metric == QLatin1String("gpu"))
+        return s.gpu;
+    if (metric == QLatin1String("vram"))
+        return s.vram;
+    if (metric == QLatin1String("net"))
+        return s.net;
+    return 0.0;
+}
+
+void SystemStats::setHistoryMinutes(int minutes)
+{
+    minutes = qMax(1, minutes);
+    if (minutes == m_historyMinutes)
+        return;
+
+    // Move the newest samples that still fit into the new ring.
+    const int newSize = minutes * 60;
+    QVector<StatsSample> next(newSize);
+    const int keep = qMin(m_historyCount, newSize);
+    const int oldSize = m_history.size();
+    for (int i = 0; i < keep && oldSize > 0; ++i) {
+        const int src = (m_historyHead - keep + i + oldSize) % oldSize;
+        next[i] = m_history[src];
+    }
+    m_history = next;
+    m_historyHead = keep % newSize;
+    m_historyCount = keep;
+    m_historyMinutes = minutes;
+    emit historyMinutesChanged();
+}
+
+void SystemStats::appendHistory(const StatsSample &sample)
+{
+    if (m_history.isEmpty())
+        return;
+    m_history[m_historyHead] = sample;
+    m_historyHead = (m_historyHead + 1) % m_history.size();
+    m_historyCount = qMin(m_historyCount + 1, m_history.size());
+}
+
+QVariantList SystemStats::historySnapshot(const QString &metric, int maxPoints) const
+{
+    QVariantList out;
+    const int total = m_historyCount;
+    const int size = m_history.size();
+    if (total <= 0 || size <= 0)
+        return out;
+
+    // One averaged point per bin; bins are at least one sample wide.
+    const int pts = qBound(1, maxPoints, total);
+    const int start = (m_historyHead - total + size) % size;
+    for (int p = 0; p < pts; ++p) {
+        const qint64 b0 = (qint64)p * total / pts;
+        const qint64 b1 = (qint64)(p + 1) * total / pts;
+        const int count = int(b1 - b0);
+        if (count > 0) {
+            double sum = 0.0;
+            for (qint64 i = b0; i < b1; ++i)
+                sum += sampleMetric(m_history[(start + int(i)) % size], metric);
+            out.append(sum / count);
+        } else {
+            out.append(sampleMetric(m_history[(start + int(b0)) % size], metric));
+        }
+    }
+    return out;
 }
 
 QVector<qint64> StatsWorker::getProgramPids()

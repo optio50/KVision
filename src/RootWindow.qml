@@ -286,6 +286,10 @@ ApplicationWindow {
         property int playbackTimelineHours: 2
         property bool enableDiagnosticLogs: false
         property bool confirmOnClose: true
+        // The statistics panel's history window, in minutes. Saved here, read
+        // by every KVision process when it starts, changed from the panel.
+        property int statsHistoryMinutes: 15
+        onStatsHistoryMinutesChanged: SystemStats.historyMinutes = statsHistoryMinutes
     }
 
     Settings {
@@ -2337,26 +2341,38 @@ ApplicationWindow {
         property var gpuHistory: []
         property var netHistory: []
 
-        function resetData() {
-            var arr = [];
-            for (var i = 0; i < 360; ++i) arr.push(0);
-            statsPanel.cpuHistory = arr;
-            statsPanel.gpuHistory = arr;
-            statsPanel.netHistory = arr;
+        // Fills the charts from the history SystemStats collected while the
+        // panel was closed, so it opens with the whole window instead of from
+        // zero. Longer windows are averaged down to the charts' 360 slots.
+        function seedHistory() {
+            statsPanel.cpuHistory = SystemStats.historySnapshot("cpu", 360);
+            statsPanel.gpuHistory = SystemStats.historySnapshot("gpu", 360);
+            statsPanel.netHistory = SystemStats.historySnapshot("net", 360);
             cpuCanvas.requestPaint();
             gpuCanvas.requestPaint();
             netCanvas.requestPaint();
         }
 
+        // The rolling buffer lives in SystemStats, so the QML arrays can be
+        // dropped while the panel is closed; they are reseeded when it opens.
+        function clearHistory() {
+            statsPanel.cpuHistory = [];
+            statsPanel.gpuHistory = [];
+            statsPanel.netHistory = [];
+        }
+
         Component.onCompleted: {
-            resetData();
             SystemStats.active = visible;
+            if (visible)
+                seedHistory();
         }
 
         onVisibleChanged: {
             SystemStats.active = visible;
-            if (!visible) {
-                resetData();
+            if (visible) {
+                seedHistory();
+            } else {
+                clearHistory();
                 gc(); // Optionally trigger garbage collection to free memory immediately
             }
         }
@@ -2364,6 +2380,9 @@ ApplicationWindow {
         Connections {
             target: SystemStats
             function onStatsChanged() {
+                if (!statsPanel.visible)
+                    return; // the history is kept in SystemStats while the panel is closed
+
                 var cpu = SystemStats.cpuUsage;
                 var gpu = SystemStats.gpuUsage;
                 var net = SystemStats.netUsage;
@@ -2387,6 +2406,13 @@ ApplicationWindow {
                 gpuCanvas.requestPaint();
                 netCanvas.requestPaint();
             }
+
+            // A new window length (chosen with the small button in the title
+            // bar) redraws the charts from the buffer right away.
+            function onHistoryMinutesChanged() {
+                if (statsPanel.visible)
+                    statsPanel.seedHistory();
+            }
         }
 
         ColumnLayout {
@@ -2403,6 +2429,48 @@ ApplicationWindow {
                     font.bold: true
                     font.pixelSize: 13
                     Layout.fillWidth: true
+                }
+
+                // History window: click to step through 5, 15, 30 and 60
+                // minutes. Saved with the settings; the charts redraw from
+                // the buffer the moment it changes.
+                Rectangle {
+                    id: historyLengthButton
+                    width: historyLengthText.implicitWidth + 16
+                    height: 22
+                    radius: 4
+                    color: historyLengthArea.pressed ? "#2a3a4a" : (historyLengthArea.containsMouse ? "#22303d" : "#1a242d")
+                    border.width: 1
+                    border.color: historyLengthArea.containsMouse ? "#00ff66" : "#2a3540"
+
+                    Text {
+                        id: historyLengthText
+                        anchors.centerIn: parent
+                        text: SystemStats.historyMinutes + " min"
+                        color: "#c8d2da"
+                        font.pixelSize: 11
+                    }
+
+                    MouseArea {
+                        id: historyLengthArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            var options = [5, 15, 30, 60];
+                            var cur = SystemStats.historyMinutes;
+                            var next = options[0];
+                            for (var i = 0; i < options.length; ++i) {
+                                if (cur >= options[i])
+                                    next = options[(i + 1) % options.length];
+                            }
+                            generalSettings.statsHistoryMinutes = next;
+                        }
+                        ToolTip.delay: Compact.toolTipDelay
+                        ToolTip.timeout: Compact.toolTipTimeout
+                        ToolTip.visible: containsMouse
+                        ToolTip.text: qsTr("History length: how long the charts remember, even while the panel is closed. Click to switch between 5, 15, 30 and 60 minutes.")
+                    }
                 }
 
                 Image {

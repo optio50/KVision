@@ -15,6 +15,12 @@ All notable changes to this project will be documented in this file.
 * **Open the camera's web page from the setup check.** Each camera's card in the detection setup check, once opened, has
   an *Open camera web page* button, the same as the tile's right-click *Open camera web UI*. For a camera behind a
   recorder it opens the camera's own address, as found by the check.
+* **The statistics panel keeps its history.** The CPU, GPU and network charts used to start from zero every time the
+  panel was opened, and everything collected while it was closed was thrown away. The samples (one a second, the same
+  full numbers an open panel shows) are now kept in a rolling buffer, and the charts open with the whole window drawn.
+* **History length.** A small button in the panel's title bar steps the kept window through 5, 15, 30 and 60 minutes;
+  the choice is saved with the settings, a longer window is averaged down to the charts' slots, and closing the panel
+  no longer clears it.
 
 ## [3.5.0] - 2026-11-12
 
