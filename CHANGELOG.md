@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-11-12
+
 ### Added
 * **Overlay text from MQTT.** A new *Overlay text from MQTT...* button in the settings (under the detection options) opens a
   window that shows a value from an MQTT broker, such as an outside temperature, in one of a camera's on-screen text

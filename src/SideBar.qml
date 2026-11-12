@@ -144,6 +144,17 @@ FocusScope {
 
     property var changelogData: [
         {
+            version: "v3.5.0",
+            date: "12.11.2026",
+            changes: [
+                qsTr("Overlay text from MQTT: show a value from an MQTT broker (an outside temperature, for instance) in a camera's on-screen text, refreshed every few minutes, in Celsius or Fahrenheit. Off by default."),
+                qsTr("Detection events window: search by time range, target and type across all cameras, with a count, and save the picture you are looking at as a snapshot."),
+                qsTr("Event pictures that have no camera frame get a target box and the zone drawn on them (with a tick box to hide them), and the caption shows the zone."),
+                qsTr("Playback: 5-second rewind and forward buttons. A PTZ track keeps four snapshots, the first taken at once."),
+                qsTr("The tooltip binding-loop warning is hidden unless KVision is started with --verbose.")
+            ]
+        },
+        {
             version: "v3.4.0",
             date: "11.11.2026",
             changes: [
