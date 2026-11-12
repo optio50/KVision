@@ -6,6 +6,10 @@ extern "C" {
 }
 
 std::atomic<qint64> g_networkBytesAccumulator{0};
+std::atomic<int> g_rtspStreams{0};      // QmlAV demuxers streaming right now (statistics panel)
+std::atomic<int> g_sdkStreams{0};       // Hikvision SDK play sessions open right now (statistics panel)
+std::atomic<qint64> g_framesDropped{0}; // frames thrown away at a decode queue overflow (statistics panel)
+std::atomic<qint64> g_decodeErrors{0};  // demux or decode failures since start (statistics panel)
 
 QmlAVDemuxer::QmlAVDemuxer(QObject *parent)
     : QObject(parent)
@@ -15,6 +19,10 @@ QmlAVDemuxer::QmlAVDemuxer(QObject *parent)
 
 QmlAVDemuxer::~QmlAVDemuxer()
 {
+    if (m_streamsCounted.exchange(false)) {
+        g_rtspStreams.fetch_sub(1, std::memory_order_relaxed);
+    }
+
     if (m_closing.exchange(true)) {
         return;
     }
@@ -124,6 +132,11 @@ void QmlAVDemuxer::start()
         return;
     }
 
+    // One open stream per demuxer, counted once; uncounted in the dtor.
+    if (!m_streamsCounted.exchange(true)) {
+        g_rtspStreams.fetch_add(1, std::memory_order_relaxed);
+    }
+
     emit playbackStateChanged(QMediaPlayer::PlayingState);
 
     auto stop = [this](QMediaPlayer::MediaStatus status = QMediaPlayer::InvalidMedia) {
@@ -160,6 +173,7 @@ void QmlAVDemuxer::start()
 
             if (ret != AVERROR_EXIT) {
                 logWarning() << QString("Unable read frame: \"%1\" (%2)").arg(av_err2str(ret)).arg(ret);
+                g_decodeErrors.fetch_add(1, std::memory_order_relaxed);
             }
 
             return stop();

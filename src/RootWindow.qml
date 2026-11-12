@@ -2324,7 +2324,7 @@ ApplicationWindow {
     Rectangle {
         id: statsPanel
         width: 400
-        height: 310
+        height: 350
         x: 20
         y: 60
         color: "#59121214" // 35% opacity dark background for better readability
@@ -2531,7 +2531,23 @@ ApplicationWindow {
             }
 
             Text {
-                text: qsTr("LNG_00204") + SystemStats.cpuUsage.toFixed(1) + "%"
+                text: SystemStats.rtspStreams + (SystemStats.rtspStreams === 1 ? qsTr(" live stream (FFmpeg)") : qsTr(" live streams (FFmpeg)"))
+                      + " · " + SystemStats.sdkStreams + (SystemStats.sdkStreams === 1 ? qsTr(" playback (SDK)") : qsTr(" playbacks (SDK)"))
+                color: "#8898a6"
+                font.pixelSize: 11
+            }
+
+            Text {
+                // Frames thrown away because a decoder's queue was full, and demux or
+                // decode hiccups, added up since KVision started.
+                text: qsTr("Decode since start: %1 frames dropped · %2 errors")
+                    .arg(SystemStats.decDropsTotal).arg(SystemStats.decErrorsTotal)
+                color: (SystemStats.decDropsTotal > 0 || SystemStats.decErrorsTotal > 0) ? "#e0a040" : "#8898a6"
+                font.pixelSize: 11
+            }
+
+            Text {
+                text: qsTr("LNG_00204") + SystemStats.cpuUsage.toFixed(1) + "%" + (SystemStats.busiestCoreUsage > 0 ? qsTr(" · busiest core") + " " + SystemStats.busiestCoreUsage + "%" : "")
                 color: "#00ff66"
                 font.pixelSize: 11
                 font.bold: true
@@ -2613,7 +2629,7 @@ ApplicationWindow {
             }
 
             Text {
-                text: qsTr("LNG_00203") + SystemStats.gpuUsage.toFixed(1) + "%"
+                text: qsTr("LNG_00203") + SystemStats.gpuUsage.toFixed(1) + "%" + (SystemStats.gpuDecodeUsage > 0.05 ? qsTr(" · decode") + " " + SystemStats.gpuDecodeUsage.toFixed(0) + "%" : "")
                 color: "#00ff66"
                 font.pixelSize: 11
                 font.bold: true

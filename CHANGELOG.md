@@ -21,6 +21,11 @@ All notable changes to this project will be documented in this file.
 * **History length.** A small button in the panel's title bar steps the kept window through 5, 15, 30 and 60 minutes;
   the choice is saved with the settings, a longer window is averaged down to the charts' slots, and closing the panel
   no longer clears it.
+* **Streams and decode counters in the statistics panel.** Two new lines in the panel: the number of live FFmpeg streams
+  and Hikvision SDK playback sessions that are open right now, and — added up since KVision started — the frames thrown
+  away because a decoder's queue was full, and the demux or decode hiccups that were seen. The CPU line also names the
+  machine's busiest core, and on NVIDIA the GPU line names the decode engine's load. All of them are part of the kept
+  history too.
 
 ## [3.5.0] - 2026-11-12
 

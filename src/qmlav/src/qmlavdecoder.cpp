@@ -111,12 +111,14 @@ QmlAVLoopController QmlAVDecoder::worker(const AVPacketPtr &avPacket)
         // frame available, but there were no errors during decoding.
         if (ret != AVERROR_EOF && ret != AVERROR(EAGAIN)) {
             logWarning() << QString("Unable to read decoded frame: \"%1\" (%2)").arg(av_err2str(ret)).arg(ret);
+            g_decodeErrors.fetch_add(1, std::memory_order_relaxed);
         }
 
         // Submit the packet to the decoder
         ret = avcodec_send_packet(m_avCodecCtx, avPacket);
         if (ret < 0) {
             logWarning() << QString("Unable send packet to decoder: \"%1\" (%2)").arg(av_err2str(ret)).arg(ret);
+            g_decodeErrors.fetch_add(1, std::memory_order_relaxed);
         } else {
             m_counters.packetsDecoded++;
         }
@@ -138,6 +140,7 @@ QmlAVLoopController QmlAVDecoder::worker(const AVPacketPtr &avPacket)
             }
         } else {
             m_counters.framesDiscarded++;
+            g_framesDropped.fetch_add(1, std::memory_order_relaxed);
             logDebug() << QString("Exceeding %1 frame queue limit: ").arg(typeName()) << m_frameQueueLimit;
         }
     }

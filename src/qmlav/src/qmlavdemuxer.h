@@ -14,6 +14,13 @@ extern "C" {
 
 extern std::atomic<qint64> g_networkBytesAccumulator;
 
+// Streams and decode health, collected for the statistics panel
+// (defined in qmlavdemuxer.cpp).
+extern std::atomic<int> g_rtspStreams;      // QmlAV demuxers streaming right now
+extern std::atomic<int> g_sdkStreams;       // Hikvision SDK play sessions open right now
+extern std::atomic<qint64> g_framesDropped; // frames thrown away at a decode queue overflow
+extern std::atomic<qint64> g_decodeErrors;  // demux or decode failures since start
+
 #include "qmlavmediacontextholder.h"
 #include "qmlavoptions.h"
 #include "qmlavthread.h"
@@ -104,6 +111,7 @@ private:
 
     std::atomic<qint64> m_bytesRead{0};
     std::atomic<bool> m_closing{false};
+    std::atomic<bool> m_streamsCounted{false}; // pairs with the dtor: a counted demuxer is uncounted exactly once
     std::shared_ptr<QmlAVMediaContextHolder> m_context;
 
     friend class QmlAVDecoder;

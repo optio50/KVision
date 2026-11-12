@@ -7,6 +7,7 @@
 #include <atomic>
 
 extern std::atomic<qint64> g_networkBytesAccumulator;
+extern std::atomic<int> g_sdkStreams; // defined in qmlavdemuxer.cpp: open SDK sessions, for the statistics panel
 
 static std::atomic<int> s_hikPlayerCount{0};
 
@@ -47,6 +48,7 @@ HikvisionPlayer::~HikvisionPlayer()
 
     if (m_playHandle >= 0) {
         NET_DVR_StopRealPlay(m_playHandle);
+        g_sdkStreams.fetch_sub(1, std::memory_order_relaxed);
     }
 }
 
@@ -83,6 +85,7 @@ void HikvisionPlayer::restartStream()
     if (m_playHandle >= 0) {
         NET_DVR_StopRealPlay(m_playHandle);
         m_playHandle = -1;
+        g_sdkStreams.fetch_sub(1, std::memory_order_relaxed);
     }
 
     if (m_recorderIp.isEmpty()) {
@@ -103,6 +106,9 @@ void HikvisionPlayer::restartStream()
     previewInfo.bBlocked = FALSE;
 
     m_playHandle = NET_DVR_RealPlay_V40(m_userId, &previewInfo, playerRealDataCallBack, nullptr);
+    if (m_playHandle >= 0) {
+        g_sdkStreams.fetch_add(1, std::memory_order_relaxed);
+    }
 }
 
 void HikvisionPlayer::paint(QPainter *painter)

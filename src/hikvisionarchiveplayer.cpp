@@ -296,6 +296,7 @@ void HikvisionArchivePlayer::cleanupPlayback()
         } else {
             qDebug() << "[HikArchive] NET_DVR_StopPlayBack OK";
         }
+        g_sdkStreams.fetch_sub(1, std::memory_order_relaxed);
     }
 
     // Clean up standard QAudioOutput safely and asynchronously on the GUI thread
@@ -646,6 +647,8 @@ void HikvisionArchivePlayer::startPlaybackAt(const QDateTime &dateTime)
         m_lPlayHandle = playHandle;
         m_nPort = tempPort;
     }
+    // The session is really open now; uncounted in cleanupPlayback().
+    g_sdkStreams.fetch_add(1, std::memory_order_relaxed);
 
     if (!PlayM4_SetStreamOpenMode(tempPort, STREAME_FILE)) {
         qWarning() << "[HikArchive] PlayM4_SetStreamOpenMode FAILED.";

@@ -319,6 +319,7 @@ Sliding out from the left edge of the Live View screen, this panel monitors the 
   * **CPU / RAM**: Usage of the main processor (in % of all cores) and the RAM used directly by the `kvision` process and its related downloader subprocesses.
   * **GPU / VRAM**: Graphics card core utilization (in %) and the amount of VRAM graphic memory occupied by rendering and hardware decoding (supports full listing of GPU processes using the XML parser from `nvidia-smi`).
   * **NETWORK (Net)**: Actual download transfer speed of the application from all active live players, archive players, and recording download processes.
+  * **STREAMS / DECODE**: The number of live FFmpeg streams and Hikvision SDK playback sessions open right now; the busiest CPU core of the machine; the GPU decode-engine load (NVIDIA); and, added up since KVision started, the frames thrown away because a decoder's queue was full, and the demux or decode hiccups.
   * **HISTORY**: One sample a second is kept in a rolling window — 5, 15, 30 or 60 minutes, switched with the small button in the panel's title bar — even while the panel is closed. The charts open with the whole window already drawn (averaged over their slots when the window is longer) instead of starting from zero.
 * **Multithreading (Stutter-Free)**: Process and GPU data collection runs on a separate system thread (`StatsWorker`). This prevents any micro-stuttering in video rendering (no frame drops).
 * **Pin Feature**: Clicking the **"Pin"** button (pin icon) locks the panel in its expanded state.

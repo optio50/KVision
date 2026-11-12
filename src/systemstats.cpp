@@ -170,33 +170,36 @@ void StatsWorker::doWork()
 
     QVector<qint64> pids = m_cachedPids;
 
-    double cpu = 0.0;
-    double ram = 0.0;
-    double gpu = 0.0;
-    double vram = 0.0;
-    double net = 0.0;
+    StatsSample sample;
+    sample.timestampMs = QDateTime::currentMSecsSinceEpoch();
 
     // Full fidelity at all times: while the panel is closed the history buffer
     // collects the same numbers an open panel would show, so the past it keeps
     // is not a downgraded view of what happened.
-    calculateCpuAndRam(pids, cpu, ram);
-    calculateGpuAndVram(pids, gpu, vram);
-    calculateNetUsage(pids, net);
+    calculateCpuAndRam(pids, sample.cpu, sample.ram, sample.busiestCore);
+    calculateGpuAndVram(pids, sample.gpu, sample.vram, sample.gpuDec);
+    calculateNetUsage(pids, sample.net);
 
-    m_lastCpu = cpu;
-    m_lastGpu = gpu;
-    m_lastRam = ram;
-    m_lastVram = vram;
-    m_lastNet = net;
+    // Streams open right now, and what the ever-growing counters gained this tick.
+    sample.rtspStreams = g_rtspStreams.load(std::memory_order_relaxed);
+    sample.sdkStreams = g_sdkStreams.load(std::memory_order_relaxed);
+    const qint64 dropsTotal = g_framesDropped.load(std::memory_order_relaxed);
+    const qint64 errorsTotal = g_decodeErrors.load(std::memory_order_relaxed);
+    sample.dropsPerSecond = double(qMax<qint64>(0, dropsTotal - m_lastDropsTotal));
+    sample.errorsPerSecond = double(qMax<qint64>(0, errorsTotal - m_lastErrorsTotal));
+    m_lastDropsTotal = dropsTotal;
+    m_lastErrorsTotal = errorsTotal;
+
+    m_lastSample = sample;
 
     // Always emit: the rolling buffer in SystemStats gathers the samples even
     // while the panel is closed.
-    emit workDone(cpu, gpu, ram, vram, net);
+    emit workDone(sample);
 }
 
 void StatsWorker::emitLatest()
 {
-    emit workDone(m_lastCpu, m_lastGpu, m_lastRam, m_lastVram, m_lastNet);
+    emit workDone(m_lastSample);
 }
 
 SystemStats::SystemStats(QObject *parent)
@@ -210,6 +213,10 @@ SystemStats::SystemStats(QObject *parent)
                            QSettings::IniFormat);
         setHistoryMinutes(settings.value("statsHistoryMinutes", 15).toInt());
     }
+
+    // The worker thread delivers whole samples through a queued connection,
+    // so the type must be known to the metatype system.
+    qRegisterMetaType<StatsSample>("StatsSample");
 
     m_worker = new StatsWorker();
     m_workerThread = new QThread(this);
@@ -232,21 +239,22 @@ SystemStats::~SystemStats()
     m_workerThread->wait();
 }
 
-void SystemStats::onWorkDone(double cpu, double gpu, double ram, double vram, double net)
+void SystemStats::onWorkDone(const StatsSample &sample)
 {
-    m_cpuUsage = cpu;
-    m_gpuUsage = gpu;
-    m_ramUsage = ram;
-    m_vramUsage = vram;
-    m_netUsage = net;
+    m_cpuUsage = sample.cpu;
+    m_gpuUsage = sample.gpu;
+    m_ramUsage = sample.ram;
+    m_vramUsage = sample.vram;
+    m_netUsage = sample.net;
+    m_gpuDecodeUsage = sample.gpuDec;
+    m_busiestCoreUsage = sample.busiestCore;
+    m_rtspStreams = sample.rtspStreams;
+    m_sdkStreams = sample.sdkStreams;
 
-    StatsSample sample;
-    sample.timestampMs = QDateTime::currentMSecsSinceEpoch();
-    sample.cpu = cpu;
-    sample.ram = ram;
-    sample.gpu = gpu;
-    sample.vram = vram;
-    sample.net = net;
+    // Since-start counters for the panel; the ring keeps the per-tick rates.
+    m_decDropsTotal += qint64(sample.dropsPerSecond);
+    m_decErrorsTotal += qint64(sample.errorsPerSecond);
+
     appendHistory(sample);
 
     emit statsChanged();
@@ -271,6 +279,10 @@ void SystemStats::setActive(bool active)
         m_ramUsage = 0.0;
         m_vramUsage = 0.0;
         m_netUsage = 0.0;
+        m_gpuDecodeUsage = 0.0;
+        m_busiestCoreUsage = 0;
+        m_rtspStreams = 0;
+        m_sdkStreams = 0;
         emit statsChanged();
     }
     emit activeChanged();
@@ -288,6 +300,18 @@ static double sampleMetric(const StatsSample &s, const QString &metric)
         return s.vram;
     if (metric == QLatin1String("net"))
         return s.net;
+    if (metric == QLatin1String("gpuDec"))
+        return s.gpuDec;
+    if (metric == QLatin1String("busiestCore"))
+        return s.busiestCore;
+    if (metric == QLatin1String("rtsp"))
+        return s.rtspStreams;
+    if (metric == QLatin1String("sdk"))
+        return s.sdkStreams;
+    if (metric == QLatin1String("drops"))
+        return s.dropsPerSecond;
+    if (metric == QLatin1String("errors"))
+        return s.errorsPerSecond;
     return 0.0;
 }
 
@@ -474,30 +498,54 @@ QVector<qint64> StatsWorker::getProgramPids()
     return pids;
 }
 
-void StatsWorker::calculateCpuAndRam(const QVector<qint64> &pids, double &cpu, double &ram)
+void StatsWorker::calculateCpuAndRam(const QVector<qint64> &pids, double &cpu, double &ram, int &busiestCorePct)
 {
     qint64 totalCpuTime = 0;
     qint64 processCpuTimeSum = 0;
     double ramUsageSum = 0.0;
     QHash<qint64, qint64> currentProcessCpuTimes;
 
-    // 1. Read total system CPU time
+    // 1. Read the system CPU times: the first "cpu " line is the whole machine,
+    //    and the "cpu0", "cpu1"... lines after it give each core, so the panel
+    //    can also show the busiest one.
+    int busiestCorePctLocal = 0;
+    QHash<int, qint64> coreBusyNow, coreTotalNow;
     QFile statFile("/proc/stat");
     if (statFile.open(QIODevice::ReadOnly)) {
         QTextStream stream(&statFile);
-        QString line = stream.readLine();
-        statFile.close();
-        if (line.startsWith("cpu ")) {
-            QString valStr = line.mid(4).trimmed();
+        while (!stream.atEnd()) {
+            QString line = stream.readLine();
+            if (line.startsWith("cpu ")) {
+                QString valStr = line.mid(4).trimmed();
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
-            QStringList parts = valStr.split(QChar(' '), Qt::SkipEmptyParts);
+                QStringList parts = valStr.split(QChar(' '), Qt::SkipEmptyParts);
 #else
-            QStringList parts = valStr.split(QChar(' '), QString::SkipEmptyParts);
+                QStringList parts = valStr.split(QChar(' '), QString::SkipEmptyParts);
 #endif
-            for (int i = 0; i < parts.size() && i < 8; ++i) { // sum user to dirty/steal
-                totalCpuTime += parts[i].toLongLong();
+                for (int i = 0; i < parts.size() && i < 8; ++i) { // sum user to dirty/steal
+                    totalCpuTime += parts[i].toLongLong();
+                }
+            } else if (line.startsWith("cpu")) {
+                // "cpu0 user nice system idle iowait irq softirq steal ..."
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+                QStringList fields = line.split(QChar(' '), Qt::SkipEmptyParts);
+#else
+                QStringList fields = line.split(QChar(' '), QString::SkipEmptyParts);
+#endif
+                bool coreOk = false;
+                const int core = fields.value(0).mid(3).toInt(&coreOk);
+                if (coreOk && fields.size() >= 5) {
+                    qint64 coreTotal = 0;
+                    for (int i = 1; i < fields.size() && i < 9; ++i)
+                        coreTotal += fields[i].toLongLong();
+                    // idle is field 4 and iowait is field 5 (iowait missing reads as 0)
+                    const qint64 coreIdle = fields.value(4).toLongLong() + fields.value(5).toLongLong();
+                    coreTotalNow[core] = coreTotal;
+                    coreBusyNow[core] = coreTotal - coreIdle;
+                }
             }
         }
+        statFile.close();
     }
 
     // 2. Read process CPU times and RSS
@@ -557,15 +605,34 @@ void StatsWorker::calculateCpuAndRam(const QVector<qint64> &pids, double &cpu, d
         cpu = 0.0;
     }
 
+    // The busiest core of the machine, this tick against the previous one.
+    if (!coreTotalNow.isEmpty()) {
+        for (auto it = coreTotalNow.constBegin(); it != coreTotalNow.constEnd(); ++it) {
+            const int core = it.key();
+            if (!m_prevCoreTotal.contains(core))
+                continue;
+            const qint64 dTotal = it.value() - m_prevCoreTotal[core];
+            if (dTotal <= 0)
+                continue;
+            const qint64 dBusy = coreBusyNow[core] - m_prevCoreBusy[core];
+            const int pct = int((qMax<qint64>(0, dBusy) * 100.0 + dTotal / 2) / dTotal);
+            busiestCorePctLocal = qMax(busiestCorePctLocal, qMin(100, pct));
+        }
+    }
+    m_prevCoreTotal = coreTotalNow;
+    m_prevCoreBusy = coreBusyNow;
+
     m_prevTotalCpuTime = totalCpuTime;
     m_prevProcessCpuTimes = currentProcessCpuTimes;
     ram = ramUsageSum;
+    busiestCorePct = busiestCorePctLocal;
 }
 
-void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, double &vram)
+void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, double &vram, double &dec)
 {
     gpu = 0.0;
     vram = 0.0;
+    dec = 0.0;
 
     qint64 selfPid = getpid();
     uid_t myUid = getuid();
@@ -574,9 +641,10 @@ void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, 
         shmDir = QDir::tempPath();
     }
 
-    // Step A: Calculate OWN GPU and VRAM
+    // Step A: Calculate OWN GPU and VRAM (and the decode-engine load, where NVML offers it)
     double ownGpu = 0.0;
     double ownVram = 0.0;
+    double ownDec = 0.0;
 
     // 1. Try Nvidia NVML first for selfPid
     if (m_nvml && m_nvml->ensureInitialized()) {
@@ -584,6 +652,7 @@ void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, 
         if (m_nvml->nvmlDeviceGetCount(&devCount) == NVML_SUCCESS && devCount > 0) {
             double vramSum = 0.0;
             double gpuSum = 0.0;
+            double decSum = 0.0;
             bool processGpuSuccess = false;
 
             for (unsigned int i = 0; i < devCount; ++i) {
@@ -623,22 +692,27 @@ void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, 
                     nvmlProcessUtilizationSample_t samples[128];
                     if (m_nvml->nvmlDeviceGetProcessUtilization(device, samples, &sampleCount, 0) == NVML_SUCCESS) {
                         double devGpuSum = 0.0;
+                        double devDecSum = 0.0;
                         int selfSamplesCount = 0;
                         for (unsigned int s = 0; s < sampleCount; ++s) {
                             if (samples[s].pid == static_cast<unsigned int>(selfPid)) {
                                 devGpuSum += samples[s].smUtil + samples[s].decUtil + samples[s].encUtil; // Combined GPU % (SM + Decoder + Encoder)
+                                devDecSum += samples[s].decUtil; // keeping the decoder's share for its own reading
                                 selfSamplesCount++;
                                 processGpuSuccess = true;
                             }
                         }
                         if (selfSamplesCount > 0) {
                             gpuSum += (devGpuSum / selfSamplesCount);
+                            decSum += (devDecSum / selfSamplesCount);
                         }
                     }
                 }
             }
 
             ownVram = vramSum;
+            ownDec = decSum;
+            if (ownDec > 100.0) ownDec = 100.0;
 
             if (processGpuSuccess) {
                 ownGpu = gpuSum;
@@ -789,12 +863,13 @@ void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, 
         }
     }
 
-    // Step B: Write OWN GPU and VRAM to shared memory files
+    // Step B: Write OWN GPU and VRAM to shared memory files (the GPU file also
+    //         carries the decode-engine load, so all KVision windows can be summed)
     QString myGpuFile = QString("%1/kvision-gpu-%2-%3").arg(shmDir).arg(myUid).arg(selfPid);
     QFile fGpu(myGpuFile);
     if (fGpu.open(QIODevice::WriteOnly)) {
         QTextStream stream(&fGpu);
-        stream << QString::number(ownGpu, 'f', 2);
+        stream << QString::number(ownGpu, 'f', 2) << ' ' << QString::number(ownDec, 'f', 2);
         fGpu.close();
     }
 
@@ -809,19 +884,23 @@ void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, 
     // Step C: Sum GPU and VRAM of all active PIDs
     double totalGpu = 0.0;
     double totalVram = 0.0;
+    double totalDec = 0.0;
 
     for (qint64 pid : pids) {
         if (pid == selfPid) {
             totalGpu += ownGpu;
             totalVram += ownVram;
+            totalDec += ownDec;
         } else {
             QString otherGpuFile = QString("%1/kvision-gpu-%2-%3").arg(shmDir).arg(myUid).arg(pid);
             QFile fOtherGpu(otherGpuFile);
             if (fOtherGpu.open(QIODevice::ReadOnly)) {
                 double otherGpu = 0.0;
+                double otherDec = 0.0;
                 QTextStream streamOther(&fOtherGpu);
-                streamOther >> otherGpu;
+                streamOther >> otherGpu >> otherDec;
                 totalGpu += otherGpu;
+                totalDec += otherDec; // an older build wrote one number only; this then reads 0
                 fOtherGpu.close();
             }
 
@@ -840,6 +919,8 @@ void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, 
     if (totalGpu > 100.0) totalGpu = 100.0;
     gpu = totalGpu;
     vram = totalVram;
+    if (totalDec > 100.0) totalDec = 100.0;
+    dec = totalDec;
 }
 
 void StatsWorker::calculateNetUsage(const QVector<qint64> &pids, double &net)
