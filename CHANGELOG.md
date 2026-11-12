@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Target box and zone drawn on event pictures that have no frame.** Some cameras (the wide-angle Pano has no switch for
+  it) save event pictures without the red target frame, which makes it hard to see what set the camera off. Each new
+  smart-event line in `Detection.log` now ends with where the camera said the target was (`box`), which zone fired
+  (`zone`) and the zone's corners (`poly`). In the Detection events picture viewer, a picture that the camera did not
+  frame itself gets a red box on the target and an orange outline of the zone, and the caption shows the zone number,
+  for example "Intrusion (zone 1)". A picture that already has the camera's own frame is left as it is. A tick box,
+  "Target and zone", hides the drawing. It applies to events logged from now on; older lines have no position.
 * **Save the picture you are looking at.** The Detection events picture viewer has a camera button (or press S) that
   saves the picture on screen in the snapshot folder from the settings, in a folder for the day, named like the
   snapshots of a live tile (channel, camera, date and time) with the kind of event added, for example
@@ -29,6 +36,10 @@ All notable changes to this project will be documented in this file.
 * **A track now keeps four snapshots, the first taken at once.** The first snapshot no longer waits a second after the
   PTZ leaves its park position, and three more follow, one a second apart. Each is named by the second it was asked
   for, so a slow reply cannot make two of them share a file. The first may show the PTZ still swinging.
+
+### Documentation
+* The README explains that the 1x1, 2x2 and similar top bar grids are temporary, are never saved, and go away when you
+  click a saved layout.
 
 ## [3.4.0] - 2026-11-11
 

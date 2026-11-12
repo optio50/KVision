@@ -130,7 +130,8 @@ Window {
                 start = items.length;
             for (var k = 0; k < pics.length; ++k)
                 items.push({ "path": pics[k], "epochMs": e.epochMs + k * 1000, "camera": e.camera, "channel": e.channel, "kind": e.kind,
-                             "caption": e.time + "   " + e.target + "   " + e.kind + "   " + e.camera + (pics.length > 1 ? "   (" + (k + 1) + "/" + pics.length + ")" : "") });
+                             "box": (pics.length === 1 || k === 0) ? e.box : [], "poly": (pics.length === 1 || k === 0) ? e.poly : [], "zone": e.zone,
+                             "caption": e.time + "   " + e.target + "   " + e.kind + (e.zone > 0 ? " (" + qsTr("zone %1").arg(e.zone) + ")" : "") + "   " + e.camera + (pics.length > 1 ? "   (" + (k + 1) + "/" + pics.length + ")" : "") });
         }
         // Nothing else refers to a window created with no parent, and the garbage collector (which the app runs after
         // closing windows and every hour) would remove it while it is open, so it is kept in a list until it closes.
@@ -155,7 +156,21 @@ Window {
             // Every picture in the list as {path, caption}, oldest first; Right goes to the next newest, Left to an older one.
             property var items: []
             property int shown: 0
+            property bool showMarks: true
+            // 1 if the camera's own picture already has the red frame, 0 if not, -1 if it cannot be told; looked up per picture
+            property int hasFrame: -1
             signal closed()
+            onShownChanged: pv.updateFrame()
+            Component.onCompleted: pv.updateFrame()
+            function updateFrame() {
+                var it = pv.items.length > 0 ? pv.items[pv.shown] : null;
+                if (!it || !it.box || it.box.length < 4) { pv.hasFrame = -1; return; }
+                pv.hasFrame = HikvisionEvents.pictureHasFrame(it.path, it.box[0], it.box[1], it.box[2], it.box[3]);
+            }
+            // We draw only where the camera drew nothing itself (a picture that has the frame is left as it is).
+            readonly property bool drawMarks: pv.showMarks && pv.items.length > 0 && pv.hasFrame !== 1
+                                              && ((pv.items[pv.shown].box && pv.items[pv.shown].box.length >= 4)
+                                                  || (pv.items[pv.shown].poly && pv.items[pv.shown].poly.length >= 6))
             width: 960
             height: 600
             minimumWidth: 320
@@ -213,6 +228,23 @@ Window {
                 anchors.right: parent.right
                 anchors.margins: 6
                 spacing: 6
+                CheckBox {
+                    id: marksBox
+                    visible: pv.items.length > 0 && ((pv.items[pv.shown].box && pv.items[pv.shown].box.length >= 4) || (pv.items[pv.shown].poly && pv.items[pv.shown].poly.length >= 6))
+                    checked: pv.showMarks
+                    text: qsTr("Target and zone")
+                    onToggled: pv.showMarks = checked
+                    ToolTip.visible: hovered; ToolTip.delay: 500
+                    ToolTip.text: pv.hasFrame === 1 ? qsTr("The camera drew its own frame on this picture, so nothing is added")
+                                                  : qsTr("Draw the target box (red) and the zone (orange) the camera named, where its picture has no frame")
+                    contentItem: Text {
+                        leftPadding: marksBox.indicator.width + 6
+                        text: marksBox.text
+                        color: "#eeeeee"
+                        font.pixelSize: 12
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
                 Button {
                     id: snapBtn
                     implicitWidth: 34
@@ -237,10 +269,63 @@ Window {
                 anchors.right: parent.right
                 anchors.bottom: parent.bottom
                 anchors.margins: 8
+                id: pic
                 source: pv.items.length > 0 ? "file://" + pv.items[pv.shown].path : ""
                 fillMode: Image.PreserveAspectFit
                 asynchronous: true
                 cache: false
+
+                // The part of this item the picture really covers (it is centred and keeps its shape).
+                readonly property real shownW: paintedWidth
+                readonly property real shownH: paintedHeight
+                readonly property real offX: (width - paintedWidth) / 2
+                readonly property real offY: (height - paintedHeight) / 2
+
+                Canvas {
+                    id: marks
+                    anchors.fill: parent
+                    visible: pv.drawMarks
+                    onVisibleChanged: requestPaint()
+                    Connections {
+                        target: pv
+                        onShownChanged: marks.requestPaint()
+                        onHasFrameChanged: marks.requestPaint()
+                    }
+                    Connections {
+                        target: pic
+                        onPaintedWidthChanged: marks.requestPaint()
+                        onPaintedHeightChanged: marks.requestPaint()
+                        onStatusChanged: marks.requestPaint()
+                    }
+                    onPaint: {
+                        var ctx = getContext("2d");
+                        ctx.clearRect(0, 0, width, height);
+                        if (!pv.drawMarks || pic.shownW <= 0)
+                            return;
+                        var it = pv.items[pv.shown];
+                        ctx.lineJoin = "round";
+                        // the zone the camera named, in orange
+                        if (it.poly && it.poly.length >= 6) {
+                            ctx.beginPath();
+                            for (var i = 0; i + 1 < it.poly.length; i += 2) {
+                                var px = pic.offX + it.poly[i] * pic.shownW, py = pic.offY + it.poly[i + 1] * pic.shownH;
+                                if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                            }
+                            ctx.closePath();
+                            ctx.strokeStyle = "#ff9500";
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+                        }
+                        // the target it reacted to, in red, a little larger than a pixel-thin box so it can be seen
+                        if (it.box && it.box.length >= 4) {
+                            var bx = pic.offX + it.box[0] * pic.shownW, by = pic.offY + it.box[1] * pic.shownH;
+                            var bw = Math.max(8, it.box[2] * pic.shownW), bh = Math.max(8, it.box[3] * pic.shownH);
+                            ctx.strokeStyle = "#ff2a2a";
+                            ctx.lineWidth = 2;
+                            ctx.strokeRect(bx, by, bw, bh);
+                        }
+                    }
+                }
             }
         }
     }

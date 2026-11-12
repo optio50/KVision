@@ -267,7 +267,7 @@ void HikvisionEvents::onReadyRead(const QString &ip)
                 QString t = vcaTargetRx.match(body).captured(1).trimmed().toLower();
                 if (!t.isEmpty() && t != QLatin1String("human") && t != QLatin1String("vehicle") && t != QLatin1String("animal"))
                     t = QStringLiteral("other");
-                logDetection(c, t, kind, camTime, camChannel); // the log keeps every labelled report
+                logDetection(c, t, kind, camTime, camChannel, eventWhere(body)); // the log keeps every labelled report
                 notePictureRect(c, body, camChannel, camTime, kind);
                 if (t.isEmpty())
                     t = QStringLiteral("other");
@@ -411,6 +411,36 @@ bool HikvisionEvents::judgePicture(Conn *c, const QByteArray &data)
     savePicture(c->pendingAddress, c->pendingLens, c->pendingKind, c->pendingSecs, jpeg);
     judgeJpeg(c->pendingAddress, c->pendingHasRect, c->pendingRect, jpeg);
     return true;
+}
+
+// 1 when the picture has the camera's red outline on the rectangle, 0 when it has none, -1 when it cannot be told.
+static int frameVerdict(const QImage &image, const QRectF &r)
+{
+    if (image.isNull())
+        return -1;
+    const QImage img = image.convertToFormat(QImage::Format_RGB32);
+    const int x0 = int(r.x() * img.width()), y0 = int(r.y() * img.height());
+    const int x1 = int((r.x() + r.width()) * img.width()), y1 = int((r.y() + r.height()) * img.height());
+    if (x1 - x0 < 16 || y1 - y0 < 16)
+        return -1;
+    const double sides[4] = { edgeShare(img, x0, y0, x1, y1, true), edgeShare(img, x0, y1, x1, y1, true),
+                              edgeShare(img, x0, y0, x1, y1, false), edgeShare(img, x1, y0, x1, y1, false) };
+    int strong = 0, none = 0;
+    for (double s : sides) {
+        if (s >= 0.8)
+            ++strong;
+        if (s < 0.2)
+            ++none;
+    }
+    return strong >= 3 ? 1 : (none == 4 ? 0 : -1);
+}
+
+int HikvisionEvents::pictureHasFrame(const QString &path, double x, double y, double w, double h) const
+{
+    QImage img;
+    if (path.isEmpty() || !img.load(path))
+        return -1;
+    return frameVerdict(img, QRectF(x, y, w, h));
 }
 
 void HikvisionEvents::judgeJpeg(const QString &address, bool hasRect, const QRectF &r, const QByteArray &jpeg)
@@ -629,7 +659,38 @@ void HikvisionEvents::onFinished(const QString &ip, QNetworkReply *reply)
 // The time is the camera's own time for the event, shown in this computer's time zone. When KVision
 // only read the report 10 seconds or more after the camera made it (for example after a stall), the
 // line ends with ", received HH:mm:ss". Plain motion reports carry no target type and are not logged.
-void HikvisionEvents::logDetection(const Conn *c, const QString &target, const QString &kind, const QString &cameraTime, int eventChannel)
+QString HikvisionEvents::eventWhere(const QString &body)
+{
+    static const QRegularExpression rectRx(QStringLiteral(
+        "<TargetRect>\\s*<X>([\\d.]+)</X>\\s*<Y>([\\d.]+)</Y>\\s*<width>([\\d.]+)</width>\\s*<height>([\\d.]+)</height>"));
+    static const QRegularExpression zoneRx(QStringLiteral("<regionID>(\\d+)</regionID>"));
+    static const QRegularExpression listRx(QStringLiteral("<RegionCoordinatesList>(.*?)</RegionCoordinatesList>"),
+                                           QRegularExpression::DotMatchesEverythingOption);
+    static const QRegularExpression ptRx(QStringLiteral("<positionX>(\\d+)</positionX>\\s*<positionY>(\\d+)</positionY>"));
+    QStringList out;
+    const QRegularExpressionMatch r = rectRx.match(body);
+    if (r.hasMatch())
+        out << QStringLiteral("box %1/%2/%3/%4").arg(r.captured(1), r.captured(2), r.captured(3), r.captured(4));
+    const QRegularExpressionMatch z = zoneRx.match(body);
+    if (z.hasMatch())
+        out << QStringLiteral("zone %1").arg(z.captured(1));
+    const QRegularExpressionMatch l = listRx.match(body);
+    if (l.hasMatch()) {
+        // The zone's corners are given on a 0..1000 scale; they are kept as 0..1 of the picture.
+        QStringList pts;
+        QRegularExpressionMatchIterator it = ptRx.globalMatch(l.captured(1));
+        while (it.hasNext()) {
+            const QRegularExpressionMatch m = it.next();
+            pts << QString::number(m.captured(1).toInt() / 1000.0, 'f', 3) << QString::number(m.captured(2).toInt() / 1000.0, 'f', 3);
+        }
+        if (pts.size() >= 4)
+            out << QStringLiteral("poly %1").arg(pts.join(QLatin1Char('/')));
+    }
+    return out.join(QLatin1Char(' '));
+}
+
+void HikvisionEvents::logDetection(const Conn *c, const QString &target, const QString &kind, const QString &cameraTime, int eventChannel,
+                                   const QString &where)
 {
     if (m_logDir.isEmpty())
         return;
@@ -678,7 +739,7 @@ void HikvisionEvents::logDetection(const Conn *c, const QString &target, const Q
         if (it != c->chanInfo.constEnd() && !it->ip.isEmpty())
             address = it->ip;
     }
-    QTextStream(&f) << when << ", " << what << " detected, " << kind << ", " << name << ", " << address << recorder << late << "\n";
+    QTextStream(&f) << when << ", " << what << " detected, " << kind << ", " << name << ", " << address << recorder << late << (where.isEmpty() ? QString() : QStringLiteral(", ") + where) << "\n";
 }
 
 // One line each time a tile shows a detection frame (a camera shown on two tiles gives two lines):
@@ -747,6 +808,9 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
             QStringList parts = line.split(QStringLiteral(", "));
             QVariantMap e;
             e.insert(QStringLiteral("raw"), line);
+            QString where;
+            if (!parts.isEmpty() && (parts.last().startsWith(QStringLiteral("box ")) || parts.last().startsWith(QStringLiteral("zone ")) || parts.last().startsWith(QStringLiteral("poly "))))
+                where = parts.takeLast();
             QString received;
             if (!parts.isEmpty() && parts.last().startsWith(QStringLiteral("received "))) {
                 received = parts.takeLast().mid(9);
@@ -775,6 +839,27 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
                 e.insert(QStringLiteral("ip"), QString());
             }
             e.insert(QStringLiteral("received"), received);
+            {
+                // "box x/y/w/h zone N poly x/y/..." as lists the window can use (all 0..1 of the picture)
+                QVariantList box, poly;
+                int zone = 0;
+                QStringList tok;
+                for (const QString &item : where.split(QLatin1Char(' ')))
+                    if (!item.isEmpty())
+                        tok << item;
+                for (int i = 0; i + 1 < tok.size(); i += 2) {
+                    if (tok.at(i) == QLatin1String("zone")) {
+                        zone = tok.at(i + 1).toInt();
+                    } else if (tok.at(i) == QLatin1String("box") || tok.at(i) == QLatin1String("poly")) {
+                        QVariantList &dst = tok.at(i) == QLatin1String("box") ? box : poly;
+                        for (const QString &n : tok.at(i + 1).split(QLatin1Char('/')))
+                            dst.append(n.toDouble());
+                    }
+                }
+                e.insert(QStringLiteral("box"), box);
+                e.insert(QStringLiteral("poly"), poly);
+                e.insert(QStringLiteral("zone"), zone);
+            }
             e.insert(QStringLiteral("recorderIp"), recorderIp);
             e.insert(QStringLiteral("channel"), channel);
             const QDateTime when = QLocale::c().toDateTime(e.value(QStringLiteral("time")).toString(), QStringLiteral("dd MMM yyyy HH:mm:ss"));
@@ -990,6 +1075,8 @@ QVariantList HikvisionEvents::logEventsBetween(const QString &recorderIp, int ch
         if (!line.contains(want))
             continue;
         QStringList parts = line.split(QStringLiteral(", "));
+        if (!parts.isEmpty() && (parts.last().startsWith(QStringLiteral("box ")) || parts.last().startsWith(QStringLiteral("zone ")) || parts.last().startsWith(QStringLiteral("poly "))))
+            parts.removeLast();
         if (!parts.isEmpty() && parts.last().startsWith(QStringLiteral("received ")))
             parts.removeLast();
         if (parts.size() < 5 || parts.last() != want)

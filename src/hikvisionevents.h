@@ -74,6 +74,10 @@ public:
     // left out. Used to draw what the camera reported on a playback timeline where the recorder saved less.
     // Copies a saved picture to another file (an existing file there is replaced) and returns true when it worked. Used to
     // save the picture on screen in the snapshot folder.
+    // Whether a saved picture already carries the camera's own red frame on the target rectangle (x, y, width, height as
+    // 0..1 of the picture): 1 yes, 0 no, -1 cannot tell (no picture, or the rectangle is too small to judge). The picture
+    // viewer draws its own box and zone only where this says 0.
+    Q_INVOKABLE int pictureHasFrame(const QString &path, double x, double y, double w, double h) const;
     Q_INVOKABLE bool copyPicture(const QString &fromPath, const QString &toPath) const;
     Q_INVOKABLE QVariantList logEventsBetween(const QString &recorderIp, int channel, qint64 startMs, qint64 endMs, const QString &configDir) const;
     // fromMs and toMs (milliseconds since 1970, 0 = no limit) limit the entries to a time range, target to one of human,
@@ -157,7 +161,11 @@ private:
     void onReadyRead(const QString &ip);
     void onFinished(const QString &ip, QNetworkReply *reply);
     void close(const QString &ip);
-    void logDetection(const Conn *c, const QString &target, const QString &kind, const QString &cameraTime, int eventChannel);
+    void logDetection(const Conn *c, const QString &target, const QString &kind, const QString &cameraTime, int eventChannel,
+                      const QString &where = QString());
+    // What the camera said about where a smart event happened: "box x/y/w/h zone N poly x/y/x/y/..." (all 0..1 of the picture),
+    // the last item of a log line. Empty when the event names nothing.
+    static QString eventWhere(const QString &body);
     // Looks for the picture that follows an event in `data`, and records whether it carries the target frame.
     // Returns true if a whole picture was there (so the event is done with).
     bool judgePicture(Conn *c, const QByteArray &data);
