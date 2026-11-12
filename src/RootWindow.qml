@@ -273,6 +273,7 @@ ApplicationWindow {
         // Which kinds of report may show a frame (comma list: motion,line,intrusion,enter,exit,other) and which
         // targets (human,vehicle,animal,other).
         property string targetKinds: "motion,line,intrusion,enter,exit,other"
+        property string overlayText: "{}" // JSON: the settings of the MQTT overlay text (Overlay text from MQTT window)
         property bool checkSetupAtStart: false // read each camera's detection setup once when KVision starts
         property string targetTargets: "human,vehicle,animal,other"
         property string targetOffCameras: "[]" // JSON list of camera addresses with the indicator switched off
@@ -572,6 +573,10 @@ ApplicationWindow {
             var diskCheckSetup = Context.readSetting("", "checkSetupAtStart", false);
             if (generalSettings.checkSetupAtStart !== diskCheckSetup) {
                 generalSettings.checkSetupAtStart = diskCheckSetup;
+            }
+            var diskOverlayText = String(Context.readSetting("", "overlayText", "{}"));
+            if (generalSettings.overlayText !== diskOverlayText) {
+                generalSettings.overlayText = diskOverlayText;
             }
             var diskTargetKinds = String(Context.readSetting("", "targetKinds", "motion,line,intrusion,enter,exit,other"));
             if (generalSettings.targetKinds !== diskTargetKinds) {
@@ -2127,6 +2132,7 @@ ApplicationWindow {
         Context.writeSetting("", "picturesPerCamera", generalSettings.picturesPerCamera);
         Context.writeSetting("", "targetSource", generalSettings.targetSource);
         Context.writeSetting("", "targetKinds", generalSettings.targetKinds);
+        Context.writeSetting("", "overlayText", generalSettings.overlayText);
         Context.writeSetting("", "checkSetupAtStart", generalSettings.checkSetupAtStart);
         Context.writeSetting("", "targetTargets", generalSettings.targetTargets);
         Context.writeSetting("", "targetOffCameras", generalSettings.targetOffCameras);
@@ -2232,6 +2238,9 @@ ApplicationWindow {
     Component.onCompleted: {
         stackLayout.visible = true;
         rootWindow.applyDetectionFilters();
+        if (!Context.isAuxiliary) {
+            try { OverlayText.apply(JSON.parse(generalSettings.overlayText || "{}")); } catch (e) {}
+        }
         if (generalSettings.checkSetupAtStart && !Context.isAuxiliary)
             startupSetupCheckTimer.start();
 

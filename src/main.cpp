@@ -62,6 +62,7 @@ int qmlRegisterSingletonInstance(const char *uri, int versionMajor, int versionM
 #include "hikvisiondownloader.h"
 #include "hikvisiontalk.h"
 #include "hikvisionevents.h"
+#include "overlaytext.h"
 #include "hikvisionsetupcheck.h"
 
 QFile *g_logFile = nullptr;
@@ -424,6 +425,9 @@ int main(int argc, char *argv[])
 
     auto *hikvisionEvents = new HikvisionEvents();
     qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "HikvisionEvents", hikvisionEvents);
+
+    auto *overlayText = new OverlayText();
+    qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "OverlayText", overlayText);
 
     auto *hikvisionSetupCheck = new HikvisionSetupCheck();
     hikvisionSetupCheck->setEvents(hikvisionEvents);

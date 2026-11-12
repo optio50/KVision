@@ -173,6 +173,7 @@ The same changes as the list above, in more detail. The original application alr
 - **Add camera window:** it is always on top and shows added markers.
 - **Merged cells:** resizing is fixed, and Panovision merged-cell support is documented.
 - **Layout paging:** scroll over the live view to move between saved layouts. Hold **Ctrl** to zoom that camera instead. Layouts can be chosen for the top toolbar instead of showing every preset.
+- **Overlay text from MQTT:** an optional feature in the settings that puts a value from an MQTT broker (an outside temperature, for instance) into a camera's on-screen text overlay and refreshes it every few minutes, in Celsius or Fahrenheit. It is off by default, writes only the text of the one overlay slot you choose, and works while KVision is running. The camera needs a character overlay setting; if the slot you choose is not set up, KVision creates it (or switches it on), and its old text is replaced. A *Remove from camera* button takes the overlay off the camera again. Plain MQTT (no TLS) is supported.
 - **Temporary grids:** the 1x1, 2x2 and similar buttons on the top bar open a temporary grid to look at a few cameras. It is never saved and is not in your layout list. Click one of your saved layouts to leave it, and it goes away. Click the same grid button again, or another size, to reuse it.
 - **Audio:** per-camera mute and volume controls are restored.
 

@@ -2750,6 +2750,23 @@ FocusScope {
                                 DetectionFramesWindow {}
                             }
 
+                            Button {
+                                text: qsTr("Overlay text from MQTT...")
+                                ToolTip.visible: hovered
+                                ToolTip.delay: 600
+                                ToolTip.text: qsTr("Show a value from an MQTT broker (such as the outside temperature) in a camera's on-screen text, refreshed every few minutes")
+                                onClicked: {
+                                    var w = overlayTextComponent.createObject(rootWindow);
+                                    if (w)
+                                        w.show();
+                                }
+                            }
+
+                            Component {
+                                id: overlayTextComponent
+                                OverlayTextWindow {}
+                            }
+
                             Text {
                                 text: qsTr("Is each camera set up to report? A read-only check of the camera's settings (metadata, zones, rules, the recorder's centre action). It changes nothing.")
                                 color: "#8898a6"

@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Overlay text from MQTT.** A new *Overlay text from MQTT...* button in the settings (under the detection options) opens a
+  window that shows a value from an MQTT broker, such as an outside temperature, in one of a camera's on-screen text
+  overlays, and refreshes it every few minutes (5 by default). Choose the broker, port and topic (user and password if
+  needed), the name of the number when the message is JSON such as `{"value": 1.5}`, the camera and which of its four text
+  overlays to use, the text (for example `Outside {temp} {unit}`), Celsius or Fahrenheit, and the number of decimals. The
+  value is taken as Celsius and converted when Fahrenheit is chosen. A *Test* button shows the text it would write
+  without writing anything. Off by default and only runs while KVision is running. It is the one place KVision writes to
+  a camera, so it is careful: it reads the camera's overlay first and changes only the text of the chosen slot (and
+  switches that slot on if it was off), writes only when the text has changed, reads it back to check, tries the login
+  once and stops for the session if it is refused, and never retries in a loop. The broker is read with a small built-in
+  MQTT client (one connect, subscribe, first message, disconnect), so no extra package is needed. Plain MQTT without TLS
+  only. Cameras behind a recorder are offered too (written through each channel's own address), and no camera is
+  chosen until you pick one: Save refuses while the box is ticked without a camera. If the chosen text overlay is not in the
+  camera's list (these cameras leave an unused one out), KVision adds it, which the Pano accepted; an overlay that is
+  switched off is switched on. The text of the chosen slot is replaced.
+  A *Remove from camera* button takes the chosen text overlay off the camera again (after asking), by switching it off and
+  emptying its text, which these cameras take as "delete this entry", and switches the updates off, so nobody has to log
+  in to the camera to get rid of it. Tested on the DT387G2P Pano (NVR channel 12) with the temperature topic of a Victron system.
 * **Target box and zone drawn on event pictures that have no frame.** Some cameras (the wide-angle Pano has no switch for
   it) save event pictures without the red target frame, which makes it hard to see what set the camera off. Each new
   smart-event line in `Detection.log` now ends with where the camera said the target was (`box`), which zone fired
