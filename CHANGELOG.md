@@ -27,6 +27,14 @@ All notable changes to this project will be documented in this file.
   machine's busiest core, and on NVIDIA the GPU line names the decode engine's load. All of them are part of the kept
   history too.
 
+### Fixed
+* **CPU read zero.** The per-core reading reads `/proc/stat` with an until-end-of-file loop — but `/proc` files report a
+  size of zero, so the loop stopped before reading a single line and the CPU chart flatlined at 0%. The file is now
+  read until `readLine()` says the end; the CPU (and the busiest-core line) work again.
+* **The AMD/Intel GPU reading never worked.** The same end-of-file pitfall sat in the DRM client-stats fallback, which
+  reads `/proc/<pid>/fdinfo` — inherited from upstream, the loop never read a line, so a graphics card that is not
+  NVIDIA always showed 0%. Such a card can now show its real load, when its driver exposes drm-engine stats.
+
 ## [3.5.0] - 2026-11-12
 
 ### Added

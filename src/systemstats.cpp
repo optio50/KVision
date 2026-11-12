@@ -513,8 +513,12 @@ void StatsWorker::calculateCpuAndRam(const QVector<qint64> &pids, double &cpu, d
     QFile statFile("/proc/stat");
     if (statFile.open(QIODevice::ReadOnly)) {
         QTextStream stream(&statFile);
-        while (!stream.atEnd()) {
-            QString line = stream.readLine();
+        // /proc files report a size of zero, so atEnd() would say "end" before
+        // a single line was read; a null readLine() is the real end.
+        while (true) {
+            const QString line = stream.readLine();
+            if (line.isNull())
+                break;
             if (line.startsWith("cpu ")) {
                 QString valStr = line.mid(4).trimmed();
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
@@ -740,8 +744,14 @@ void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, 
                 bool isDrm = false;
                 qint64 fdEngineTime = 0;
 
-                while (!stream.atEnd()) {
-                    QString line = stream.readLine().trimmed();
+                // fdinfo lives under /proc, where files report a size of zero, so atEnd()
+                // would say "end" before a single line was read; a null readLine() is
+                // the real end. (This loop never ran at all before, which made the
+                // AMD/Intel GPU reading always report zero.)
+                while (true) {
+                    const QString line = stream.readLine().trimmed();
+                    if (line.isNull())
+                        break;
                     if (line.startsWith("drm-driver:")) {
                         isDrm = true;
                         hasDrmClients = true;
