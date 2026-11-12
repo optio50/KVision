@@ -727,10 +727,15 @@ void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, 
 
     // 2. Try DRM Client Stats (for AMD, Intel, and fallback Nvidia) for selfPid
     if (ownGpu <= 0.0) {
-        double drmVramSum = 0.0;
         qint64 totalEngineDeltaNs = 0;
-        QHash<QString, qint64> nextDrmEngineTimes;
         bool hasDrmClients = false;
+        // The same DRM client appears behind several open file descriptors with the
+        // same counters, and each engine has its own key. Adding everything up counts
+        // a client's load once per fd — a busy card pins itself to a flat 100% — so
+        // per client keep the largest (freshest) reading of every engine, and add the
+        // clients up.
+        QHash<QString, QHash<QString, qint64>> clientEngineTimes;
+        QHash<QString, double> clientVramMiB;
 
         QString fdInfoPath = QString("/proc/%1/fdinfo").arg(selfPid);
         QDir dir(fdInfoPath);
@@ -742,7 +747,9 @@ void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, 
 
                 QTextStream stream(&f);
                 bool isDrm = false;
-                qint64 fdEngineTime = 0;
+                QString clientId;
+                QHash<QString, qint64> fdEngineTimes;
+                double fdVramMiB = 0.0;
 
                 // fdinfo lives under /proc, where files report a size of zero, so atEnd()
                 // would say "end" before a single line was read; a null readLine() is
@@ -752,81 +759,87 @@ void StatsWorker::calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, 
                     const QString line = stream.readLine().trimmed();
                     if (line.isNull())
                         break;
-                    if (line.startsWith("drm-driver:")) {
+                    const int colonIdx = line.indexOf(':');
+                    if (colonIdx == -1)
+                        continue;
+                    const QString key = line.left(colonIdx).trimmed();
+                    const QString valStr = line.mid(colonIdx + 1).trimmed();
+                    const QString firstToken = valStr.section(QLatin1Char(' '), 0, 0);
+                    const QString unit = valStr.section(QLatin1Char(' '), 1, 1).toLower();
+
+                    if (key == QLatin1String("drm-driver")) {
                         isDrm = true;
                         hasDrmClients = true;
-                    } else if (line.startsWith("drm-engine-")) {
-                        int colonIdx = line.indexOf(':');
-                        if (colonIdx != -1) {
-                            QString valStr = line.mid(colonIdx + 1).trimmed();
-                            int spaceIdx = -1;
-                            for (int i = 0; i < valStr.length(); ++i) {
-                                if (valStr[i].isSpace()) {
-                                    spaceIdx = i;
-                                    break;
-                                }
-                            }
-                            if (spaceIdx != -1) {
-                                valStr = valStr.left(spaceIdx);
-                            }
-                            bool ok = false;
-                            qint64 val = valStr.toLongLong(&ok);
-                            if (ok) {
-                                fdEngineTime += val;
-                            }
+                    } else if (key == QLatin1String("drm-client-id")) {
+                        clientId = firstToken;
+                    } else if (key.startsWith(QLatin1String("drm-engine-"))
+                               && !key.startsWith(QLatin1String("drm-engine-capacity"))) {
+                        // drm-engine-render / -copy / -video / ... : cumulative busy time, ns.
+                        // The drm-engine-capacity-* keys count engines, not time.
+                        bool numOk = false;
+                        const qint64 val = firstToken.toLongLong(&numOk);
+                        if (numOk && val >= 0) {
+                            const QString engine = key.mid(QStringLiteral("drm-engine-").size());
+                            fdEngineTimes[engine] = qMax(fdEngineTimes.value(engine, 0), val);
                         }
-                    } else if (line.startsWith("drm-memory-vram:")) {
-                        int colonIdx = line.indexOf(':');
-                        if (colonIdx != -1) {
-                            QString valStr = line.mid(colonIdx + 1).trimmed();
-                            QString unit = "";
-                            int spaceIdx = -1;
-                            for (int i = 0; i < valStr.length(); ++i) {
-                                if (valStr[i].isSpace()) {
-                                    spaceIdx = i;
-                                    break;
-                                }
-                            }
-                            if (spaceIdx != -1) {
-                                unit = valStr.mid(spaceIdx + 1).trimmed();
-                                valStr = valStr.left(spaceIdx);
-                            }
-                            bool ok = false;
-                            double val = valStr.toDouble(&ok);
-                            if (ok) {
-                                if (unit.toLower() == "kib" || unit.isEmpty()) {
-                                    val /= 1024.0;
-                                } else if (unit.toLower() == "gib") {
-                                    val *= 1024.0;
-                                } else if (unit.toLower() == "b") {
-                                    val /= (1024.0 * 1024.0);
-                                }
-                                drmVramSum += val;
-                            }
+                    } else if (key == QLatin1String("drm-memory-vram")
+                               || key == QLatin1String("drm-total-system0")) {
+                        // amdgpu calls its video memory "drm-memory-vram"; the Intel iGPU
+                        // keeps its graphics buffers in system RAM ("drm-total-system0"),
+                        // and showing that in the VRAM row is just as useful.
+                        bool numOk = false;
+                        const double val = firstToken.toDouble(&numOk);
+                        if (numOk && val > 0.0) {
+                            if (unit == QLatin1String("kib") || unit.isEmpty())
+                                fdVramMiB += val / 1024.0;
+                            else if (unit == QLatin1String("mib"))
+                                fdVramMiB += val;
+                            else if (unit == QLatin1String("gib"))
+                                fdVramMiB += val * 1024.0;
+                            else if (unit == QLatin1String("b"))
+                                fdVramMiB += val / (1024.0 * 1024.0);
                         }
                     }
                 }
                 f.close();
 
-                if (isDrm) {
-                    QString key = QString("%1:%2").arg(selfPid).arg(fdName);
-                    nextDrmEngineTimes[key] = fdEngineTime;
-                    if (m_prevDrmEngineTimes.contains(key)) {
-                        qint64 delta = fdEngineTime - m_prevDrmEngineTimes[key];
-                        if (delta > 0) {
-                            totalEngineDeltaNs += delta;
-                        }
-                    }
-                }
+                if (!isDrm)
+                    continue;
+                // A driver that does not name its clients: count each fd as a client.
+                const QString client = clientId.isEmpty() ? (QLatin1String("fd:") + fdName)
+                                                          : (QLatin1String("c:") + clientId);
+                QHash<QString, qint64> &engines = clientEngineTimes[client];
+                for (auto it = fdEngineTimes.cbegin(); it != fdEngineTimes.cend(); ++it)
+                    engines[it.key()] = qMax(engines.value(it.key(), 0), it.value());
+                double &vram = clientVramMiB[client];
+                vram = qMax(vram, fdVramMiB);
             }
         }
 
         qint64 elapsedMs = m_gpuTimer.restart();
         if (elapsedMs <= 0) elapsedMs = 1000;
+        const qint64 elapsedNs = elapsedMs * 1000 * 1000;
+
+        QHash<QString, qint64> nextDrmEngineTimes;
+        for (auto cit = clientEngineTimes.cbegin(); cit != clientEngineTimes.cend(); ++cit) {
+            for (auto eit = cit.value().cbegin(); eit != cit.value().cend(); ++eit) {
+                const QString prevKey = cit.key() + QLatin1Char('|') + eit.key();
+                nextDrmEngineTimes[prevKey] = eit.value();
+                if (m_prevDrmEngineTimes.contains(prevKey)) {
+                    const qint64 delta = eit.value() - m_prevDrmEngineTimes.value(prevKey);
+                    // A counter starts over with a new client id; only honest ticks add up.
+                    if (delta > 0 && delta <= elapsedNs + elapsedNs / 2)
+                        totalEngineDeltaNs += delta;
+                }
+            }
+        }
 
         m_prevDrmEngineTimes = nextDrmEngineTimes;
 
         if (hasDrmClients) {
+            double drmVramSum = 0.0;
+            for (auto it = clientVramMiB.cbegin(); it != clientVramMiB.cend(); ++it)
+                drmVramSum += it.value();
             if (ownVram <= 0.0) {
                 ownVram = drmVramSum;
             }
