@@ -8,6 +8,8 @@ ListView {
     property var results: []
     property string openKey: ""
     property string focusKey: "" // the camera of interest: shaded, and always listed first
+    property bool busy: false    // a check is running: the small check-again buttons wait
+    signal recheck(string key)   // the small button on a card was pressed: check that one camera again
 
     clip: true
     model: results
@@ -16,11 +18,11 @@ ListView {
     ScrollBar.vertical: ScrollBar {}
 
     function stateColor(state) {
-        return state === "ok" ? "#2ecc71" : (state === "problem" ? "#ff5a36" : (state === "note" ? "#e0a040" : "#8899aa"));
+        return state === "ok" ? "#2ecc71" : (state === "problem" ? "#ff5a36" : (state === "note" ? "#e0a040" : (state === "off" ? "#667788" : "#8899aa")));
     }
 
     function stateMark(state) {
-        return state === "ok" ? "\u2713" : (state === "problem" ? "\u2717" : (state === "note" ? "!" : "?"));
+        return state === "ok" ? "\u2713" : (state === "problem" ? "\u2717" : (state === "note" ? "!" : (state === "off" ? "\u2013" : "?")));
     }
 
     delegate: Rectangle {
@@ -84,6 +86,67 @@ ListView {
             y: head.y + head.height + 8
             width: card.width - 28
             spacing: 3
+
+            Row {
+                spacing: 8
+
+                // Opens this camera's own web page in the browser, the same as the tile's right-click "Open camera web UI".
+                Rectangle {
+                    id: webBtn
+                    visible: modelData.camIp !== undefined && modelData.camIp !== ""
+                    width: webText.implicitWidth + 20
+                    height: 24
+                    radius: 4
+                    color: webArea.pressed ? "#2a3a4a" : (webArea.containsMouse ? "#22303d" : "#1a242d")
+                    border.width: 1
+                    border.color: webArea.containsMouse ? "#00f5d4" : "#2a3540"
+                    Text {
+                        id: webText
+                        anchors.centerIn: parent
+                        text: qsTr("Open camera web page")
+                        color: webArea.containsMouse ? "#00f5d4" : "#c8d2da"
+                        font.pixelSize: 11
+                    }
+                    MouseArea {
+                        id: webArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        onClicked: Qt.openUrlExternally("http://" + modelData.camIp + (modelData.camPort > 0 && modelData.camPort !== 80 ? ":" + modelData.camPort : ""))
+                        ToolTip.visible: containsMouse
+                        ToolTip.delay: 500
+                        ToolTip.text: qsTr("Open %1 in your browser (the same as the right-click item on a tile)").arg(modelData.camIp)
+                    }
+                }
+
+                // Checks only this camera again (read-only). The big Refresh button of the window checks every camera.
+                Rectangle {
+                    id: againBtn
+                    width: againText.implicitWidth + 20
+                    height: 24
+                    radius: 4
+                    opacity: list.busy ? 0.45 : 1.0
+                    color: againArea.pressed && !list.busy ? "#2a3a4a" : (againArea.containsMouse && !list.busy ? "#22303d" : "#1a242d")
+                    border.width: 1
+                    border.color: againArea.containsMouse && !list.busy ? "#00f5d4" : "#2a3540"
+                    Text {
+                        id: againText
+                        anchors.centerIn: parent
+                        text: qsTr("Check this camera again")
+                        color: againArea.containsMouse && !list.busy ? "#00f5d4" : "#c8d2da"
+                        font.pixelSize: 11
+                    }
+                    MouseArea {
+                        id: againArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        enabled: !list.busy
+                        onClicked: list.recheck(modelData.key)
+                        ToolTip.visible: containsMouse
+                        ToolTip.delay: 500
+                        ToolTip.text: qsTr("Ask only this camera again (read-only). The Refresh button at the top checks every camera in the list.")
+                    }
+                }
+            }
 
             Repeater {
                 model: modelData.items

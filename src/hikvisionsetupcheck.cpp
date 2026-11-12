@@ -470,7 +470,10 @@ void HikvisionSetupCheck::stepSmartRead(const JobPtr &j, int index)
             j->smartSet << QLatin1String(kSmartEvent[index]);
         const QString id = QStringLiteral("smart%1").arg(index);
         if (!drawn && !overall) {
-            stepSmart(j, index + 1); // nothing set up for this kind: not a problem, nothing to say
+            // Nothing is set up for this kind. That is not a problem (it may be unused on purpose), but it is said, in
+            // grey, so a rule that someone expects to be on does not go unmentioned.
+            add(j, id, label, QStringLiteral("off"), tr("Switched off, and no line or area is drawn."));
+            stepSmart(j, index + 1);
             return;
         }
         if (drawn && overall)
@@ -544,6 +547,8 @@ void HikvisionSetupCheck::finish(const JobPtr &j)
     r.insert(QStringLiteral("time"), QLocale::c().toString(QDateTime::currentDateTime(), QStringLiteral("dd MMM yyyy HH:mm:ss")));
     r.insert(QStringLiteral("model"), j->model);
     r.insert(QStringLiteral("firmware"), j->firmware);
+    r.insert(QStringLiteral("camIp"), j->camIp);     // where the camera's own web page is, for the button on the card
+    r.insert(QStringLiteral("camPort"), j->camPort);
     r.insert(QStringLiteral("problems"), problems);
     r.insert(QStringLiteral("summary"), problems == 0 ? tr("Set up for detection") : tr("%n thing(s) to fix", nullptr, problems));
     r.insert(QStringLiteral("items"), j->items);

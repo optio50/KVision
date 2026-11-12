@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+* **Check again from the setup check window.** The window's *Refresh* button now asks the cameras again (it used to only
+  re-read the saved results, so nothing seemed to happen): it checks every camera in the list. Each opened card also has
+  a small *Check this camera again* button that checks only that one camera, and both wait while a check is running.
+* **The setup check lists every kind of rule the camera offers.** A line crossing, intrusion, region entrance or region
+  exit rule that is switched off with nothing drawn used to be left out of the card, which hid an intrusion rule that
+  someone expected to be on. It is now listed in grey with a dash, "Switched off, and no line or area is drawn.", and
+  is not counted as a problem. A kind the camera does not offer at all is still left out.
+* **Open the camera's web page from the setup check.** Each camera's card in the detection setup check, once opened, has
+  an *Open camera web page* button, the same as the tile's right-click *Open camera web UI*. For a camera behind a
+  recorder it opens the camera's own address, as found by the check.
+
 ## [3.5.0] - 2026-11-12
 
 ### Added

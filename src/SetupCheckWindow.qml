@@ -37,12 +37,34 @@ Window {
         win.results = all;
     }
 
+    // Asks the cameras again (read-only). The big Refresh button checks every camera in the list (the list holds every camera
+    // checked since KVision started), or, if the list is empty, every camera that is switched on for detection. A card's own
+    // small button checks only that camera. The list updates by itself as each answer arrives.
+    function checkAgain() {
+        if (typeof rootWindow === "undefined" || !rootWindow)
+            return;
+        if (win.results.length === 0) {
+            rootWindow.checkDetectionSetup("");
+        } else {
+            for (var i = 0; i < win.results.length; ++i)
+                rootWindow.checkDetectionSetup(win.results[i].key);
+        }
+        win.reload();
+    }
+
+    function checkOne(key) {
+        if (typeof rootWindow === "undefined" || !rootWindow)
+            return;
+        rootWindow.checkDetectionSetup(key);
+        win.reload();
+    }
+
     function stateColor(state) {
-        return state === "ok" ? "#2ecc71" : (state === "problem" ? "#ff5a36" : (state === "note" ? "#e0a040" : "#8899aa"));
+        return state === "ok" ? "#2ecc71" : (state === "problem" ? "#ff5a36" : (state === "note" ? "#e0a040" : (state === "off" ? "#667788" : "#8899aa")));
     }
 
     function stateMark(state) {
-        return state === "ok" ? "\u2713" : (state === "problem" ? "\u2717" : (state === "note" ? "!" : "?"));
+        return state === "ok" ? "\u2713" : (state === "problem" ? "\u2717" : (state === "note" ? "!" : (state === "off" ? "\u2013" : "?")));
     }
 
     onVisibleChanged: {
@@ -85,7 +107,11 @@ Window {
 
             Button {
                 text: qsTr("Refresh")
-                onClicked: win.reload()
+                enabled: HikvisionSetupCheck.pending === 0
+                onClicked: win.checkAgain()
+                ToolTip.visible: hovered
+                ToolTip.delay: 600
+                ToolTip.text: qsTr("Check every camera in the list again (read-only), so the cards show what the cameras say now. Each card has its own button for a single camera.")
             }
         }
 
@@ -95,6 +121,8 @@ Window {
             Layout.fillHeight: true
             results: win.results
             focusKey: win.focusKey
+            busy: HikvisionSetupCheck.pending > 0
+            onRecheck: win.checkOne(key)
             openKey: win.openKey
             onOpenKeyChanged: win.openKey = openKey
         }
