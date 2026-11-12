@@ -401,7 +401,7 @@ Window {
                 onActivated: logWin.load(true)
                 ToolTip.visible: hovered
                 ToolTip.delay: 600
-                ToolTip.text: qsTr("Only this type of event. All types leaves out plain labelled motion, which has no picture and is far more numerous; choose Motion to list it")
+                ToolTip.text: qsTr("Only events of this type.")
             }
 
             Item { Layout.fillWidth: true }

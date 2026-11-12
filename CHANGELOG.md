@@ -34,8 +34,8 @@ All notable changes to this project will be documented in this file.
 * **The AMD/Intel GPU reading never worked.** The same end-of-file pitfall sat in the DRM client-stats fallback, which
   reads `/proc/<pid>/fdinfo` — inherited from upstream, the loop never read a line, so a graphics card that is not
   NVIDIA always showed 0%. Such a card can now show its real load, when its driver exposes drm-engine stats.
-
-## [3.5.0] - 2026-11-12
+* **Detection events filter.** "All types" now really means everything: plain labelled Motion events are included in
+  that list instead of requiring their own filter choice. Choose "Motion" to see only those.
 
 ### Added
 * **Overlay text from MQTT.** A new *Overlay text from MQTT...* button in the settings (under the detection options) opens a

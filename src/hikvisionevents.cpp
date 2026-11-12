@@ -764,8 +764,8 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
     QVariantList entries;
     bool more = false;
     const QString wantTarget = target.trimmed().toLower();
-    // No type chosen means every kind of smart event; plain labelled motion is then left out, as it has no picture and
-    // far outnumbers the rest. Choosing "Motion" lists it.
+    // No type chosen means every kind of event, including plain labelled motion (motion has no picture).
+    // Choosing "Motion" lists only those.
     const QStringList wantKinds = splitList(kinds);
     const bool filtering = true;
     int total = 0;
@@ -871,7 +871,7 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
                 if ((fromMs > 0 && when2 < fromMs) || (toMs > 0 && when2 > toMs))
                     continue;
                 const QString kindNow = e.value(QStringLiteral("kind")).toString();
-                if (wantKinds.isEmpty() ? kindNow == QLatin1String("Motion") : !wantKinds.contains(kindNow))
+                if (!wantKinds.isEmpty() && !wantKinds.contains(kindNow))
                     continue;
                 if (!wantTarget.isEmpty()) {
                     QString tg = e.value(QStringLiteral("target")).toString().toLower();
