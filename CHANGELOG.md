@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Detection events window shows which entries still have video.** When the window opens, KVision asks each recorder
+  (and each camera that records on its own) for its oldest recording: one small search per camera, on a background
+  thread, and not repeated within ten minutes. An entry older than that gets a dimmed play button and a tooltip saying the
+  recorder no longer has video from that time; double-clicking it still tries and says playback may be empty. If a camera
+  cannot be asked, nothing is dimmed. Only the oldest recording is compared, not gaps in the middle.
 * **Camera settings window (read only).** A new *Camera settings (read only)...* button in NVR settings opens a window that
   reads one camera's own settings on its own address: device and firmware, time and network, video streams, picture
   settings, the detection rules and what each one does on the camera, the hours of its speaker (audible alarm) and white

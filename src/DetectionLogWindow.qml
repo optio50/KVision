@@ -100,6 +100,15 @@ Window {
         return entry.recorderIp !== "" && entry.channel > 0 && entry.epochMs > 0;
     }
 
+    // True when the recorder is known to have no video that old any more. Unknown (not asked, or no answer) is never "gone".
+    function videoGone(entry) {
+        var rev = HikvisionRecordingSpan.revision; // makes bindings ask again when new answers arrive
+        if (!logWin.canPlay(entry))
+            return false;
+        var oldest = HikvisionRecordingSpan.oldestMs(entry.recorderIp, entry.channel);
+        return oldest > 0 && (entry.epochMs - logWin.leadInSeconds * 1000) < oldest;
+    }
+
     function playEntry(entry) {
         if (!logWin.canPlay(entry))
             return;
@@ -107,6 +116,8 @@ Window {
             return;
         if (!rootWindow.openPlaybackAt(entry.recorderIp, entry.channel, entry.epochMs - logWin.leadInSeconds * 1000))
             logWin.notice = qsTr("This camera's recorder is not in the saved list");
+        else if (logWin.videoGone(entry))
+            logWin.notice = qsTr("The recorder no longer has video from that time, so playback may be empty");
         else
             logWin.notice = "";
     }
@@ -336,8 +347,11 @@ Window {
     }
 
     onVisibleChanged: {
-        if (visible)
+        if (visible) {
             load(true);
+            if (typeof rootWindow !== "undefined" && rootWindow)
+                HikvisionRecordingSpan.refresh(rootWindow.hikvisionRecordersJson || "[]");
+        }
     }
 
     onClosing: {
@@ -454,6 +468,7 @@ Window {
                 height: 26
                 color: rowArea.containsMouse && logWin.canPlay(modelData) ? "#22303a" : (index % 2 === 0 ? "#141b22" : "transparent")
                 readonly property bool playable: logWin.canPlay(modelData)
+                readonly property bool gone: logWin.videoGone(modelData)
 
                 // Double-click anywhere on the row opens playback at that moment.
                 MouseArea {
@@ -545,12 +560,13 @@ Window {
                             anchors.centerIn: parent
                             width: 26; height: 20; radius: 4
                             visible: row.playable
-                            color: playArea.containsMouse ? "#00f5d4" : "#2a3540"
+                            color: playArea.containsMouse ? (row.gone ? "#667788" : "#00f5d4") : "#2a3540"
+                            opacity: row.gone ? 0.45 : 1.0
                             Text {
                                 anchors.centerIn: parent
                                 text: "\u25B6"
                                 font.pixelSize: 10
-                                color: playArea.containsMouse ? "#0f151b" : "#00f5d4"
+                                color: playArea.containsMouse ? "#0f151b" : (row.gone ? "#8899aa" : "#00f5d4")
                             }
                             MouseArea {
                                 id: playArea
@@ -559,7 +575,8 @@ Window {
                                 onClicked: logWin.playEntry(modelData)
                                 ToolTip.visible: containsMouse
                                 ToolTip.delay: 500
-                                ToolTip.text: qsTr("Play the recording %1 seconds before this moment").arg(logWin.leadInSeconds)
+                                ToolTip.text: row.gone ? qsTr("The recorder no longer has video from this time (it keeps only the newest)")
+                                                       : qsTr("Play the recording %1 seconds before this moment").arg(logWin.leadInSeconds)
                             }
                         }
                         Text {
