@@ -77,6 +77,30 @@ Status key: `[ ]` not started, `[~]` started, `[x]` done.
 - [ ] **Tidy up** `/tmp/evprobe`, `/tmp/vcalive`, `/tmp/nvrlive`, `/tmp/g3live`: probe programs and logs from 10 Nov.
       They disappear when the machine restarts. Copy anything worth keeping first.
 
+## Added 12 Nov 2026 (see section 10 of the audit trail)
+
+- [ ] **Camera settings window: test it fully** (layout, week strips, the all-cameras table and both copy buttons). The
+      reading code was tested from the command line only.
+- [ ] **Linked events: say "could not be read" when the recorder does not answer.** One run showed "nothing on the
+      recorder is linked" for the Front Door's audio because the recorder dropped the answer.
+- [ ] **Image Parameters Switch:** the scene that is selected on a "Not Switch" camera is not in
+      `/ISAPI/Image/channels/1/displayParamSwitch`; where it lives is unknown. Cabin Inside, DoggieCam and the Doorbell
+      do not offer the request at all.
+- [ ] **Restore:** only tested on DoggieCam, and only the device name was checked afterwards. Try one more camera and
+      compare more settings (before a restore, take the safety backup it makes, and keep it).
+- [ ] **Face detection on Livingroom2 / Garage2 (192.0.0.108):** enabled on the camera, but no face event appeared on its
+      stream or the NVR's in two live tests. `OtherEvents.log` would show one if it ever came. Unknown whether this model
+      sends one.
+- [ ] **Audio at the Front Door does not sound by day.** The likely cause is the camera's own audible alarm hours
+      (00:00-05:45, 21:00-24:00). Not tested by triggering the event by day and by night. The other cameras with limited
+      hours are in the all-cameras table (orange).
+- [ ] **Four NVR rules that flash lights are switched off:** Pano region entrance, FrontDoor line crossing, PTZ intrusion,
+      Driveway line crossing. Decide whether they should be on.
+- [ ] **Watch `logs/OtherEvents.log` for a while** to see which event types the cameras send that KVision does not know.
+      `IO` and `duration` are skipped on purpose. Tamper types were left out on purpose.
+- [ ] **Old camera quirk:** Cabin Inside (192.0.0.11, firmware V5.4.800) returns a configuration export even without a key,
+      so its file may not be encrypted. Treat it as sensitive.
+
 ## Ideas not taken from the Node-RED project (on purpose)
 
 - Alarm panel, doorbell, speaker and access-control nodes: outside what KVision is for.
@@ -84,3 +108,5 @@ Status key: `[ ]` not started, `[~]` started, `[x]` done.
 - Licence-plate recognition: only worth it if a plate camera is added.
 - Other events on the same stream (tamper, defocus, scene change, video loss, storage errors, temperature): worth a
   look later as a separate "camera problem" frame.
+- From reading other Hikvision projects (12 Nov): automatic discovery of devices on the network (SADP), and a warning
+  when a camera's clock is more than a few minutes off (digest login fails). Neither done.

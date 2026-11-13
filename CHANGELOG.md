@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Camera settings window (read only).** A new *Camera settings (read only)...* button in NVR settings opens a window that
+  reads one camera's own settings on its own address: device and firmware, time and network, video streams, picture
+  settings, the detection rules and what each one does on the camera, the hours of its speaker (audible alarm) and white
+  light as a 7 day strip, memory card, recording and users (names only). A section a camera does not offer is left out, so
+  older cameras show less. *All cameras* reads every camera one after the other into one table (model, firmware, audio and
+  light hours, motion, intrusion, line crossing); hours that are not all day are shown in orange, since an NVR action only
+  runs inside the camera's own hours. *Copy as text* copies one camera's settings. Nothing in it can change a camera.
+  The table also names which cameras trigger each camera's speaker and light (from the recorder's event rules, with
+  switched-off events marked) and has *Copy table as text*, tab separated for a spreadsheet. The Image section shows the
+  *Image parameters switch* (Not Switch, Scheduled-Switch with the scene now and this month's schedule, or a PTZ's timing
+  switch) and the picture values read from the right place. The detection actions are written in plain words.
+* **Larger donate button in the README** (`images/donate.svg`), replacing the small badge.
 * **Other events log.** An event a camera sends that KVision has no kind for (a face event, the `duration` "stayed in the
   area" report, anything new) used to be dropped without a trace. It is now written to `logs/OtherEvents.log` with the
   camera's own type name and the start of its message, so unknown events can be seen. A line is written when an event's

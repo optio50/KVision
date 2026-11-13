@@ -89,6 +89,11 @@ ColumnLayout {
         NvrCamerasWindow {}
     }
 
+    Component {
+        id: cameraSettingsComponent
+        CameraSettingsWindow {}
+    }
+
     // Creates a new, separate layout holding every camera of the given recorder,
     // in the smallest square-ish grid that fits them all, and switches to it.
     function generateGridForRecorder(recorderData) {
@@ -1375,6 +1380,35 @@ ColumnLayout {
                 font.pixelSize: 9
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
+            }
+
+            Button {
+                id: camSettingsBtn
+                text: qsTr("Camera settings (read only)...")
+                Layout.alignment: Qt.AlignLeft
+                contentItem: Text {
+                    text: camSettingsBtn.text
+                    color: "white"
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    leftPadding: 10
+                    rightPadding: 10
+                }
+                background: Rectangle {
+                    color: camSettingsBtn.pressed ? "#303a46" : (camSettingsBtn.hovered ? "#3a4550" : "#2a3540")
+                    border.color: "#00f5d4"
+                    radius: 4
+                }
+                onClicked: {
+                    var w = cameraSettingsComponent.createObject(rootWindow);
+                    if (w)
+                        w.show();
+                }
+                ToolTip.delay: Compact.toolTipDelay
+                ToolTip.timeout: Compact.toolTipTimeout
+                ToolTip.visible: camSettingsBtn.hovered
+                ToolTip.text: qsTr("Look at every camera's own settings, including the hours its speaker and light work. Nothing can be changed here.")
             }
 
             // Restore: only the backups of the camera picked above, one camera at a time.
