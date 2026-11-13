@@ -3,6 +3,7 @@
 
 #include <QDateTime>
 #include <QHash>
+#include <QPair>
 #include <QRectF>
 #include <QSet>
 #include <QObject>
@@ -182,6 +183,12 @@ private:
     void judgeJpeg(const QString &address, bool hasRect, const QRectF &rect, const QByteArray &jpeg);
     void savePicture(const QString &address, int lens, const QString &kind, qint64 secs, const QByteArray &jpeg);
     void takeSnapshot(const QString &ip, int cameraChannel, qint64 secs);
+    // An event type KVision has no kind for (a face event, "duration", ...): one line in logs/OtherEvents.log with the
+    // raw type name and the start of the camera's message, so unknown events can be seen. Throttled: a line is written
+    // when the state of that event changes, and at most every ten minutes while it stays the same.
+    void logOtherEvent(const Conn *c, const QString &type, const QString &state, const QString &cameraTime, int eventChannel,
+                       const QString &body);
+    QHash<QString, QPair<QString, qint64>> m_otherSeen; // "ip|channel|type" -> last state logged and when (ms)
     QHash<QString, qint64> m_lastTrack; // when a lens last logged a track (ms), to ignore a second tile of the same camera
     int pictureLens(const Conn *c, int eventChannel) const;
     // Keeps the newest m_maxPictures pictures of each camera in logs/pictures (or of one camera) and deletes the older ones.

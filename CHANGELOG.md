@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Other events log.** An event a camera sends that KVision has no kind for (a face event, the `duration` "stayed in the
+  area" report, anything new) used to be dropped without a trace. It is now written to `logs/OtherEvents.log` with the
+  camera's own type name and the start of its message, so unknown events can be seen. A line is written when an event's
+  state changes and at most every ten minutes while it stays the same. The camera heartbeat, `IO` (an input port changed)
+  and `duration` (the follow-up to a field detection) are left out, as they say nothing new. The file is
+  kept under 2 MB (one older copy). It is also written by the background logger.
 * **Camera backup.** A new *Camera backup* section in NVR settings saves a camera's own configuration (its
   `/ISAPI/System/configurationData` export) to `backups/` next to the config file, with a small `.json` beside it (name,
   model, firmware, serial, date). *Back up* does the picked camera; *Back up all cameras* does every camera one after the

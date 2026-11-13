@@ -283,6 +283,10 @@ void HikvisionEvents::onReadyRead(const QString &ip)
             // the target inside the rule. All of them go to the detection log and show the tile's
             // detection frame with that target, like a labelled motion report.
             const QString kind = vcaKind(type);
+            if (kind.isEmpty()) {
+                logOtherEvent(c, type, stateRx.match(body).captured(1), camTime, camChannel, body);
+                continue;
+            }
             if (!kind.isEmpty() && stateRx.match(body).captured(1) == QLatin1String("active")) {
                 QString t = vcaTargetRx.match(body).captured(1).trimmed().toLower();
                 if (!t.isEmpty() && t != QLatin1String("human") && t != QLatin1String("vehicle") && t != QLatin1String("animal"))
@@ -760,6 +764,56 @@ void HikvisionEvents::logDetection(const Conn *c, const QString &target, const Q
             address = it->ip;
     }
     QTextStream(&f) << when << ", " << what << " detected, " << kind << ", " << name << ", " << address << recorder << late << (where.isEmpty() ? QString() : QStringLiteral(", ") + where) << "\n";
+}
+
+void HikvisionEvents::logOtherEvent(const Conn *c, const QString &type, const QString &state, const QString &cameraTime,
+                                    int eventChannel, const QString &body)
+{
+    if (m_logDir.isEmpty() || type.isEmpty())
+        return;
+    // A camera's heartbeat is a "videoloss" report that says inactive, every ten seconds or so. It is not an event.
+    if (type.compare(QLatin1String("heartBeat"), Qt::CaseInsensitive) == 0
+        || (type == QLatin1String("videoloss") && state != QLatin1String("active")))
+        return;
+    // Types that are seen all the time and tell nothing new: "IO" (an input port changed) and "duration" (the follow-up
+    // to a field detection that is already logged). Add a type here to leave it out of the log.
+    static const QStringList ignored = {QStringLiteral("IO"), QStringLiteral("duration")};
+    for (const QString &skip : ignored) {
+        if (type.compare(skip, Qt::CaseInsensitive) == 0)
+            return;
+    }
+
+    const QString key = c->ip + QLatin1Char('|') + QString::number(eventChannel) + QLatin1Char('|') + type;
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    const auto seen = m_otherSeen.constFind(key);
+    if (seen != m_otherSeen.constEnd() && seen->first == state && nowMs - seen->second < 600000)
+        return;
+    m_otherSeen.insert(key, qMakePair(state, nowMs));
+
+    QString name = c->name.isEmpty() ? c->ip : c->name;
+    if (c->recorderMode) {
+        const auto it = c->chanInfo.constFind(eventChannel);
+        name = (it != c->chanInfo.constEnd() && !it->name.isEmpty()) ? it->name : QStringLiteral("%1 Ch. %2").arg(c->ip).arg(eventChannel);
+    } else {
+        const auto lens = c->lens.constFind(eventChannel);
+        if (lens != c->lens.constEnd() && !lens->name.isEmpty())
+            name = lens->name;
+    }
+
+    QDir().mkpath(m_logDir);
+    const QString path = m_logDir + QStringLiteral("/OtherEvents.log");
+    if (QFileInfo(path).size() > 2 * 1024 * 1024) { // keep it small: one older copy
+        QFile::remove(m_logDir + QStringLiteral("/OtherEvents.old.log"));
+        QFile::rename(path, m_logDir + QStringLiteral("/OtherEvents.old.log"));
+    }
+    QFile f(path);
+    if (!f.open(QIODevice::Append | QIODevice::Text))
+        return;
+    const QString when = QLocale::c().toString(QDateTime::currentDateTime(), QStringLiteral("dd MMM yyyy HH:mm:ss"));
+    QTextStream(&f) << when << ", Unrecognised event, " << type << " (" << (state.isEmpty() ? QStringLiteral("no state") : state)
+                    << "), " << name << ", " << c->ip << ", channel " << eventChannel
+                    << (cameraTime.isEmpty() ? QString() : QStringLiteral(", camera time ") + cameraTime)
+                    << ", message: " << body.simplified().left(700) << "\n";
 }
 
 // One line each time a tile shows a detection frame (a camera shown on two tiles gives two lines):
