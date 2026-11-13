@@ -2,6 +2,7 @@ import QtQuick 2.11
 import QtQuick.Layouts 1.11
 import QtQuick.Controls 2.4
 import Qt.labs.settings 1.0
+import CCTV_Viewer.Core 1.0
 import CCTV_Viewer.Hikvision 1.0
 import CCTV_Viewer.Utils 1.0
 import CCTV_Viewer.Themes 1.0
@@ -129,6 +130,7 @@ ColumnLayout {
     Component.onCompleted: {
         loadRecorders();
         buildUnstickCameraModel();
+        HikvisionBackup.loadCameras(rootWindow.hikvisionRecordersJson || "[]", Context.config.fileName);
     }
 
     Connections {
@@ -136,6 +138,7 @@ ColumnLayout {
         function onHikvisionRecordersJsonChanged() {
             rootPanel.loadRecorders();
             rootPanel.buildUnstickCameraModel();
+            HikvisionBackup.loadCameras(rootWindow.hikvisionRecordersJson || "[]", Context.config.fileName);
         }
     }
 
@@ -1165,6 +1168,340 @@ ColumnLayout {
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
             }
+        }
+    }
+
+    // ── Camera backup: save each camera's own configuration (never the recorder's) ─────
+    property var backupCameraModel: []
+    property var restoreFileModel: []
+    function refreshRestoreFiles() {
+        var sel = backupCameraCombo.currentIndex >= 0 ? rootPanel.backupCameraModel[backupCameraCombo.currentIndex] : null;
+        rootPanel.restoreFileModel = sel ? HikvisionBackup.listBackups(sel.ip) : [];
+    }
+
+    Connections {
+        target: HikvisionBackup
+        function onCamerasLoaded(cameras) {
+            rootPanel.backupCameraModel = cameras;
+            rootPanel.refreshRestoreFiles();
+        }
+        function onProgress(label, text) {
+            rootWindow.showNotice(qsTr("Camera backup") + "\n" + label + "\n" + text, "#00f5d4", 0);
+        }
+        function onFinished(summary, ok) {
+            rootWindow.showNotice(summary, ok ? "#00ff66" : "#ff3333", ok ? 8000 : 14000);
+            rootPanel.refreshRestoreFiles();
+            HikvisionBackup.loadCameras(rootWindow.hikvisionRecordersJson || "[]", Context.config.fileName);
+        }
+    }
+
+    Frame {
+        Layout.fillWidth: true
+        background: Rectangle {
+            color: "#1c242c"
+            radius: 6
+            border.color: "#2a3540"
+            border.width: 1
+        }
+
+        ColumnLayout {
+            width: parent.width
+            spacing: 8
+
+            Text {
+                text: qsTr("Camera backup")
+                color: "white"
+                font.pixelSize: 13
+                font.bold: true
+                Layout.fillWidth: true
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                ComboBox {
+                    id: backupCameraCombo
+                    Layout.fillWidth: true
+                    onCurrentIndexChanged: rootPanel.refreshRestoreFiles()
+                    model: rootPanel.backupCameraModel
+                    textRole: "name"
+                    enabled: !HikvisionBackup.busy
+
+                    background: Rectangle {
+                        implicitHeight: 32
+                        color: "#0f151b"
+                        border.color: backupCameraCombo.activeFocus ? "#ff7a00" : "#2a3540"
+                        border.width: 1
+                        radius: 4
+                    }
+                    contentItem: Text {
+                        text: backupCameraCombo.displayText
+                        color: "white"
+                        font.pixelSize: 11
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 10
+                        elide: Text.ElideRight
+                    }
+                    delegate: ItemDelegate {
+                        width: backupCameraCombo.width
+                        height: 32
+                        contentItem: Text {
+                            text: modelData.name + "  (" + modelData.ip + ")"
+                            color: hovered ? "#ff7a00" : "white"
+                            font.pixelSize: 11
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 10
+                        }
+                        background: Rectangle {
+                            color: hovered ? "#2a3540" : "transparent"
+                            border.color: hovered ? "#ff7a00" : "transparent"
+                            border.width: 1
+                            radius: 4
+                        }
+                    }
+                    popup: Popup {
+                        y: backupCameraCombo.height + 2
+                        width: backupCameraCombo.width
+                        implicitHeight: Math.min(320, backupCameraCombo.popup.visible ? contentItem.implicitHeight : 0)
+                        padding: 4
+                        contentItem: ListView {
+                            clip: true
+                            implicitHeight: contentHeight
+                            model: backupCameraCombo.popup.visible ? backupCameraCombo.delegateModel : null
+                            currentIndex: backupCameraCombo.highlightedIndex
+                        }
+                        background: Rectangle {
+                            color: "#0f151b"
+                            border.color: "#ff7a00"
+                            border.width: 1
+                            radius: 6
+                        }
+                    }
+                }
+
+                Button {
+                    id: backupOneBtn
+                    text: qsTr("Back up")
+                    enabled: !HikvisionBackup.busy && backupCameraCombo.currentIndex >= 0
+                    Layout.fillHeight: true
+                    contentItem: Text {
+                        text: backupOneBtn.text
+                        font.bold: true
+                        color: backupOneBtn.enabled ? "white" : "#8898a6"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: !backupOneBtn.enabled ? "#303030" : (backupOneBtn.pressed ? "#d66600" : (backupOneBtn.hovered ? "#ff8c00" : "#ff7a00"))
+                        radius: 4
+                    }
+                    onClicked: {
+                        var sel = rootPanel.backupCameraModel[backupCameraCombo.currentIndex];
+                        if (!sel)
+                            return;
+                        rootWindow.showNotice(qsTr("Camera backup") + "\n" + sel.name, "#00f5d4", 0);
+                        HikvisionBackup.backupCamera(sel.ip, backupUserField.text, backupPassField.text);
+                        backupPassField.text = "";
+                    }
+                }
+
+                Button {
+                    id: backupAllBtn
+                    text: qsTr("Back up all cameras")
+                    enabled: !HikvisionBackup.busy && rootPanel.backupCameraModel.length > 0
+                    Layout.fillHeight: true
+                    contentItem: Text {
+                        text: backupAllBtn.text
+                        font.bold: true
+                        color: backupAllBtn.enabled ? "white" : "#8898a6"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: !backupAllBtn.enabled ? "#303030" : (backupAllBtn.pressed ? "#15803d" : (backupAllBtn.hovered ? "#22c55e" : "#16a34a"))
+                        radius: 4
+                    }
+                    onClicked: {
+                        rootWindow.showNotice(qsTr("Camera backup") + "\n" + qsTr("Backing up all cameras..."), "#00f5d4", 0);
+                        HikvisionBackup.backupAll();
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                TextField {
+                    id: backupUserField
+                    text: "admin"
+                    placeholderText: "admin"
+                    selectByMouse: true
+                    Layout.fillWidth: true
+                    color: "white"
+                    enabled: !HikvisionBackup.busy
+                    background: Rectangle {
+                        color: "#0f151b"
+                        radius: 4
+                        border.color: backupUserField.activeFocus ? "#ff7a00" : "#2a3540"
+                    }
+                }
+
+                TextField {
+                    id: backupPassField
+                    placeholderText: qsTr("Camera password")
+                    echoMode: TextInput.Password
+                    selectByMouse: true
+                    Layout.fillWidth: true
+                    color: "white"
+                    enabled: !HikvisionBackup.busy
+                    background: Rectangle {
+                        color: "#0f151b"
+                        radius: 4
+                        border.color: backupPassField.activeFocus ? "#ff7a00" : "#2a3540"
+                    }
+                }
+            }
+
+            Text {
+                text: {
+                    var sel = backupCameraCombo.currentIndex >= 0 ? rootPanel.backupCameraModel[backupCameraCombo.currentIndex] : null;
+                    var login = sel ? (sel.login === "own" ? qsTr("Uses the login saved for this camera (%1).").arg(sel.user)
+                                                           : qsTr("Uses the recorder's login (%1).").arg(sel.user)) : "";
+                    return login + " " + qsTr("Each camera is backed up on its own address, never through the recorder. Files are saved in %1 and can only be read by you; treat them as sensitive.").arg(HikvisionBackup.backupDir());
+                }
+                color: "#8898a6"
+                font.pixelSize: 9
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            // Restore: only the backups of the camera picked above, one camera at a time.
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                ComboBox {
+                    id: restoreFileCombo
+                    Layout.fillWidth: true
+                    enabled: !HikvisionBackup.busy
+                    textRole: "label"
+                    model: rootPanel.restoreFileModel
+
+                    background: Rectangle {
+                        implicitHeight: 32
+                        color: "#0f151b"
+                        border.color: restoreFileCombo.activeFocus ? "#ff7a00" : "#2a3540"
+                        border.width: 1
+                        radius: 4
+                    }
+                    contentItem: Text {
+                        text: rootPanel.restoreFileModel.length > 0 ? restoreFileCombo.displayText : qsTr("No backups of this camera yet")
+                        color: rootPanel.restoreFileModel.length > 0 ? "white" : "#8898a6"
+                        font.pixelSize: 11
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 10
+                        elide: Text.ElideRight
+                    }
+                    delegate: ItemDelegate {
+                        width: restoreFileCombo.width
+                        height: 32
+                        contentItem: Text {
+                            text: modelData.label
+                            color: hovered ? "#ff7a00" : "white"
+                            font.pixelSize: 11
+                            verticalAlignment: Text.AlignVCenter
+                            leftPadding: 10
+                        }
+                        background: Rectangle {
+                            color: hovered ? "#2a3540" : "transparent"
+                            border.color: hovered ? "#ff7a00" : "transparent"
+                            border.width: 1
+                            radius: 4
+                        }
+                    }
+                    popup: Popup {
+                        y: restoreFileCombo.height + 2
+                        width: restoreFileCombo.width
+                        implicitHeight: Math.min(240, restoreFileCombo.popup.visible ? contentItem.implicitHeight : 0)
+                        padding: 4
+                        contentItem: ListView {
+                            clip: true
+                            implicitHeight: contentHeight
+                            model: restoreFileCombo.popup.visible ? restoreFileCombo.delegateModel : null
+                            currentIndex: restoreFileCombo.highlightedIndex
+                        }
+                        background: Rectangle {
+                            color: "#0f151b"
+                            border.color: "#ff7a00"
+                            border.width: 1
+                            radius: 6
+                        }
+                    }
+                }
+
+                Button {
+                    id: restoreBtn
+                    text: qsTr("Restore")
+                    enabled: !HikvisionBackup.busy && rootPanel.restoreFileModel.length > 0 && restoreFileCombo.currentIndex >= 0
+                    Layout.fillHeight: true
+                    contentItem: Text {
+                        text: restoreBtn.text
+                        font.bold: true
+                        color: restoreBtn.enabled ? "white" : "#8898a6"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    background: Rectangle {
+                        color: !restoreBtn.enabled ? "#303030" : (restoreBtn.pressed ? "#b91c1c" : (restoreBtn.hovered ? "#ef4444" : "#dc2626"))
+                        radius: 4
+                    }
+                    onClicked: {
+                        var cam = rootPanel.backupCameraModel[backupCameraCombo.currentIndex];
+                        var file = rootPanel.restoreFileModel[restoreFileCombo.currentIndex];
+                        if (!cam || !file)
+                            return;
+                        restoreConfirm1.camName = cam.name;
+                        restoreConfirm1.camIp = cam.ip;
+                        restoreConfirm1.fileName = file.file;
+                        restoreConfirm1.fileLabel = file.label;
+                        restoreConfirm1.open();
+                    }
+                }
+            }
+
+            Text {
+                text: qsTr("Restore puts the chosen backup back on this camera only (the serial number must match). A fresh backup of the camera is taken first; if that fails, nothing is sent. The camera restarts and is offline for a minute or two.")
+                color: "#8898a6"
+                font.pixelSize: 9
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+        }
+    }
+
+    ConfirmDialog {
+        id: restoreConfirm1
+        title: qsTr("Restore camera configuration")
+        iconSource: "qrc:/images/icon-warning.svg"
+        property string camName: ""
+        property string camIp: ""
+        property string fileName: ""
+        property string fileLabel: ""
+        message: qsTr("Replace the settings of %1 (%2) with the backup from %3?").arg(camName).arg(camIp).arg(fileLabel)
+        onAccepted: restoreConfirm2.open()
+    }
+
+    ConfirmDialog {
+        id: restoreConfirm2
+        title: qsTr("Are you sure?")
+        iconSource: "qrc:/images/icon-warning.svg"
+        message: qsTr("%1 will restart and be offline for a minute or two. Its current settings are saved first as a new backup. Continue?").arg(restoreConfirm1.camName)
+        onAccepted: {
+            rootWindow.showNotice(qsTr("Restoring camera") + "\n" + restoreConfirm1.camName, "#ff9f43", 0);
+            HikvisionBackup.restoreCamera(restoreConfirm1.camIp, restoreConfirm1.fileName, backupUserField.text, backupPassField.text);
+            backupPassField.text = "";
         }
     }
 

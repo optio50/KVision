@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Camera backup.** A new *Camera backup* section in NVR settings saves a camera's own configuration (its
+  `/ISAPI/System/configurationData` export) to `backups/` next to the config file, with a small `.json` beside it (name,
+  model, firmware, serial, date). *Back up* does the picked camera; *Back up all cameras* does every camera one after the
+  other in the background, with a progress notice and a summary. Every camera is reached on its own address: a camera
+  behind a recorder is found through the recorder's channel list, but the recorder itself is never backed up. A camera uses
+  the recorder's login unless you give it its own username and password, which are kept for that camera once it accepts
+  them. One login attempt per camera, never a blank password. A camera that does not report its details (an old doorbell)
+  is skipped with a note. The files are readable only by you. The export key is built in, so there is nothing to type, and
+  it must never be changed or older backups cannot be restored. *Restore* puts a chosen backup back on the camera it came
+  from only: the serial number must match, a fresh backup of the camera is taken first, and nothing is sent if that fails.
+  It then uploads the file, waits for the camera to restart and checks that it answers again. One camera at a time, after
+  two confirmations.
 * **Detection logging is separate from the on-screen frame, and can keep running after KVision is closed.** While KVision
   is open it now always logs every configured camera, whether or not a tile shows it. The global frame setting and the
   right-click *Detection frame* switch only decide what is drawn. A new *Keep logging detection events after KVision is

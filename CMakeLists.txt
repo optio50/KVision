@@ -179,6 +179,7 @@ set(PROJ_FILES
     src/hikvisionevents.cpp src/hikvisionevents.h
     src/hikvisioneventlogger.cpp src/hikvisioneventlogger.h
     src/eventservice.cpp src/eventservice.h
+    src/hikvisionbackup.cpp src/hikvisionbackup.h
     src/headlessevents.cpp src/headlessevents.h
     src/hikvisionsetupcheck.cpp src/hikvisionsetupcheck.h
     src/mqttonce.cpp src/mqttonce.h

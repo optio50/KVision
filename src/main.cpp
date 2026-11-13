@@ -63,6 +63,7 @@ int qmlRegisterSingletonInstance(const char *uri, int versionMajor, int versionM
 #include "hikvisiontalk.h"
 #include "hikvisionevents.h"
 #include "hikvisioneventlogger.h"
+#include "hikvisionbackup.h"
 #include "headlessevents.h"
 #include "eventservice.h"
 #include <QLockFile>
@@ -445,6 +446,9 @@ int main(int argc, char *argv[])
 
     auto *hikvisionEvents = new HikvisionEvents();
     qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "HikvisionEvents", hikvisionEvents);
+
+    auto *hikvisionBackup = new HikvisionBackup();
+    qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "HikvisionBackup", hikvisionBackup);
 
     auto *hikvisionEventLogger = new HikvisionEventLogger(hikvisionEvents);
     qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "HikvisionEventLogger", hikvisionEventLogger);
