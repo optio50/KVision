@@ -791,7 +791,10 @@ void HikvisionEvents::logDetection(const Conn *c, const QString &target, const Q
         if (it != c->chanInfo.constEnd() && !it->ip.isEmpty())
             address = it->ip;
     }
-    QTextStream(&f) << when << ", " << what << " detected, " << kind << ", " << name << ", " << address << recorder << late << (where.isEmpty() ? QString() : QStringLiteral(", ") + where) << "\n";
+    // The last item says which device this report, and the picture that goes with it, came from: the camera's own connection,
+    // or the recorder's (a recorder's picture is fetched from the recorder).
+    const QString via = c->recorderMode ? QStringLiteral(", via NVR") : QStringLiteral(", via camera");
+    QTextStream(&f) << when << ", " << what << " detected, " << kind << ", " << name << ", " << address << recorder << late << (where.isEmpty() ? QString() : QStringLiteral(", ") + where) << via << "\n";
 }
 
 void HikvisionEvents::logOtherEvent(const Conn *c, const QString &type, const QString &state, const QString &cameraTime,
@@ -911,6 +914,12 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
             QStringList parts = line.split(QStringLiteral(", "));
             QVariantMap e;
             e.insert(QStringLiteral("raw"), line);
+            QString source; // "camera" or "NVR": where the picture came from (lines written before this was recorded have none)
+            if (!parts.isEmpty() && parts.last().startsWith(QStringLiteral("via "))) {
+                source = parts.takeLast().mid(4);
+                if (source != QLatin1String("camera") && source != QLatin1String("NVR"))
+                    source.clear();
+            }
             QString where;
             if (!parts.isEmpty() && (parts.last().startsWith(QStringLiteral("box ")) || parts.last().startsWith(QStringLiteral("zone ")) || parts.last().startsWith(QStringLiteral("poly "))))
                 where = parts.takeLast();
@@ -942,6 +951,7 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
                 e.insert(QStringLiteral("ip"), QString());
             }
             e.insert(QStringLiteral("received"), received);
+            e.insert(QStringLiteral("source"), source);
             {
                 // "box x/y/w/h zone N poly x/y/..." as lists the window can use (all 0..1 of the picture)
                 QVariantList box, poly;
@@ -1187,6 +1197,8 @@ QVariantList HikvisionEvents::logEventsBetween(const QString &recorderIp, int ch
         if (!line.contains(want))
             continue;
         QStringList parts = line.split(QStringLiteral(", "));
+        if (!parts.isEmpty() && parts.last().startsWith(QStringLiteral("via ")))
+            parts.removeLast();
         if (!parts.isEmpty() && (parts.last().startsWith(QStringLiteral("box ")) || parts.last().startsWith(QStringLiteral("zone ")) || parts.last().startsWith(QStringLiteral("poly "))))
             parts.removeLast();
         if (!parts.isEmpty() && parts.last().startsWith(QStringLiteral("received ")))

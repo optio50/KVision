@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **The detection events window says where each picture came from.** Every new log line ends with `via camera` or `via NVR`:
+  the connection the report and its picture arrived on. The picture viewer's caption shows *picture from the camera* or *picture
+  from the NVR*, and the picture button's tooltip says the same. The list has a new *Source* column right after the
+  address (Camera, or NVR; a dash for older lines) for every entry, since a picture always comes from the device that reported the event, so the window's smallest width is a little larger. Lines written before this
+  have no marker and show as before.
 * **Motion that names no target can be logged and shown.** Some cameras (a panoramic camera's plain motion zone, for one) report
   that something moved but not what, because their motion detection is not a smart event. KVision kept that off the detection
   log. Two new choices in the detection settings, both off by default: write each movement to the detection log (one line when
@@ -31,6 +36,10 @@ All notable changes to this project will be documented in this file.
   window that is still shutting down, so two windows do not write the same settings file at once.
 
 ### Fixed
+* **Detection events window: the controls are no longer pushed off the edge.** A long camera name in the *Only this camera*
+  box, or a long notice at the bottom, used to widen the window's contents so *Refresh* and *Load 10 more* ended up past the
+  right edge. Both now shorten with "..." (the notice shows in full on hover), and the window cannot be made narrower than
+  its controls need.
 * **The event picture viewer no longer draws its own target box on a picture the camera already framed.** A camera reports a
   target several times a second while it is still classifying it (first "Other", then "Animal"), each time with a moving
   box, and one picture file serves all of those log lines. The viewer judged the picture only by the box of the row that

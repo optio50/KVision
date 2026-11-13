@@ -13,7 +13,8 @@ Window {
 
     width: 1080
     height: 460
-    minimumWidth: 760
+    // Never narrower than the controls need (the filter row and the Load button), whatever the names are
+    minimumWidth: Math.max(850, content.implicitWidth + 24)
     minimumHeight: 240
     color: "#0f151b"
     title: qsTr("Detection events")
@@ -155,7 +156,9 @@ Window {
             for (var k = 0; k < pics.length; ++k)
                 items.push({ "path": pics[k], "boxes": boxesOf[pics[k]] || [], "epochMs": e.epochMs + k * 1000, "camera": e.camera, "channel": e.channel, "kind": e.kind,
                              "box": (pics.length === 1 || k === 0) ? e.box : [], "poly": (pics.length === 1 || k === 0) ? e.poly : [], "zone": e.zone,
-                             "caption": e.time + "   " + e.target + "   " + e.kind + (e.zone > 0 ? " (" + qsTr("zone %1").arg(e.zone) + ")" : "") + "   " + e.camera + (pics.length > 1 ? "   (" + (k + 1) + "/" + pics.length + ")" : "") });
+                             "caption": e.time + "   " + e.target + "   " + e.kind + (e.zone > 0 ? " (" + qsTr("zone %1").arg(e.zone) + ")" : "") + "   " + e.camera
+                                        + (e.source === "NVR" ? "   [" + qsTr("picture from the NVR") + "]" : (e.source === "camera" ? "   [" + qsTr("picture from the camera") + "]" : ""))
+                                        + (pics.length > 1 ? "   (" + (k + 1) + "/" + pics.length + ")" : "") });
         }
         // Nothing else refers to a window created with no parent, and the garbage collector (which the app runs after
         // closing windows and every hour) would remove it while it is open, so it is kept in a list until it closes.
@@ -390,6 +393,7 @@ Window {
     }
 
     ColumnLayout {
+        id: content
         anchors.fill: parent
         anchors.margins: 12
         spacing: 8
@@ -401,11 +405,15 @@ Window {
             CheckBox {
                 id: onlyThisCamera
                 visible: logWin.cameraIp !== ""
+                Layout.fillWidth: true
+                Layout.preferredWidth: 190
+                Layout.minimumWidth: 90
                 checked: logWin.cameraIp !== ""
                 text: qsTr("Only this camera") + (logWin.cameraName !== "" ? " (" + logWin.cameraName + ")" : "")
                 onToggled: logWin.load(true)
                 contentItem: Text {
                     leftPadding: onlyThisCamera.indicator.width + 6
+                    elide: Text.ElideRight
                     text: onlyThisCamera.text
                     color: "#eeeeee"
                     font.pixelSize: 12
@@ -490,8 +498,9 @@ Window {
                 Text { width: 150; height: parent.height; text: qsTr("Time"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter }
                 Text { width: 80; height: parent.height; text: qsTr("Target"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter }
                 Text { width: 120; height: parent.height; text: qsTr("Type"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter }
-                Text { width: parent.width - 350 - 100 - 80; height: parent.height; text: qsTr("Camera"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                Text { width: parent.width - 350 - 100 - 80 - 90; height: parent.height; text: qsTr("Camera"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
                 Text { width: 100; height: parent.height; text: qsTr("Address"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter }
+                Text { width: 90; height: parent.height; text: qsTr("Source"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
                 Text { width: 40; height: parent.height; text: qsTr("Picture"); color: "#00f5d4"; font.bold: true; font.pixelSize: 11; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter }
                 Text { width: 40; height: parent.height; text: qsTr("Play"); color: "#00f5d4"; font.bold: true; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter }
             }
@@ -549,7 +558,7 @@ Window {
                         color: modelData.kind !== "" ? "#eeeeee" : "#667788"; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter
                     }
                     Text {
-                        width: parent.width - 350 - 100 - 80; height: parent.height
+                        width: parent.width - 350 - 100 - 80 - 90; height: parent.height
                         text: modelData.camera + (modelData.received !== "" ? "   (late)" : "")
                         color: modelData.received !== "" ? "#aa9966" : "#eeeeee"; font.pixelSize: 12
                         verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight
@@ -558,6 +567,17 @@ Window {
                         width: 100; height: parent.height
                         text: modelData.ip
                         color: "#8899aa"; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter
+                    }
+                    Text {
+                        width: 90; height: parent.height
+                        // The device the report came from. Its picture, when it has one, comes from the same device (the link or
+                        // snapshot is only ever fetched from the connection's own address). Lines written before this show a dash.
+                        text: modelData.source === "NVR" ? qsTr("NVR") : (modelData.source === "camera" ? qsTr("Camera") : "\u2013")
+                        ToolTip.visible: srcArea.containsMouse && modelData.source !== ""
+                        ToolTip.text: qsTr("The report, and its picture if it has one, came from the %1").arg(modelData.source === "NVR" ? qsTr("NVR") : qsTr("camera"))
+                        MouseArea { id: srcArea; anchors.fill: parent; hoverEnabled: true }
+                        color: modelData.source === "NVR" ? "#e0a040" : (modelData.source === "camera" ? "#00f5d4" : "#445566")
+                        font.pixelSize: 12; verticalAlignment: Text.AlignVCenter
                     }
                     Item {
                         width: 40; height: parent.height
@@ -585,7 +605,9 @@ Window {
                                 onClicked: logWin.showPicture(modelData)
                                 ToolTip.visible: containsMouse
                                 ToolTip.delay: 500
-                                ToolTip.text: qsTr("Show the picture the camera sent with this event")
+                                ToolTip.text: modelData.source === "NVR" ? qsTr("Show the picture the NVR sent with this event")
+                                            : (modelData.source === "camera" ? qsTr("Show the picture the camera sent with this event")
+                                                                             : qsTr("Show the picture kept with this event"))
                             }
                         }
                         Text {
@@ -657,9 +679,15 @@ Window {
 
             Text {
                 visible: logWin.notice !== ""
+                Layout.fillWidth: true
+                Layout.preferredWidth: 60
+                elide: Text.ElideRight
                 text: logWin.notice
                 color: "#e0a040"
                 font.pixelSize: 12
+                ToolTip.visible: noticeArea.containsMouse
+                ToolTip.text: logWin.notice
+                MouseArea { id: noticeArea; anchors.fill: parent; hoverEnabled: true }
             }
 
             Item { Layout.fillWidth: true }
