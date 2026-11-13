@@ -12,7 +12,7 @@
 
 This repository is a personal fork of the upstream KVision/cctv-viewer project. It keeps the original application and adds the fixes and features I use on my own system, shared in case they are useful to others.
 
-**Version 3.5.0** is an independent, Linux-only fork. It starts from [Arkanista/KVision](https://github.com/Arkanista/KVision) release 2.7.5 and no longer tracks upstream. See [What this fork adds](#what-this-fork-adds-to-upstream-kvision) for the short list, and `CHANGELOG.md` for the full history.
+**Version 3.6.0** is an independent, Linux-only fork. It starts from [Arkanista/KVision](https://github.com/Arkanista/KVision) release 2.7.5 and no longer tracks upstream. See [What this fork adds](#what-this-fork-adds-to-upstream-kvision) for the short list, and `CHANGELOG.md` for the full history.
 
 ## Get it
 

@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-11-12
+
 ### Added
 * **Detection events window shows which entries still have video.** When the window opens, KVision asks each recorder
   (and each camera that records on its own) for its oldest recording: one small search per camera, on a background
@@ -89,6 +91,8 @@ All notable changes to this project will be documented in this file.
   NVIDIA always showed 0%. Such a card can now show its real load, when its driver exposes drm-engine stats.
 * **Detection events filter.** "All types" now really means everything: plain labelled Motion events are included in
   that list instead of requiring their own filter choice. Choose "Motion" to see only those.
+
+## [3.5.0] - 2026-11-12
 
 ### Added
 * **Overlay text from MQTT.** A new *Overlay text from MQTT...* button in the settings (under the detection options) opens a
