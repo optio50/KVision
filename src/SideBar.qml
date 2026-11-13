@@ -2276,6 +2276,7 @@ FocusScope {
                     x: 24
                     width: page4ScrollView.width - 48
                     spacing: 20
+                    property int section: 0 // the shown settings section: Detection, NVR, Cameras and display, Audio, General
 
                     Text {
                         text: qsTr("LNG_00274")
@@ -2286,1247 +2287,1447 @@ FocusScope {
                         }
                     }
 
-                    GroupBox {
-                        title: qsTr("LNG_00273")
-                        Layout.fillWidth: true
-
-                        background: Rectangle {
-                            color: "#141a21"
-                            border.color: "#2a3540"
-                            border.width: 1
-                            radius: 8
-                        }
-                        label: Text {
-                            text: parent.title
-                            color: "#00f5d4"
-                            font.bold: true
-                            font.pixelSize: 12
-                        }
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: 8
-
-                            CheckBox {
-                                text: qsTr("LNG_00272")
-                                checked: !generalSettings.singleApplication
-                                enabled: false
-                                onCheckedChanged: generalSettings.singleApplication = !checked
-                                Layout.fillWidth: true
-                            }
-
-                            Text {
-                                text: qsTr("LNG_00271")
-                                color: "#8898a6"
-                                font.pixelSize: 10
-                                wrapMode: Text.WordWrap
-                                Layout.fillWidth: true
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                height: 1
-                                color: "#2a3540"
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00549")
-                                checked: generalSettings.enableDiagnosticLogs
-                                onCheckedChanged: generalSettings.enableDiagnosticLogs = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00577")
-                                checked: generalSettings.confirmOnClose
-                                onCheckedChanged: generalSettings.confirmOnClose = checked
-                                Layout.fillWidth: true
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                height: 1
-                                color: "#2a3540"
-                            }
-
-                            CheckBox {
-                                id: logDetectionsBox
-                                text: qsTr("Keep logging detection events after KVision is closed")
-                                checked: generalSettings.logDetectionEvents
-                                onToggled: {
-                                    generalSettings.logDetectionEvents = checked;
-                                    var err = HikvisionEventLogger.setBackgroundService(checked, Context.config.fileName);
-                                    logDetectionsNote.text = err !== "" ? qsTr("Could not change the background service: %1").arg(err) : "";
-                                    bgStatusTimer.restart();
-                                    logDetectionsStatus.text = HikvisionEventLogger.backgroundStatus(Context.configDirPath());
+                    Row {
+                        spacing: 6
+                        Repeater {
+                            model: [qsTr("Detection"), qsTr("NVR"), qsTr("Cameras and display"), qsTr("Audio"), qsTr("General")]
+                            delegate: Rectangle {
+                                readonly property bool selected: page4Layout.section === index
+                                width: tabLabel.implicitWidth + 32
+                                height: 34
+                                radius: 6
+                                color: selected ? "#1c242c" : (tabArea.containsMouse ? "#141a21" : "transparent")
+                                border.width: 1
+                                border.color: selected ? "#00f5d4" : "#2a3540"
+                                Text {
+                                    id: tabLabel
+                                    anchors.centerIn: parent
+                                    text: modelData
+                                    color: parent.selected ? "#00f5d4" : "#cccccc"
+                                    font.pixelSize: 13
+                                    font.bold: parent.selected
                                 }
-                                Layout.fillWidth: true
-                            }
-
-                            Text {
-                                text: qsTr("While KVision is open it always logs every configured camera, whether or not it is on screen. With this on, a small background service takes over when KVision closes and steps aside when it opens again. With this off, nothing is logged while KVision is closed. The frame and label in User Interface Settings only control what is drawn on screen; they do not affect the log.")
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            Text {
-                                id: logDetectionsStatus
-                                visible: generalSettings.logDetectionEvents
-                                color: text.indexOf("OK") >= 0 || text.indexOf("standing by") >= 0 ? "#00f5d4" : "#ff9f43"
-                                font.pixelSize: 11
-                                font.bold: true
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            Text {
-                                id: logDetectionsNote
-                                visible: text !== ""
-                                color: "#ff4d4d"
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            Timer {
-                                id: bgStatusTimer
-                                interval: 5000
-                                repeat: true
-                                running: generalSettings.logDetectionEvents && logDetectionsBox.visible
-                                triggeredOnStart: true
-                                onTriggered: logDetectionsStatus.text = HikvisionEventLogger.backgroundStatus(Context.configDirPath())
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                height: 1
-                                color: "#2a3540"
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00270")
-                                checked: NvrStatusManager.monitoringEnabled
-                                onCheckedChanged: NvrStatusManager.monitoringEnabled = checked
-                                Layout.fillWidth: true
+                                MouseArea {
+                                    id: tabArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    onClicked: page4Layout.section = index
+                                }
                             }
                         }
                     }
 
-                    GroupBox {
-                        title: qsTr("Web browser")
+                    ColumnLayout {
+                        id: page4Section0
                         Layout.fillWidth: true
+                        Layout.maximumWidth: 980
+                        spacing: 20
+                        visible: page4Layout.section === 0
 
-                        background: Rectangle {
-                            color: "#141a21"
-                            border.color: "#2a3540"
-                            border.width: 1
-                            radius: 8
-                        }
-                        label: Text {
-                            text: parent.title
-                            color: "#00f5d4"
-                            font.bold: true
-                            font.pixelSize: 12
-                        }
+                        GroupBox {
+                            title: qsTr("Detection frame")
+                            Layout.fillWidth: true
 
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: 8
-
-                            Text {
-                                text: qsTr("The browser KVision opens web pages in: a camera's own page, the recorder's page, the project's links. It is started directly, so it is used even when another browser is already open.")
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
                             }
 
-                            RowLayout {
-                                Layout.fillWidth: true
+                            ColumnLayout {
+                                anchors.fill: parent
                                 spacing: 8
+
+                                CheckBox {
+                                    text: qsTr("Show a frame and label on a camera when it detects a human, vehicle or animal (needs motion detection on in the camera)")
+                                    checked: generalSettings.showTargetIndicator
+                                    onCheckedChanged: generalSettings.showTargetIndicator = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                    text: qsTr("Keep the frame visible for %1 s after the last report").arg(targetHoldSlider.value.toFixed(0))
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                Slider {
+                                    id: targetHoldSlider
+                                    Layout.fillWidth: true
+                                    from: 3
+                                    to: 30
+                                    stepSize: 1
+                                    enabled: generalSettings.showTargetIndicator
+                                    value: generalSettings.targetHoldSeconds
+                                    onMoved: generalSettings.targetHoldSeconds = value
+                                }
+
+                                Text {
+                                    text: qsTr("Show a frame for these kinds of report")
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                Flow {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    enabled: generalSettings.showTargetIndicator
+
+                                    Repeater {
+                                        model: [
+                                            { key: "motion", label: qsTr("Motion") },
+                                            { key: "line", label: qsTr("Line crossing") },
+                                            { key: "intrusion", label: qsTr("Intrusion") },
+                                            { key: "enter", label: qsTr("Region entrance") },
+                                            { key: "exit", label: qsTr("Region exit") },
+                                            { key: "other", label: qsTr("Other smart events") }
+                                        ]
+                                        delegate: CheckBox {
+                                            text: modelData.label
+                                            checked: ("," + generalSettings.targetKinds + ",").indexOf("," + modelData.key + ",") >= 0
+                                            onToggled: generalSettings.targetKinds = rootSideBar.toggledList(generalSettings.targetKinds, modelData.key, checked)
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    text: qsTr("Show a frame for these targets")
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                Flow {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    enabled: generalSettings.showTargetIndicator
+
+                                    Repeater {
+                                        model: [
+                                            { key: "human", label: qsTr("Human") },
+                                            { key: "vehicle", label: qsTr("Vehicle") },
+                                            { key: "animal", label: qsTr("Animal") },
+                                            { key: "other", label: qsTr("Other") }
+                                        ]
+                                        delegate: CheckBox {
+                                            text: modelData.label
+                                            checked: ("," + generalSettings.targetTargets + ",").indexOf("," + modelData.key + ",") >= 0
+                                            onToggled: generalSettings.targetTargets = rootSideBar.toggledList(generalSettings.targetTargets, modelData.key, checked)
+                                        }
+                                    }
+                                }
+
+                            }
+                        }
+
+                        GroupBox {
+                            title: qsTr("Where detection events come from")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                Text {
+                                    text: qsTr("Where cameras behind a recorder get their detection reports")
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
 
                                 ComboBox {
-                                    id: browserCombo
+                                    id: targetSourceBox
                                     Layout.fillWidth: true
-                                    property var found: []
-                                    // 0 = system default, then the browsers found, then "another command"
-                                    model: [qsTr("System default")].concat(found.map(function(b) { return b.name; })).concat([qsTr("Another command...")])
-                                    Component.onCompleted: {
-                                        found = WebBrowser.browsers();
-                                        browserCombo.syncFromSetting();
-                                    }
-                                    function syncFromSetting() {
-                                        var c = generalSettings.webBrowserChoice;
-                                        if (c.indexOf("cmd:") === 0) {
-                                            currentIndex = found.length + 1;
-                                            return;
-                                        }
-                                        for (var i = 0; i < found.length; ++i) {
-                                            if (c === "id:" + found[i].id) {
-                                                currentIndex = i + 1;
-                                                return;
-                                            }
-                                        }
-                                        currentIndex = 0;
-                                    }
-                                    onActivated: {
-                                        if (index === 0)
-                                            generalSettings.webBrowserChoice = "";
-                                        else if (index <= found.length)
-                                            generalSettings.webBrowserChoice = "id:" + found[index - 1].id;
-                                        else
-                                            generalSettings.webBrowserChoice = "cmd:" + customBrowserField.text;
-                                    }
+                                    enabled: generalSettings.showTargetIndicator
+                                    model: [qsTr("Each camera directly (one connection per camera)"),
+                                            qsTr("Through the recorder (one connection, no pause between reports)")]
+                                    currentIndex: generalSettings.targetSource === "recorder" ? 1 : 0
+                                    onActivated: generalSettings.targetSource = (index === 1 ? "recorder" : "camera")
+                                }
+
+                                Text {
+                                    text: qsTr("A standalone camera, a dual-lens camera, and a recorder with one or two cameras always use their own connection. Through the recorder needs the camera's smart event metadata and the recorder's centre action switched on.")
+                                    color: "#6f7f8c"
+                                    font.pixelSize: 10
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                text: qsTr("To choose differently for one camera behind a recorder, open the list below. It also sets where each camera shows a detection frame. A camera is read from one place only, so nothing is logged twice.")
+                                color: "#6f7f8c"
+                                font.pixelSize: 10
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
                                 }
 
                                 Button {
-                                    id: browserTestBtn
-                                    text: qsTr("Test")
+                                    text: qsTr("Choose cameras and event source...")
+                                    ToolTip.visible: hovered
+                                    ToolTip.delay: 600
+                                    ToolTip.text: qsTr("For each camera: whether it shows a detection frame, and where its detection events come from (the camera or the NVR)")
                                     onClicked: {
-                                        browserNote.text = WebBrowser.open("https://github.com/optio50/KVision")
-                                            ? qsTr("Opened the KVision page in the chosen browser.")
-                                            : qsTr("Could not open it. Check the choice.");
+                                        var w = detectionFramesComponent.createObject(rootWindow);
+                                        if (w)
+                                            w.show();
                                     }
                                 }
-                            }
 
-                            TextField {
-                                id: customBrowserField
-                                Layout.fillWidth: true
-                                visible: browserCombo.currentIndex === browserCombo.found.length + 1
-                                placeholderText: qsTr("Command, e.g. brave-browser --new-window %u   (%u is where the address goes)")
-                                selectByMouse: true
-                                color: "white"
-                                text: generalSettings.webBrowserChoice.indexOf("cmd:") === 0 ? generalSettings.webBrowserChoice.substring(4) : ""
-                                background: Rectangle { color: "#0f151b"; radius: 4; border.color: customBrowserField.activeFocus ? "#ff7a00" : "#2a3540" }
-                                onEditingFinished: generalSettings.webBrowserChoice = "cmd:" + text
-                            }
+                                Component {
+                                    id: detectionFramesComponent
+                                    DetectionFramesWindow {}
+                                }
 
-                            Text {
-                                id: browserNote
-                                Layout.fillWidth: true
-                                wrapMode: Text.Wrap
-                                font.pixelSize: 11
-                                color: "#8898a6"
-                                text: WebBrowser.describe() !== "" ? qsTr("Runs: %1").arg(WebBrowser.describe()) : qsTr("Uses the system's default browser.")
                             }
                         }
-                    }
 
-                    GroupBox {
-                        title: qsTr("LNG_00269")
-                        Layout.fillWidth: true
+                        GroupBox {
+                            title: qsTr("Motion that names no target")
+                            Layout.fillWidth: true
 
-                        background: Rectangle {
-                            color: "#141a21"
-                            border.color: "#2a3540"
-                            border.width: 1
-                            radius: 8
-                        }
-                        label: Text {
-                            text: parent.title
-                            color: "#00f5d4"
-                            font.bold: true
-                            font.pixelSize: 12
-                        }
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: 8
-
-                            CheckBox {
-                                text: qsTr("LNG_00268")
-                                checked: generalSettings.disableAudio
-                                onCheckedChanged: generalSettings.disableAudio = checked
-                                Layout.fillWidth: true
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
                             }
 
-                            CheckBox {
-                                text: qsTr("LNG_00267")
-                                checked: viewportSettings.noUnmuteWhenFullScreen
-                                onCheckedChanged: viewportSettings.noUnmuteWhenFullScreen = checked
-                                Layout.fillWidth: true
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                Text {
+                                    text: qsTr("Motion that names no target")
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                    text: qsTr("Some cameras report plain motion: something moved, but not what (their motion detection is not a smart event, so it cannot tell a person from a car). These two choices decide what KVision does with it. The first needs the log switched on above.")
+                                    color: "#6f7f8c"
+                                    font.pixelSize: 10
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("Write it to the detection log (one line per movement)")
+                                    checked: generalSettings.logUnlabelledMotion
+                                    onToggled: generalSettings.logUnlabelledMotion = checked
+                                }
+
+                                CheckBox {
+                                    text: qsTr("Show a MOTION frame for it")
+                                    enabled: generalSettings.showTargetIndicator
+                                    checked: generalSettings.frameUnlabelledMotion
+                                    onToggled: generalSettings.frameUnlabelledMotion = checked
+                                }
+
+                                Text {
+                                    text: qsTr("The detection log keeps every report, whatever is switched off here.")
+                                    color: "#6f7f8c"
+                                    font.pixelSize: 10
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                            }
+                        }
+
+                        GroupBox {
+                            title: qsTr("Detection log and pictures")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
                             }
 
-                            Rectangle {
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                CheckBox {
+                                    id: logDetectionsBox
+                                    text: qsTr("Keep logging detection events after KVision is closed")
+                                    checked: generalSettings.logDetectionEvents
+                                    onToggled: {
+                                        generalSettings.logDetectionEvents = checked;
+                                        var err = HikvisionEventLogger.setBackgroundService(checked, Context.config.fileName);
+                                        logDetectionsNote.text = err !== "" ? qsTr("Could not change the background service: %1").arg(err) : "";
+                                        bgStatusTimer.restart();
+                                        logDetectionsStatus.text = HikvisionEventLogger.backgroundStatus(Context.configDirPath());
+                                    }
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                    text: qsTr("While KVision is open it always logs every configured camera, whether or not it is on screen. With this on, a small background service takes over when KVision closes and steps aside when it opens again. With this off, nothing is logged while KVision is closed. The frame and label in User Interface Settings only control what is drawn on screen; they do not affect the log.")
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                    id: logDetectionsStatus
+                                    visible: generalSettings.logDetectionEvents
+                                    color: text.indexOf("OK") >= 0 || text.indexOf("standing by") >= 0 ? "#00f5d4" : "#ff9f43"
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                    id: logDetectionsNote
+                                    visible: text !== ""
+                                    color: "#ff4d4d"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                Timer {
+                                    id: bgStatusTimer
+                                    interval: 5000
+                                    repeat: true
+                                    running: generalSettings.logDetectionEvents && logDetectionsBox.visible
+                                    triggeredOnStart: true
+                                    onTriggered: logDetectionsStatus.text = HikvisionEventLogger.backgroundStatus(Context.configDirPath())
+                                }
+
+                                Rectangle {
                                 Layout.fillWidth: true
                                 height: 1
                                 color: "#2a3540"
-                            }
-
-                            CheckBox {
-                                text: qsTr("Turn off the Talk button (two-way audio)")
-                                checked: generalSettings.disableTalk
-                                onCheckedChanged: generalSettings.disableTalk = checked
-                                Layout.fillWidth: true
-                            }
-
-                            Text {
-                                text: qsTr("Talk microphone")
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                            }
-
-                            ComboBox {
-                                id: talkMicCombo
-                                Layout.fillWidth: true
-                                enabled: !generalSettings.disableTalk
-                                property var mics: []
-                                model: [qsTr("System default")].concat(mics)
-                                Component.onCompleted: {
-                                    mics = HikvisionTalk.microphones();
-                                    var i = mics.indexOf(generalSettings.talkMicrophone);
-                                    currentIndex = i >= 0 ? i + 1 : 0;
-                                }
-                                onActivated: generalSettings.talkMicrophone = index === 0 ? "" : mics[index - 1]
-                            }
-
-                            Text {
-                                text: qsTr("Talk microphone gain: %1x").arg(talkGainSlider.value.toFixed(1))
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                            }
-
-                            Slider {
-                                id: talkGainSlider
-                                Layout.fillWidth: true
-                                from: 0.5
-                                to: 4.0
-                                stepSize: 0.1
-                                enabled: !generalSettings.disableTalk
-                                value: generalSettings.talkGain
-                                onMoved: generalSettings.talkGain = value
-                            }
-
-                            Text {
-                                text: qsTr("Talk output boost: %1 dB (louder at the camera speaker)").arg((talkBoostSlider.value >= 0 ? "+" : "") + talkBoostSlider.value.toFixed(0))
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            Slider {
-                                id: talkBoostSlider
-                                Layout.fillWidth: true
-                                from: -6
-                                to: 12
-                                stepSize: 1
-                                enabled: !generalSettings.disableTalk
-                                value: generalSettings.talkBoostDb
-                                onMoved: generalSettings.talkBoostDb = value
-                            }
-                        }
-                    }
-
-                    GroupBox {
-                        title: qsTr("LNG_00266")
-                        Layout.fillWidth: true
-
-                        background: Rectangle {
-                            color: "#141a21"
-                            border.color: "#2a3540"
-                            border.width: 1
-                            radius: 8
-                        }
-                        label: Text {
-                            text: parent.title
-                            color: "#00f5d4"
-                            font.bold: true
-                            font.pixelSize: 12
-                        }
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: 8
-
-                            CheckBox {
-                                text: qsTr("LNG_00265")
-                                checked: generalSettings.enableContextMenu
-                                onCheckedChanged: generalSettings.enableContextMenu = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00264")
-                                checked: generalSettings.allowSwappingViewports
-                                enabled: generalSettings.enableContextMenu
-                                onCheckedChanged: generalSettings.allowSwappingViewports = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00263")
-                                checked: generalSettings.enableRemoveCamera
-                                enabled: generalSettings.enableContextMenu
-                                onCheckedChanged: generalSettings.enableRemoveCamera = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00262")
-                                checked: generalSettings.enableChangeViewportSettings
-                                enabled: generalSettings.enableContextMenu
-                                onCheckedChanged: generalSettings.enableChangeViewportSettings = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00261")
-                                checked: generalSettings.enableStreamSelection
-                                enabled: generalSettings.enableContextMenu
-                                onCheckedChanged: generalSettings.enableStreamSelection = checked
-                                Layout.fillWidth: true
-                            }
-                        }
-                    }
-
-                    GroupBox {
-                        title: qsTr("LNG_00260")
-                        Layout.fillWidth: true
-
-                        background: Rectangle {
-                            color: "#141a21"
-                            border.color: "#2a3540"
-                            border.width: 1
-                            radius: 8
-                        }
-                        label: Text {
-                            text: parent.title
-                            color: "#00f5d4"
-                            font.bold: true
-                            font.pixelSize: 12
-                        }
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: 8
-
-                            CheckBox {
-                                text: qsTr("LNG_00259")
-                                checked: viewSettings.showChannelStatus
-                                onCheckedChanged: viewSettings.showChannelStatus = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00578")
-                                checked: viewSettings.showChannelResolution
-                                onCheckedChanged: viewSettings.showChannelResolution = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00579")
-                                checked: viewSettings.hideInfoBadgesWhenIdle
-                                onCheckedChanged: viewSettings.hideInfoBadgesWhenIdle = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00258")
-                                checked: viewSettings.showCameraInfo
-                                onCheckedChanged: viewSettings.showCameraInfo = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00257")
-                                checked: viewSettings.hoverControlIcons
-                                onCheckedChanged: viewSettings.hoverControlIcons = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00256")
-                                checked: viewSettings.showInfoOnHoverOnly
-                                onCheckedChanged: viewSettings.showInfoOnHoverOnly = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00255")
-                                checked: viewSettings.showTopBarByDefault
-                                onCheckedChanged: viewSettings.showTopBarByDefault = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00254")
-                                checked: viewSettings.hideCursorWhenFullScreen
-                                onCheckedChanged: viewSettings.hideCursorWhenFullScreen = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("Hide cursor and viewport buttons when idle (windowed mode)")
-                                checked: viewSettings.hideCursorWhenWindowed
-                                onCheckedChanged: viewSettings.hideCursorWhenWindowed = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("Show a frame and label on a camera when it detects a human, vehicle or animal (needs motion detection on in the camera)")
-                                checked: generalSettings.showTargetIndicator
-                                onCheckedChanged: generalSettings.showTargetIndicator = checked
-                                Layout.fillWidth: true
-                            }
-
-                            Text {
-                                text: qsTr("Keep the frame visible for %1 s after the last report").arg(targetHoldSlider.value.toFixed(0))
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            Slider {
-                                id: targetHoldSlider
-                                Layout.fillWidth: true
-                                from: 3
-                                to: 30
-                                stepSize: 1
-                                enabled: generalSettings.showTargetIndicator
-                                value: generalSettings.targetHoldSeconds
-                                onMoved: generalSettings.targetHoldSeconds = value
-                            }
-
-                            Text {
-                                text: qsTr("Where cameras behind a recorder get their detection reports")
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            ComboBox {
-                                id: targetSourceBox
-                                Layout.fillWidth: true
-                                enabled: generalSettings.showTargetIndicator
-                                model: [qsTr("Each camera directly (one connection per camera)"),
-                                        qsTr("Through the recorder (one connection, no pause between reports)")]
-                                currentIndex: generalSettings.targetSource === "recorder" ? 1 : 0
-                                onActivated: generalSettings.targetSource = (index === 1 ? "recorder" : "camera")
-                            }
-
-                            Text {
-                                text: qsTr("A standalone camera, a dual-lens camera, and a recorder with one or two cameras always use their own connection. Through the recorder needs the camera's smart event metadata and the recorder's centre action switched on.")
-                                color: "#6f7f8c"
-                                font.pixelSize: 10
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            Text {
-                                text: qsTr("Show a frame for these kinds of report")
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            Flow {
-                                Layout.fillWidth: true
-                                spacing: 4
-                                enabled: generalSettings.showTargetIndicator
-
-                                Repeater {
-                                    model: [
-                                        { key: "motion", label: qsTr("Motion") },
-                                        { key: "line", label: qsTr("Line crossing") },
-                                        { key: "intrusion", label: qsTr("Intrusion") },
-                                        { key: "enter", label: qsTr("Region entrance") },
-                                        { key: "exit", label: qsTr("Region exit") },
-                                        { key: "other", label: qsTr("Other smart events") }
-                                    ]
-                                    delegate: CheckBox {
-                                        text: modelData.label
-                                        checked: ("," + generalSettings.targetKinds + ",").indexOf("," + modelData.key + ",") >= 0
-                                        onToggled: generalSettings.targetKinds = rootSideBar.toggledList(generalSettings.targetKinds, modelData.key, checked)
-                                    }
-                                }
-                            }
-
-                            Text {
-                                text: qsTr("Show a frame for these targets")
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            Flow {
-                                Layout.fillWidth: true
-                                spacing: 4
-                                enabled: generalSettings.showTargetIndicator
-
-                                Repeater {
-                                    model: [
-                                        { key: "human", label: qsTr("Human") },
-                                        { key: "vehicle", label: qsTr("Vehicle") },
-                                        { key: "animal", label: qsTr("Animal") },
-                                        { key: "other", label: qsTr("Other") }
-                                    ]
-                                    delegate: CheckBox {
-                                        text: modelData.label
-                                        checked: ("," + generalSettings.targetTargets + ",").indexOf("," + modelData.key + ",") >= 0
-                                        onToggled: generalSettings.targetTargets = rootSideBar.toggledList(generalSettings.targetTargets, modelData.key, checked)
-                                    }
-                                }
-                            }
-
-                            Text {
-                                text: qsTr("Motion that names no target")
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            Text {
-                                text: qsTr("Some cameras report plain motion: something moved, but not what (their motion detection is not a smart event, so it cannot tell a person from a car). These two choices decide what KVision does with it. The first needs the log switched on above.")
-                                color: "#6f7f8c"
-                                font.pixelSize: 10
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("Write it to the detection log (one line per movement)")
-                                checked: generalSettings.logUnlabelledMotion
-                                onToggled: generalSettings.logUnlabelledMotion = checked
-                            }
-
-                            CheckBox {
-                                text: qsTr("Show a MOTION frame for it")
-                                enabled: generalSettings.showTargetIndicator
-                                checked: generalSettings.frameUnlabelledMotion
-                                onToggled: generalSettings.frameUnlabelledMotion = checked
-                            }
-
-                            Text {
-                                text: qsTr("The detection log keeps every report, whatever is switched off here.")
-                                color: "#6f7f8c"
-                                font.pixelSize: 10
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            Text {
-                                text: qsTr("Event pictures kept for each camera (the newest ones; older ones are deleted)")
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            ComboBox {
-                                Layout.fillWidth: true
-                                model: [100, 500, 1000]
-                                currentIndex: Math.max(0, model.indexOf(generalSettings.picturesPerCamera))
-                                onActivated: generalSettings.picturesPerCamera = model[index]
-                            }
-
-                            Button {
-                                text: qsTr("Choose cameras...")
-                                enabled: generalSettings.showTargetIndicator
-                                ToolTip.visible: hovered
-                                ToolTip.delay: 600
-                                ToolTip.text: qsTr("Tick the cameras that show a detection frame, all in one list (the same as right-clicking each camera)")
-                                onClicked: {
-                                    var w = detectionFramesComponent.createObject(rootWindow);
-                                    if (w)
-                                        w.show();
-                                }
-                            }
-
-                            Component {
-                                id: detectionFramesComponent
-                                DetectionFramesWindow {}
-                            }
-
-                            Button {
-                                text: qsTr("Overlay text from MQTT...")
-                                ToolTip.visible: hovered
-                                ToolTip.delay: 600
-                                ToolTip.text: qsTr("Show a value from an MQTT broker (such as the outside temperature) in a camera's on-screen text, refreshed every few minutes")
-                                onClicked: {
-                                    var w = overlayTextComponent.createObject(rootWindow);
-                                    if (w)
-                                        w.show();
-                                }
-                            }
-
-                            Component {
-                                id: overlayTextComponent
-                                OverlayTextWindow {}
-                            }
-
-                            Text {
-                                text: qsTr("Is each camera set up to report? A read-only check of the camera's settings (metadata, zones, rules, the recorder's centre action). It changes nothing.")
-                                color: "#8898a6"
-                                font.pixelSize: 11
-                                wrapMode: Text.Wrap
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("Check every detection camera once when KVision starts")
-                                checked: generalSettings.checkSetupAtStart
-                                onToggled: generalSettings.checkSetupAtStart = checked
-                                enabled: generalSettings.showTargetIndicator
-                                Layout.fillWidth: true
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 8
-
-                                Button {
-                                    text: qsTr("Check now")
-                                    enabled: generalSettings.showTargetIndicator && HikvisionSetupCheck.pending === 0
-                                    onClicked: {
-                                        rootWindow.checkDetectionSetup("");
-                                        var win = setupCheckComponent.createObject(rootWindow, { "focusKey": "" });
-                                        if (win)
-                                            win.show();
-                                    }
-                                }
-
-                                Button {
-                                    text: qsTr("Show results")
-                                    onClicked: {
-                                        var win = setupCheckComponent.createObject(rootWindow, { "focusKey": "" });
-                                        if (win)
-                                            win.show();
-                                    }
                                 }
 
                                 Text {
-                                    visible: HikvisionSetupCheck.pending > 0
-                                    text: qsTr("Checking... %1 left").arg(HikvisionSetupCheck.pending)
-                                    color: "#8899aa"
+                                    text: qsTr("Event pictures kept for each camera (the newest ones; older ones are deleted)")
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                ComboBox {
+                                    Layout.fillWidth: true
+                                    model: [100, 500, 1000]
+                                    currentIndex: Math.max(0, model.indexOf(generalSettings.picturesPerCamera))
+                                    onActivated: generalSettings.picturesPerCamera = model[index]
+                                }
+
+                            }
+                        }
+
+                        GroupBox {
+                            title: qsTr("Setup check")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                Text {
+                                    text: qsTr("Is each camera set up to report? A read-only check of the camera's settings (metadata, zones, rules, the recorder's centre action). It changes nothing.")
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("Check every detection camera once when KVision starts")
+                                    checked: generalSettings.checkSetupAtStart
+                                    onToggled: generalSettings.checkSetupAtStart = checked
+                                    enabled: generalSettings.showTargetIndicator
+                                    Layout.fillWidth: true
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    Button {
+                                        text: qsTr("Check now")
+                                        enabled: generalSettings.showTargetIndicator && HikvisionSetupCheck.pending === 0
+                                        onClicked: {
+                                            rootWindow.checkDetectionSetup("");
+                                            var win = setupCheckComponent.createObject(rootWindow, { "focusKey": "" });
+                                            if (win)
+                                                win.show();
+                                        }
+                                    }
+
+                                    Button {
+                                        text: qsTr("Show results")
+                                        onClicked: {
+                                            var win = setupCheckComponent.createObject(rootWindow, { "focusKey": "" });
+                                            if (win)
+                                                win.show();
+                                        }
+                                    }
+
+                                    Text {
+                                        visible: HikvisionSetupCheck.pending > 0
+                                        text: qsTr("Checking... %1 left").arg(HikvisionSetupCheck.pending)
+                                        color: "#8899aa"
+                                        font.pixelSize: 11
+                                    }
+                                }
+
+                                Component {
+                                    id: setupCheckComponent
+                                    SetupCheckWindow {}
+                                }
+
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        id: page4Section1
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: 980
+                        spacing: 20
+                        visible: page4Layout.section === 1
+
+                        GroupBox {
+                            title: qsTr("NVR Status Monitoring")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                CheckBox {
+                                    text: qsTr("LNG_00270")
+                                    checked: NvrStatusManager.monitoringEnabled
+                                    onCheckedChanged: NvrStatusManager.monitoringEnabled = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                Rectangle {
+                                Layout.fillWidth: true
+                                height: 1
+                                color: "#2a3540"
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00248")
+                                    checked: NvrStatusManager.checkOffline
+                                    onCheckedChanged: NvrStatusManager.checkOffline = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00247")
+                                    checked: NvrStatusManager.checkCpu
+                                    onCheckedChanged: NvrStatusManager.checkCpu = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00246")
+                                    checked: NvrStatusManager.checkHw
+                                    onCheckedChanged: NvrStatusManager.checkHw = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00245")
+                                    checked: NvrStatusManager.checkHdd
+                                    onCheckedChanged: NvrStatusManager.checkHdd = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00244")
+                                    checked: NvrStatusManager.checkUnformatted
+                                    onCheckedChanged: NvrStatusManager.checkUnformatted = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00243")
+                                    checked: NvrStatusManager.checkFull
+                                    onCheckedChanged: NvrStatusManager.checkFull = checked
+                                    Layout.fillWidth: true
+                                }
+
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        id: page4Section2
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: 980
+                        spacing: 20
+                        visible: page4Layout.section === 2
+
+                        GroupBox {
+                            title: qsTr("LNG_00266")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                CheckBox {
+                                    text: qsTr("LNG_00265")
+                                    checked: generalSettings.enableContextMenu
+                                    onCheckedChanged: generalSettings.enableContextMenu = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00264")
+                                    checked: generalSettings.allowSwappingViewports
+                                    enabled: generalSettings.enableContextMenu
+                                    onCheckedChanged: generalSettings.allowSwappingViewports = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00263")
+                                    checked: generalSettings.enableRemoveCamera
+                                    enabled: generalSettings.enableContextMenu
+                                    onCheckedChanged: generalSettings.enableRemoveCamera = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00262")
+                                    checked: generalSettings.enableChangeViewportSettings
+                                    enabled: generalSettings.enableContextMenu
+                                    onCheckedChanged: generalSettings.enableChangeViewportSettings = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00261")
+                                    checked: generalSettings.enableStreamSelection
+                                    enabled: generalSettings.enableContextMenu
+                                    onCheckedChanged: generalSettings.enableStreamSelection = checked
+                                    Layout.fillWidth: true
+                                }
+                            }
+                        }
+
+                        GroupBox {
+                            title: qsTr("User Interface Settings")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                CheckBox {
+                                    text: qsTr("LNG_00259")
+                                    checked: viewSettings.showChannelStatus
+                                    onCheckedChanged: viewSettings.showChannelStatus = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00578")
+                                    checked: viewSettings.showChannelResolution
+                                    onCheckedChanged: viewSettings.showChannelResolution = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00579")
+                                    checked: viewSettings.hideInfoBadgesWhenIdle
+                                    onCheckedChanged: viewSettings.hideInfoBadgesWhenIdle = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00258")
+                                    checked: viewSettings.showCameraInfo
+                                    onCheckedChanged: viewSettings.showCameraInfo = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00257")
+                                    checked: viewSettings.hoverControlIcons
+                                    onCheckedChanged: viewSettings.hoverControlIcons = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00256")
+                                    checked: viewSettings.showInfoOnHoverOnly
+                                    onCheckedChanged: viewSettings.showInfoOnHoverOnly = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00255")
+                                    checked: viewSettings.showTopBarByDefault
+                                    onCheckedChanged: viewSettings.showTopBarByDefault = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00254")
+                                    checked: viewSettings.hideCursorWhenFullScreen
+                                    onCheckedChanged: viewSettings.hideCursorWhenFullScreen = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("Hide cursor and viewport buttons when idle (windowed mode)")
+                                    checked: viewSettings.hideCursorWhenWindowed
+                                    onCheckedChanged: viewSettings.hideCursorWhenWindowed = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00253")
+                                    checked: viewSettings.disableViewportZoomAnimation
+                                    onCheckedChanged: viewSettings.disableViewportZoomAnimation = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    Text {
+                                        text: qsTr("LNG_00250")
+                                        color: "white"
+                                        font.pixelSize: 13
+                                    }
+
+                                    TextField {
+                                        id: auxiliaryLimitField
+                                        Layout.preferredWidth: 40
+                                        Layout.preferredHeight: 30
+                                        horizontalAlignment: TextInput.AlignHCenter
+                                        selectByMouse: true
+                                        text: generalSettings.auxiliaryLimit.toString()
+                                        color: "white"
+                                        font.pixelSize: 12
+                                        maximumLength: 1
+                                        validator: IntValidator { bottom: 0; top: 3 }
+                                        background: Rectangle {
+                                            color: "#0f151b"
+                                            radius: 4
+                                            border.color: auxiliaryLimitField.activeFocus ? "#ff7a00" : "#2a3540"
+                                        }
+                                        onTextChanged: {
+                                            var val = parseInt(text);
+                                            if (!isNaN(val) && val > 3) {
+                                                text = "3";
+                                            }
+                                        }
+                                        onEditingFinished: {
+                                            var val = parseInt(text);
+                                            if (!isNaN(val) && val >= 0 && val <= 3) {
+                                                generalSettings.auxiliaryLimit = val;
+                                            } else {
+                                                text = generalSettings.auxiliaryLimit.toString();
+                                            }
+                                        }
+                                    }
+
+                                    Item {
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                Button {
+                                    text: qsTr("Overlay text from MQTT...")
+                                    ToolTip.visible: hovered
+                                    ToolTip.delay: 600
+                                    ToolTip.text: qsTr("Show a value from an MQTT broker (such as the outside temperature) in a camera's on-screen text, refreshed every few minutes")
+                                    onClicked: {
+                                        var w = overlayTextComponent.createObject(rootWindow);
+                                        if (w)
+                                            w.show();
+                                    }
+                                }
+
+                                Component {
+                                    id: overlayTextComponent
+                                    OverlayTextWindow {}
+                                }
+
+                            }
+                        }
+
+                        GroupBox {
+                            title: qsTr("LNG_00242")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Text {
+                                        text: qsTr("LNG_00241")
+                                        color: "white"
+                                        font.pixelSize: 11
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+
+                                        TextField {
+                                            id: playbackOffsetSecondsField
+                                            Layout.preferredWidth: 100
+                                            Layout.preferredHeight: 30
+                                            selectByMouse: true
+                                            text: generalSettings.playbackOffsetSeconds.toString()
+                                            color: "white"
+                                            font.pixelSize: 12
+                                            maximumLength: 7
+                                            validator: IntValidator { bottom: 0; top: 9999999 }
+                                            background: Rectangle {
+                                                color: "#0f151b"
+                                                radius: 4
+                                                border.color: playbackOffsetSecondsField.activeFocus ? "#ff7a00" : "#2a3540"
+                                            }
+                                            onEditingFinished: {
+                                                var val = parseInt(text)
+                                                if (!isNaN(val) && val >= 0) {
+                                                    generalSettings.playbackOffsetSeconds = val
+                                                } else {
+                                                    text = generalSettings.playbackOffsetSeconds.toString()
+                                                }
+                                            }
+                                        }
+
+                                        Item {
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+
+                                    Text {
+                                        text: qsTr("LNG_00240")
+                                        color: "white"
+                                        font.pixelSize: 11
+                                        wrapMode: Text.WordWrap
+                                        Layout.fillWidth: true
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+
+                                        TextField {
+                                            id: playbackTimelineHoursField
+                                            Layout.preferredWidth: 60
+                                            Layout.preferredHeight: 30
+                                            selectByMouse: true
+                                            text: generalSettings.playbackTimelineHours.toString()
+                                            color: "white"
+                                            font.pixelSize: 12
+                                            maximumLength: 2
+                                            validator: IntValidator { bottom: 1; top: 24 }
+                                            background: Rectangle {
+                                                color: "#0f151b"
+                                                radius: 4
+                                                border.color: playbackTimelineHoursField.activeFocus ? "#ff7a00" : "#2a3540"
+                                            }
+                                            onEditingFinished: {
+                                                var val = parseInt(text)
+                                                if (!isNaN(val) && val >= 1 && val <= 24) {
+                                                    generalSettings.playbackTimelineHours = val
+                                                } else {
+                                                    text = generalSettings.playbackTimelineHours.toString()
+                                                }
+                                            }
+                                        }
+
+                                        Item {
+                                            Layout.fillWidth: true
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        id: page4Section3
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: 980
+                        spacing: 20
+                        visible: page4Layout.section === 3
+
+                        GroupBox {
+                            title: qsTr("LNG_00269")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                CheckBox {
+                                    text: qsTr("LNG_00268")
+                                    checked: generalSettings.disableAudio
+                                    onCheckedChanged: generalSettings.disableAudio = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00267")
+                                    checked: viewportSettings.noUnmuteWhenFullScreen
+                                    onCheckedChanged: viewportSettings.noUnmuteWhenFullScreen = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: "#2a3540"
+                                }
+
+                                CheckBox {
+                                    text: qsTr("Turn off the Talk button (two-way audio)")
+                                    checked: generalSettings.disableTalk
+                                    onCheckedChanged: generalSettings.disableTalk = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                    text: qsTr("Talk microphone")
+                                    color: "#8898a6"
                                     font.pixelSize: 11
                                 }
+
+                                ComboBox {
+                                    id: talkMicCombo
+                                    Layout.fillWidth: true
+                                    enabled: !generalSettings.disableTalk
+                                    property var mics: []
+                                    model: [qsTr("System default")].concat(mics)
+                                    Component.onCompleted: {
+                                        mics = HikvisionTalk.microphones();
+                                        var i = mics.indexOf(generalSettings.talkMicrophone);
+                                        currentIndex = i >= 0 ? i + 1 : 0;
+                                    }
+                                    onActivated: generalSettings.talkMicrophone = index === 0 ? "" : mics[index - 1]
+                                }
+
+                                Text {
+                                    text: qsTr("Talk microphone gain: %1x").arg(talkGainSlider.value.toFixed(1))
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                }
+
+                                Slider {
+                                    id: talkGainSlider
+                                    Layout.fillWidth: true
+                                    from: 0.5
+                                    to: 4.0
+                                    stepSize: 0.1
+                                    enabled: !generalSettings.disableTalk
+                                    value: generalSettings.talkGain
+                                    onMoved: generalSettings.talkGain = value
+                                }
+
+                                Text {
+                                    text: qsTr("Talk output boost: %1 dB (louder at the camera speaker)").arg((talkBoostSlider.value >= 0 ? "+" : "") + talkBoostSlider.value.toFixed(0))
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                Slider {
+                                    id: talkBoostSlider
+                                    Layout.fillWidth: true
+                                    from: -6
+                                    to: 12
+                                    stepSize: 1
+                                    enabled: !generalSettings.disableTalk
+                                    value: generalSettings.talkBoostDb
+                                    onMoved: generalSettings.talkBoostDb = value
+                                }
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        id: page4Section4
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: 980
+                        spacing: 20
+                        visible: page4Layout.section === 4
+
+                        GroupBox {
+                            title: qsTr("General Settings")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
                             }
 
-                            Component {
-                                id: setupCheckComponent
-                                SetupCheckWindow {}
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                CheckBox {
+                                    text: qsTr("LNG_00272")
+                                    checked: !generalSettings.singleApplication
+                                    enabled: false
+                                    onCheckedChanged: generalSettings.singleApplication = !checked
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                    text: qsTr("LNG_00271")
+                                    color: "#8898a6"
+                                    font.pixelSize: 10
+                                    wrapMode: Text.WordWrap
+                                    Layout.fillWidth: true
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: "#2a3540"
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00549")
+                                    checked: generalSettings.enableDiagnosticLogs
+                                    onCheckedChanged: generalSettings.enableDiagnosticLogs = checked
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("LNG_00577")
+                                    checked: generalSettings.confirmOnClose
+                                    onCheckedChanged: generalSettings.confirmOnClose = checked
+                                    Layout.fillWidth: true
+                                }
+
+                            }
+                        }
+
+                        GroupBox {
+                            title: qsTr("Web browser")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
                             }
 
-                            CheckBox {
-                                text: qsTr("LNG_00253")
-                                checked: viewSettings.disableViewportZoomAnimation
-                                onCheckedChanged: viewSettings.disableViewportZoomAnimation = checked
-                                Layout.fillWidth: true
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
+                            ColumnLayout {
+                                anchors.fill: parent
                                 spacing: 8
 
                                 Text {
-                                    text: qsTr("LNG_00250")
-                                    color: "white"
-                                    font.pixelSize: 13
+                                    text: qsTr("The browser KVision opens web pages in: a camera's own page, the recorder's page, the project's links. It is started directly, so it is used even when another browser is already open.")
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    ComboBox {
+                                        id: browserCombo
+                                        Layout.fillWidth: true
+                                        property var found: []
+                                        // 0 = system default, then the browsers found, then "another command"
+                                        model: [qsTr("System default")].concat(found.map(function(b) { return b.name; })).concat([qsTr("Another command...")])
+                                        Component.onCompleted: {
+                                            found = WebBrowser.browsers();
+                                            browserCombo.syncFromSetting();
+                                        }
+                                        function syncFromSetting() {
+                                            var c = generalSettings.webBrowserChoice;
+                                            if (c.indexOf("cmd:") === 0) {
+                                                currentIndex = found.length + 1;
+                                                return;
+                                            }
+                                            for (var i = 0; i < found.length; ++i) {
+                                                if (c === "id:" + found[i].id) {
+                                                    currentIndex = i + 1;
+                                                    return;
+                                                }
+                                            }
+                                            currentIndex = 0;
+                                        }
+                                        onActivated: {
+                                            if (index === 0)
+                                                generalSettings.webBrowserChoice = "";
+                                            else if (index <= found.length)
+                                                generalSettings.webBrowserChoice = "id:" + found[index - 1].id;
+                                            else
+                                                generalSettings.webBrowserChoice = "cmd:" + customBrowserField.text;
+                                        }
+                                    }
+
+                                    Button {
+                                        id: browserTestBtn
+                                        text: qsTr("Test")
+                                        onClicked: {
+                                            browserNote.text = WebBrowser.open("https://github.com/optio50/KVision")
+                                                ? qsTr("Opened the KVision page in the chosen browser.")
+                                                : qsTr("Could not open it. Check the choice.");
+                                        }
+                                    }
                                 }
 
                                 TextField {
-                                    id: auxiliaryLimitField
-                                    Layout.preferredWidth: 40
-                                    Layout.preferredHeight: 30
-                                    horizontalAlignment: TextInput.AlignHCenter
+                                    id: customBrowserField
+                                    Layout.fillWidth: true
+                                    visible: browserCombo.currentIndex === browserCombo.found.length + 1
+                                    placeholderText: qsTr("Command, e.g. brave-browser --new-window %u   (%u is where the address goes)")
                                     selectByMouse: true
-                                    text: generalSettings.auxiliaryLimit.toString()
                                     color: "white"
-                                    font.pixelSize: 12
-                                    maximumLength: 1
-                                    validator: IntValidator { bottom: 0; top: 3 }
-                                    background: Rectangle {
-                                        color: "#0f151b"
-                                        radius: 4
-                                        border.color: auxiliaryLimitField.activeFocus ? "#ff7a00" : "#2a3540"
-                                    }
-                                    onTextChanged: {
-                                        var val = parseInt(text);
-                                        if (!isNaN(val) && val > 3) {
-                                            text = "3";
-                                        }
-                                    }
-                                    onEditingFinished: {
-                                        var val = parseInt(text);
-                                        if (!isNaN(val) && val >= 0 && val <= 3) {
-                                            generalSettings.auxiliaryLimit = val;
-                                        } else {
-                                            text = generalSettings.auxiliaryLimit.toString();
-                                        }
-                                    }
+                                    text: generalSettings.webBrowserChoice.indexOf("cmd:") === 0 ? generalSettings.webBrowserChoice.substring(4) : ""
+                                    background: Rectangle { color: "#0f151b"; radius: 4; border.color: customBrowserField.activeFocus ? "#ff7a00" : "#2a3540" }
+                                    onEditingFinished: generalSettings.webBrowserChoice = "cmd:" + text
                                 }
-
-                                Item {
-                                    Layout.fillWidth: true
-                                }
-                            }
-                        }
-                    }
-
-                    GroupBox {
-                        title: qsTr("LNG_00249")
-                        Layout.fillWidth: true
-
-                        background: Rectangle {
-                            color: "#141a21"
-                            border.color: "#2a3540"
-                            border.width: 1
-                            radius: 8
-                        }
-                        label: Text {
-                            text: parent.title
-                            color: "#00f5d4"
-                            font.bold: true
-                            font.pixelSize: 12
-                        }
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: 8
-
-                            CheckBox {
-                                text: qsTr("LNG_00248")
-                                checked: NvrStatusManager.checkOffline
-                                onCheckedChanged: NvrStatusManager.checkOffline = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00247")
-                                checked: NvrStatusManager.checkCpu
-                                onCheckedChanged: NvrStatusManager.checkCpu = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00246")
-                                checked: NvrStatusManager.checkHw
-                                onCheckedChanged: NvrStatusManager.checkHw = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00245")
-                                checked: NvrStatusManager.checkHdd
-                                onCheckedChanged: NvrStatusManager.checkHdd = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00244")
-                                checked: NvrStatusManager.checkUnformatted
-                                onCheckedChanged: NvrStatusManager.checkUnformatted = checked
-                                Layout.fillWidth: true
-                            }
-
-                            CheckBox {
-                                text: qsTr("LNG_00243")
-                                checked: NvrStatusManager.checkFull
-                                onCheckedChanged: NvrStatusManager.checkFull = checked
-                                Layout.fillWidth: true
-                            }
-                        }
-                    }
-
-                    GroupBox {
-                        title: qsTr("LNG_00242")
-                        Layout.fillWidth: true
-
-                        background: Rectangle {
-                            color: "#141a21"
-                            border.color: "#2a3540"
-                            border.width: 1
-                            radius: 8
-                        }
-                        label: Text {
-                            text: parent.title
-                            color: "#00f5d4"
-                            font.bold: true
-                            font.pixelSize: 12
-                        }
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: 8
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
 
                                 Text {
-                                    text: qsTr("LNG_00241")
-                                    color: "white"
+                                    id: browserNote
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.Wrap
                                     font.pixelSize: 11
-                                    wrapMode: Text.WordWrap
-                                    Layout.fillWidth: true
+                                    color: "#8898a6"
+                                    text: WebBrowser.describe() !== "" ? qsTr("Runs: %1").arg(WebBrowser.describe()) : qsTr("Uses the system's default browser.")
                                 }
+                            }
+                        }
 
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
+                        GroupBox {
+                            title: qsTr("LNG_00239")
+                            Layout.fillWidth: true
 
-                                    TextField {
-                                        id: playbackOffsetSecondsField
-                                        Layout.preferredWidth: 100
-                                        Layout.preferredHeight: 30
-                                        selectByMouse: true
-                                        text: generalSettings.playbackOffsetSeconds.toString()
-                                        color: "white"
-                                        font.pixelSize: 12
-                                        maximumLength: 7
-                                        validator: IntValidator { bottom: 0; top: 9999999 }
-                                        background: Rectangle {
-                                            color: "#0f151b"
-                                            radius: 4
-                                            border.color: playbackOffsetSecondsField.activeFocus ? "#ff7a00" : "#2a3540"
-                                        }
-                                        onEditingFinished: {
-                                            var val = parseInt(text)
-                                            if (!isNaN(val) && val >= 0) {
-                                                generalSettings.playbackOffsetSeconds = val
-                                            } else {
-                                                text = generalSettings.playbackOffsetSeconds.toString()
-                                            }
-                                        }
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-                                }
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
                             }
 
                             ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
-
-                                Text {
-                                    text: qsTr("LNG_00240")
-                                    color: "white"
-                                    font.pixelSize: 11
-                                    wrapMode: Text.WordWrap
-                                    Layout.fillWidth: true
-                                }
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
-
-                                    TextField {
-                                        id: playbackTimelineHoursField
-                                        Layout.preferredWidth: 60
-                                        Layout.preferredHeight: 30
-                                        selectByMouse: true
-                                        text: generalSettings.playbackTimelineHours.toString()
-                                        color: "white"
-                                        font.pixelSize: 12
-                                        maximumLength: 2
-                                        validator: IntValidator { bottom: 1; top: 24 }
-                                        background: Rectangle {
-                                            color: "#0f151b"
-                                            radius: 4
-                                            border.color: playbackTimelineHoursField.activeFocus ? "#ff7a00" : "#2a3540"
-                                        }
-                                        onEditingFinished: {
-                                            var val = parseInt(text)
-                                            if (!isNaN(val) && val >= 1 && val <= 24) {
-                                                generalSettings.playbackTimelineHours = val
-                                            } else {
-                                                text = generalSettings.playbackTimelineHours.toString()
-                                            }
-                                        }
-                                    }
-
-                                    Item {
-                                        Layout.fillWidth: true
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    GroupBox {
-                        title: qsTr("LNG_00239")
-                        Layout.fillWidth: true
-
-                        background: Rectangle {
-                            color: "#141a21"
-                            border.color: "#2a3540"
-                            border.width: 1
-                            radius: 8
-                        }
-                        label: Text {
-                            text: parent.title
-                            color: "#00f5d4"
-                            font.bold: true
-                            font.pixelSize: 12
-                        }
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: 12
-
-                            CheckBox {
-                                id: activatePathChangesCheckbox
-                                text: qsTr("LNG_00231")
-                                checked: false
-                                Layout.fillWidth: true
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
+                                anchors.fill: parent
                                 spacing: 12
-                                enabled: activatePathChangesCheckbox.checked
-                                opacity: activatePathChangesCheckbox.checked ? 1.0 : 0.5
+
+                                CheckBox {
+                                    id: activatePathChangesCheckbox
+                                    text: qsTr("LNG_00231")
+                                    checked: false
+                                    Layout.fillWidth: true
+                                }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
-                                    spacing: 4
+                                    spacing: 12
+                                    enabled: activatePathChangesCheckbox.checked
+                                    opacity: activatePathChangesCheckbox.checked ? 1.0 : 0.5
 
-                                    Text {
-                                        text: qsTr("LNG_00238")
-                                        color: "white"
-                                        font.pixelSize: 11
-                                    }
-
-                                    RowLayout {
+                                    ColumnLayout {
                                         Layout.fillWidth: true
-                                        spacing: 8
+                                        spacing: 4
 
-                                        TextField {
-                                            id: snapshotPathField
-                                            Layout.fillWidth: true
-                                            selectByMouse: true
-                                            text: generalSettings.snapshotPath
+                                        Text {
+                                            text: qsTr("LNG_00238")
                                             color: "white"
-                                            font.pixelSize: 12
-                                            background: Rectangle {
-                                                color: "#0f151b"
-                                                radius: 4
-                                                border.color: snapshotPathField.activeFocus ? "#ff7a00" : "#2a3540"
-                                            }
-                                            onEditingFinished: {
-                                                generalSettings.snapshotPath = text
-                                                Context.mkpath(text)
-                                            }
+                                            font.pixelSize: 11
                                         }
 
-                                        Button {
-                                            id: btnBrowseSnapshot
-                                            text: "..."
-                                            Layout.preferredWidth: 32
-                                            Layout.preferredHeight: 30
-                                            contentItem: Text {
-                                                text: btnBrowseSnapshot.text
-                                                font.bold: true
-                                                color: "white"
-                                                horizontalAlignment: Text.AlignHCenter
-                                                verticalAlignment: Text.AlignVCenter
-                                            }
-                                            background: Rectangle {
-                                                color: btnBrowseSnapshot.pressed ? "#2a3540" : (btnBrowseSnapshot.hovered ? "#3a4550" : "#222c36")
-                                                radius: 4
-                                                border.color: "#2a3540"
-                                            }
-                                            onClicked: {
-                                                 var initial = snapshotPathField.text;
-                                                 if (!Context.dirExists(initial)) {
-                                                     initial = Context.homePath();
-                                                 }
-                                                 var selected = Context.selectFolder(qsTr("LNG_00237"), initial);
-                                                 if (selected && selected !== "") {
-                                                     generalSettings.snapshotPath = selected;
-                                                     Context.mkpath(selected);
-                                                 }
-                                             }
-                                        }
-                                    }
-                                }
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-
-                                    Text {
-                                        text: qsTr("LNG_00236")
-                                        color: "white"
-                                        font.pixelSize: 11
-                                    }
-
-                                    RowLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 8
-
-                                        TextField {
-                                            id: videoPathField
+                                        RowLayout {
                                             Layout.fillWidth: true
-                                            selectByMouse: true
-                                            text: generalSettings.videoPath
-                                            color: "white"
-                                            font.pixelSize: 12
-                                            background: Rectangle {
-                                                color: "#0f151b"
-                                                radius: 4
-                                                border.color: videoPathField.activeFocus ? "#ff7a00" : "#2a3540"
-                                            }
-                                            onEditingFinished: {
-                                                generalSettings.videoPath = text
-                                                Context.mkpath(text)
-                                            }
-                                        }
+                                            spacing: 8
 
-                                        Button {
-                                            id: btnBrowseVideo
-                                            text: "..."
-                                            Layout.preferredWidth: 32
-                                            Layout.preferredHeight: 30
-                                            contentItem: Text {
-                                                text: btnBrowseVideo.text
-                                                font.bold: true
+                                            TextField {
+                                                id: snapshotPathField
+                                                Layout.fillWidth: true
+                                                selectByMouse: true
+                                                text: generalSettings.snapshotPath
                                                 color: "white"
-                                                horizontalAlignment: Text.AlignHCenter
-                                                verticalAlignment: Text.AlignVCenter
-                                            }
-                                            background: Rectangle {
-                                                color: btnBrowseVideo.pressed ? "#2a3540" : (btnBrowseVideo.hovered ? "#3a4550" : "#222c36")
-                                                radius: 4
-                                                border.color: "#2a3540"
-                                            }
-                                            onClicked: {
-                                                 var initial = videoPathField.text;
-                                                 if (!Context.dirExists(initial)) {
-                                                     initial = Context.homePath();
-                                                 }
-                                                 var selected = Context.selectFolder(qsTr("LNG_00235"), initial);
-                                                 if (selected && selected !== "") {
-                                                     generalSettings.videoPath = selected;
-                                                     Context.mkpath(selected);
-                                                 }
-                                             }
-                                        }
-                                    }
-                                }
-                            }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 8
-
-                                CctvButton {
-                                    text: qsTr("LNG_00234")
-                                    isCeladon: true
-                                    Layout.fillWidth: true
-                                    onClicked: {
-                                        var path = Context.sanitizePlatformPath(generalSettings.snapshotPath, Context.defaultPicturesPath());
-                                        Context.openLocalFolder(path);
-                                    }
-                                }
-
-                                CctvButton {
-                                    text: qsTr("LNG_00233")
-                                    isCeladon: true
-                                    Layout.fillWidth: true
-                                    onClicked: {
-                                        var path = Context.sanitizePlatformPath(generalSettings.videoPath, Context.defaultMoviesPath());
-                                        Context.openLocalFolder(path);
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    GroupBox {
-                        title: qsTr("LNG_00232")
-                        Layout.fillWidth: true
-
-                        background: Rectangle {
-                            color: "#141a21"
-                            border.color: "#2a3540"
-                            border.width: 1
-                            radius: 8
-                        }
-                        label: Text {
-                            text: parent.title
-                            color: "#00f5d4"
-                            font.bold: true
-                            font.pixelSize: 12
-                        }
-
-                        ColumnLayout {
-                            anchors.fill: parent
-                            spacing: 12
-
-                            CheckBox {
-                                id: activateMediaChangesCheckbox
-                                text: qsTr("LNG_00231")
-                                checked: false
-                                Layout.fillWidth: true
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 12
-                                enabled: activateMediaChangesCheckbox.checked
-                                opacity: activateMediaChangesCheckbox.checked ? 1.0 : 0.5
-
-                                ColumnLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 4
-
-                                    Text {
-                                        text: qsTr("LNG_00230")
-                                        color: "white"
-                                        font.pixelSize: 11
-                                    }
-
-                                    TextField {
-                                        id: defaultAVFormatOptionsField
-                                        selectByMouse: true
-                                        Layout.fillWidth: true
-                                        color: "white"
-                                        font.pixelSize: 12
-                                        background: Rectangle {
-                                            color: "#0f151b"
-                                            radius: 4
-                                            border.color: defaultAVFormatOptionsField.activeFocus ? "#ff7a00" : "#2a3540"
-                                        }
-                                        text: {
-                                            var opts = "";
-                                            var options = layoutsCollectionSettings.toJSValue("defaultAVFormatOptions");
-                                            for (var key in options) {
-                                                if (typeof options[key] === "string" || typeof options[key] === "number") {
-                                                    opts += "-%1 %2 ".arg(key).arg(options[key]);
+                                                font.pixelSize: 12
+                                                background: Rectangle {
+                                                    color: "#0f151b"
+                                                    radius: 4
+                                                    border.color: snapshotPathField.activeFocus ? "#ff7a00" : "#2a3540"
+                                                }
+                                                onEditingFinished: {
+                                                    generalSettings.snapshotPath = text
+                                                    Context.mkpath(text)
                                                 }
                                             }
-                                            return opts.trim();
+
+                                            Button {
+                                                id: btnBrowseSnapshot
+                                                text: "..."
+                                                Layout.preferredWidth: 32
+                                                Layout.preferredHeight: 30
+                                                contentItem: Text {
+                                                    text: btnBrowseSnapshot.text
+                                                    font.bold: true
+                                                    color: "white"
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    verticalAlignment: Text.AlignVCenter
+                                                }
+                                                background: Rectangle {
+                                                    color: btnBrowseSnapshot.pressed ? "#2a3540" : (btnBrowseSnapshot.hovered ? "#3a4550" : "#222c36")
+                                                    radius: 4
+                                                    border.color: "#2a3540"
+                                                }
+                                                onClicked: {
+                                                     var initial = snapshotPathField.text;
+                                                     if (!Context.dirExists(initial)) {
+                                                         initial = Context.homePath();
+                                                     }
+                                                     var selected = Context.selectFolder(qsTr("LNG_00237"), initial);
+                                                     if (selected && selected !== "") {
+                                                         generalSettings.snapshotPath = selected;
+                                                         Context.mkpath(selected);
+                                                     }
+                                                 }
+                                            }
                                         }
-                                        onEditingFinished: {
-                                            layoutsCollectionSettings.defaultAVFormatOptions = JSON.stringify(Utils.parseOptions(text));
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 4
+
+                                        Text {
+                                            text: qsTr("LNG_00236")
+                                            color: "white"
+                                            font.pixelSize: 11
+                                        }
+
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 8
+
+                                            TextField {
+                                                id: videoPathField
+                                                Layout.fillWidth: true
+                                                selectByMouse: true
+                                                text: generalSettings.videoPath
+                                                color: "white"
+                                                font.pixelSize: 12
+                                                background: Rectangle {
+                                                    color: "#0f151b"
+                                                    radius: 4
+                                                    border.color: videoPathField.activeFocus ? "#ff7a00" : "#2a3540"
+                                                }
+                                                onEditingFinished: {
+                                                    generalSettings.videoPath = text
+                                                    Context.mkpath(text)
+                                                }
+                                            }
+
+                                            Button {
+                                                id: btnBrowseVideo
+                                                text: "..."
+                                                Layout.preferredWidth: 32
+                                                Layout.preferredHeight: 30
+                                                contentItem: Text {
+                                                    text: btnBrowseVideo.text
+                                                    font.bold: true
+                                                    color: "white"
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    verticalAlignment: Text.AlignVCenter
+                                                }
+                                                background: Rectangle {
+                                                    color: btnBrowseVideo.pressed ? "#2a3540" : (btnBrowseVideo.hovered ? "#3a4550" : "#222c36")
+                                                    radius: 4
+                                                    border.color: "#2a3540"
+                                                }
+                                                onClicked: {
+                                                     var initial = videoPathField.text;
+                                                     if (!Context.dirExists(initial)) {
+                                                         initial = Context.homePath();
+                                                     }
+                                                     var selected = Context.selectFolder(qsTr("LNG_00235"), initial);
+                                                     if (selected && selected !== "") {
+                                                         generalSettings.videoPath = selected;
+                                                         Context.mkpath(selected);
+                                                     }
+                                                 }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    CctvButton {
+                                        text: qsTr("LNG_00234")
+                                        isCeladon: true
+                                        Layout.fillWidth: true
+                                        onClicked: {
+                                            var path = Context.sanitizePlatformPath(generalSettings.snapshotPath, Context.defaultPicturesPath());
+                                            Context.openLocalFolder(path);
                                         }
                                     }
 
                                     CctvButton {
-                                        Layout.fillWidth: true
+                                        text: qsTr("LNG_00233")
                                         isCeladon: true
-                                        text: qsTr("LNG_00229")
+                                        Layout.fillWidth: true
                                         onClicked: {
-                                            var opts = layoutsCollectionSettings.toJSValue("defaultAVFormatOptions");
-                                            for (var i = 0; i < layoutsCollectionModel.count; ++i) {
-                                                var layoutModel = layoutsCollectionModel.get(i);
-                                                for (var j = 0; j < layoutModel.count; ++j) {
-                                                    var item = layoutModel.get(j);
-                                                    if (!item.ignoreGlobalAVFormatOptions) {
-                                                        item.avFormatOptions = opts;
+                                            var path = Context.sanitizePlatformPath(generalSettings.videoPath, Context.defaultMoviesPath());
+                                            Context.openLocalFolder(path);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        GroupBox {
+                            title: qsTr("LNG_00232")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 12
+
+                                CheckBox {
+                                    id: activateMediaChangesCheckbox
+                                    text: qsTr("LNG_00231")
+                                    checked: false
+                                    Layout.fillWidth: true
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 12
+                                    enabled: activateMediaChangesCheckbox.checked
+                                    opacity: activateMediaChangesCheckbox.checked ? 1.0 : 0.5
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 4
+
+                                        Text {
+                                            text: qsTr("LNG_00230")
+                                            color: "white"
+                                            font.pixelSize: 11
+                                        }
+
+                                        TextField {
+                                            id: defaultAVFormatOptionsField
+                                            selectByMouse: true
+                                            Layout.fillWidth: true
+                                            color: "white"
+                                            font.pixelSize: 12
+                                            background: Rectangle {
+                                                color: "#0f151b"
+                                                radius: 4
+                                                border.color: defaultAVFormatOptionsField.activeFocus ? "#ff7a00" : "#2a3540"
+                                            }
+                                            text: {
+                                                var opts = "";
+                                                var options = layoutsCollectionSettings.toJSValue("defaultAVFormatOptions");
+                                                for (var key in options) {
+                                                    if (typeof options[key] === "string" || typeof options[key] === "number") {
+                                                        opts += "-%1 %2 ".arg(key).arg(options[key]);
+                                                    }
+                                                }
+                                                return opts.trim();
+                                            }
+                                            onEditingFinished: {
+                                                layoutsCollectionSettings.defaultAVFormatOptions = JSON.stringify(Utils.parseOptions(text));
+                                            }
+                                        }
+
+                                        CctvButton {
+                                            Layout.fillWidth: true
+                                            isCeladon: true
+                                            text: qsTr("LNG_00229")
+                                            onClicked: {
+                                                var opts = layoutsCollectionSettings.toJSValue("defaultAVFormatOptions");
+                                                for (var i = 0; i < layoutsCollectionModel.count; ++i) {
+                                                    var layoutModel = layoutsCollectionModel.get(i);
+                                                    for (var j = 0; j < layoutModel.count; ++j) {
+                                                        var item = layoutModel.get(j);
+                                                        if (!item.ignoreGlobalAVFormatOptions) {
+                                                            item.avFormatOptions = opts;
+                                                        }
                                                     }
                                                 }
                                             }
@@ -3536,6 +3737,7 @@ FocusScope {
                             }
                         }
                     }
+
                 }
             }
 

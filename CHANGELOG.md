@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+* **Settings are split into sections.** The Settings page was one long column of nine boxes. It now has five tabs: *Detection*
+  (the frame, where events come from, unlabelled motion, the log and pictures, and the setup check), *NVR* (status monitoring),
+  *Cameras and display* (the right-click menu, on-screen badges, zoom and playback), *Audio*, and *General* (instances,
+  diagnostics, the web browser, saving and media). Each section is one short page instead of a long scroll. Nothing moved out of
+  Settings, and every choice saves as before.
+
 ### Added
 * **Choose where each camera's detection events come from.** The *Choose cameras* window (detection settings) now has a
   *Reports: camera / NVR* choice for every camera behind a recorder, and *All from camera* / *All from NVR* for a whole
