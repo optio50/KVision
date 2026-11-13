@@ -132,6 +132,18 @@ Window {
             return;
         var items = [];
         var start = 0;
+        // One picture file serves every log line of the same camera, second and kind, and each line names its own box: a
+        // target that is still being classified is reported several times with a moving box, and the camera draws its
+        // frame for one of them. So the viewer is given all the boxes of a picture and judges the picture by any of them.
+        var boxesOf = {};
+        for (var j = 0; j < logWin.entries.length; ++j) {
+            var q = logWin.entries[j];
+            if (q.picture !== "" && q.box && q.box.length >= 4) {
+                if (!boxesOf[q.picture])
+                    boxesOf[q.picture] = [];
+                boxesOf[q.picture].push(q.box);
+            }
+        }
         for (var i = logWin.entries.length - 1; i >= 0; --i) {
             var e = logWin.entries[i];
             if (e.picture === "")
@@ -140,7 +152,7 @@ Window {
             if (e.raw === entry.raw && e.picture === entry.picture)
                 start = items.length;
             for (var k = 0; k < pics.length; ++k)
-                items.push({ "path": pics[k], "epochMs": e.epochMs + k * 1000, "camera": e.camera, "channel": e.channel, "kind": e.kind,
+                items.push({ "path": pics[k], "boxes": boxesOf[pics[k]] || [], "epochMs": e.epochMs + k * 1000, "camera": e.camera, "channel": e.channel, "kind": e.kind,
                              "box": (pics.length === 1 || k === 0) ? e.box : [], "poly": (pics.length === 1 || k === 0) ? e.poly : [], "zone": e.zone,
                              "caption": e.time + "   " + e.target + "   " + e.kind + (e.zone > 0 ? " (" + qsTr("zone %1").arg(e.zone) + ")" : "") + "   " + e.camera + (pics.length > 1 ? "   (" + (k + 1) + "/" + pics.length + ")" : "") });
         }
@@ -176,7 +188,22 @@ Window {
             function updateFrame() {
                 var it = pv.items.length > 0 ? pv.items[pv.shown] : null;
                 if (!it || !it.box || it.box.length < 4) { pv.hasFrame = -1; return; }
-                pv.hasFrame = HikvisionEvents.pictureHasFrame(it.path, it.box[0], it.box[1], it.box[2], it.box[3]);
+                var cands = (it.boxes && it.boxes.length > 0) ? it.boxes.slice() : [];
+                var own = false;
+                for (var c = 0; c < cands.length; ++c) {
+                    if (cands[c][0] === it.box[0] && cands[c][1] === it.box[1] && cands[c][2] === it.box[2] && cands[c][3] === it.box[3])
+                        own = true;
+                }
+                if (!own)
+                    cands.push(it.box);
+                // 1 as soon as one box has the camera's red outline; 0 when at least one could be told and none has it
+                var verdict = -1;
+                for (var n = 0; n < cands.length; ++n) {
+                    var v = HikvisionEvents.pictureHasFrame(it.path, cands[n][0], cands[n][1], cands[n][2], cands[n][3]);
+                    if (v === 1) { verdict = 1; break; }
+                    if (v === 0) verdict = 0;
+                }
+                pv.hasFrame = verdict;
             }
             // We draw only where the camera drew nothing itself (a picture that has the frame is left as it is).
             readonly property bool drawMarks: pv.showMarks && pv.items.length > 0 && pv.hasFrame !== 1

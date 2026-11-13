@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+* **The event picture viewer no longer draws its own target box on a picture the camera already framed.** A camera reports a
+  target several times a second while it is still classifying it (first "Other", then "Animal"), each time with a moving
+  box, and one picture file serves all of those log lines. The viewer judged the picture only by the box of the row that
+  was clicked, so an "Other" row, whose box was not the one the camera drew, got extra boxes drawn on a correctly framed
+  picture. It now judges the picture by every box logged for it, and draws nothing if any of them sits on the camera's
+  red outline.
+
 ## [3.6.0] - 2026-11-12
 
 ### Added
