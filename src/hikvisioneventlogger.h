@@ -31,7 +31,9 @@ public:
 
     // Call whenever the switch, the recorder list or the source setting changes. Does nothing when the
     // inputs are the same as last time. The recorder lookups run on a background thread.
-    Q_INVOKABLE void configure(bool enabled, const QString &recordersJson, const QString &targetSource, const QString &configDir);
+    // sourceOverridesJson is {"<recorderIp>#<channel>": "camera" | "recorder"}: a camera's own choice, which beats targetSource.
+    Q_INVOKABLE void configure(bool enabled, const QString &recordersJson, const QString &targetSource, const QString &configDir,
+                               const QString &sourceOverridesJson = QString());
     // Installs and starts (or stops and disables) the systemd user service that keeps logging after KVision is
     // closed. Returns an empty string, or what went wrong.
     Q_INVOKABLE QString setBackgroundService(bool on, const QString &configPath);
@@ -93,7 +95,8 @@ private:
         QSet<QString> failedRecorders; // recorders that could not be asked: their old connections are kept
     };
 
-    static Plan buildPlan(const QByteArray &recordersJson, const QString &targetSource, const QString &configDir);
+    static Plan buildPlan(const QByteArray &recordersJson, const QString &targetSource, const QString &configDir,
+                          const QByteArray &sourceOverridesJson = QByteArray());
     void startPlan();
     void finishPlan(const Plan &plan);
     void applyPlan(const Plan &plan);
@@ -103,6 +106,7 @@ private:
     bool m_enabled = false;
     QString m_recordersJson;
     QString m_targetSource;
+    QString m_sourceOverrides;
     QString m_configDir;
     bool m_configured = false;
     bool m_planning = false;

@@ -274,6 +274,10 @@ ApplicationWindow {
         // Where cameras behind a recorder get their detection reports: "camera" (each camera directly) or
         // "recorder" (one connection to the recorder). Standalone cameras always use their own connection.
         property string targetSource: "camera"
+        // Where one camera behind a recorder gets its reports from, when it is not the general choice above:
+        // JSON {"<recorderIp>#<channel>": "camera" | "recorder"}.
+        property string targetSourceOverrides: "{}"
+        onTargetSourceOverridesChanged: rootWindow.applyEventLogger()
         // Which kinds of report may show a frame (comma list: motion,line,intrusion,enter,exit,other) and which
         // targets (human,vehicle,animal,other).
         property string targetKinds: "motion,line,intrusion,enter,exit,other"
@@ -616,6 +620,10 @@ ApplicationWindow {
             var diskFrameMotion = Context.readSetting("", "frameUnlabelledMotion", false);
             if (generalSettings.frameUnlabelledMotion !== diskFrameMotion) {
                 generalSettings.frameUnlabelledMotion = diskFrameMotion;
+            }
+            var diskSourceOverrides = String(Context.readSetting("", "targetSourceOverrides", "{}"));
+            if (generalSettings.targetSourceOverrides !== diskSourceOverrides) {
+                generalSettings.targetSourceOverrides = diskSourceOverrides;
             }
             var diskTargetNvrOn = String(Context.readSetting("", "targetNvrOnCameras", "[]"));
             if (generalSettings.targetNvrOnCameras !== diskTargetNvrOn) {
@@ -2279,6 +2287,7 @@ ApplicationWindow {
         Context.writeSetting("", "targetHoldSeconds", generalSettings.targetHoldSeconds);
         Context.writeSetting("", "picturesPerCamera", generalSettings.picturesPerCamera);
         Context.writeSetting("", "targetSource", generalSettings.targetSource);
+        Context.writeSetting("", "targetSourceOverrides", generalSettings.targetSourceOverrides);
         Context.writeSetting("", "targetKinds", generalSettings.targetKinds);
         Context.writeSetting("", "overlayText", generalSettings.overlayText);
         Context.writeSetting("", "logDetectionEvents", generalSettings.logDetectionEvents);
@@ -2387,7 +2396,7 @@ ApplicationWindow {
         // While this window is open it always logs every configured camera. The setting only decides whether the
         // background service takes over after the window is closed.
         HikvisionEventLogger.configure(true, rootWindow.hikvisionRecordersJson || "[]",
-                                       generalSettings.targetSource, Context.configDirPath());
+                                       generalSettings.targetSource, Context.configDirPath(), generalSettings.targetSourceOverrides);
         HikvisionEventLogger.monitorBackground(generalSettings.logDetectionEvents, Context.configDirPath(), Context.config.fileName);
     }
 

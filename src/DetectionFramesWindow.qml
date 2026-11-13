@@ -10,12 +10,12 @@ import CCTV_Viewer.Core 1.0
 Window {
     id: win
 
-    width: 460
+    width: 640
     height: 560
-    minimumWidth: 340
+    minimumWidth: 520
     minimumHeight: 260
     color: "#0f151b"
-    title: qsTr("Detection frame per camera")
+    title: qsTr("Detection frame and event source per camera")
     flags: Qt.Window | Qt.WindowStaysOnTopHint
 
     // One row per recorder (a header) and one per camera.
@@ -84,6 +84,36 @@ Window {
         generalSettings.targetNvrOnCameras = JSON.stringify(nvr);
     }
 
+    // Where a camera behind a recorder gets its reports from: its own choice, else the general setting.
+    function sourceOf(key, overridesText) {
+        var o = {};
+        try { o = JSON.parse(overridesText || "{}"); } catch (e) {}
+        var v = o[key];
+        if (v === "camera" || v === "recorder")
+            return v;
+        return generalSettings.targetSource === "recorder" ? "recorder" : "camera";
+    }
+
+    // Stores the choice. A choice equal to the general setting is not kept, so changing the general setting later still works.
+    function setSource(key, value) {
+        var o = {};
+        try { o = JSON.parse(generalSettings.targetSourceOverrides || "{}"); } catch (e) {}
+        var general = generalSettings.targetSource === "recorder" ? "recorder" : "camera";
+        if (value === general)
+            delete o[key];
+        else
+            o[key] = value;
+        generalSettings.targetSourceOverrides = JSON.stringify(o);
+    }
+
+    function setSourceMany(group, value) {
+        for (var i = 0; i < win.rows.length; ++i) {
+            var r = win.rows[i];
+            if (!r.header && !r.standalone && r.group === group)
+                win.setSource(r.key, value);
+        }
+    }
+
     function setOne(row, on) {
         var off = win.parseList(generalSettings.targetOffCameras);
         var nvr = win.parseList(generalSettings.targetNvrOnCameras);
@@ -127,7 +157,7 @@ Window {
 
         Text {
             Layout.fillWidth: true
-            text: qsTr("Tick the cameras that should show a frame and label when they detect something. The detection log keeps every report whatever is ticked here.")
+            text: qsTr("Tick the cameras that should show a frame and label when they detect something. The detection log keeps every report whatever is ticked here. For a camera behind a recorder you can also choose where its events come from: the camera's own connection or the recorder's.")
             color: "#8898a6"
             font.pixelSize: 11
             wrapMode: Text.Wrap
@@ -172,13 +202,39 @@ Window {
                     }
                     Button { text: qsTr("All on"); onClicked: win.setMany(modelData.group, true) }
                     Button { text: qsTr("All off"); onClicked: win.setMany(modelData.group, false) }
+                    Button {
+                        text: qsTr("All from camera")
+                        onClicked: win.setSourceMany(modelData.group, "camera")
+                    }
+                    Button {
+                        text: qsTr("All from NVR")
+                        onClicked: win.setSourceMany(modelData.group, "recorder")
+                    }
+                }
+
+                // Where this camera's detection reports come from (cameras behind a recorder only).
+                ComboBox {
+                    id: sourceBox
+                    visible: !modelData.header && !modelData.standalone
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 150
+                    height: 26
+                    font.pixelSize: 11
+                    model: [qsTr("Reports: camera"), qsTr("Reports: NVR")]
+                    currentIndex: modelData.header || modelData.standalone ? 0
+                                  : (win.sourceOf(modelData.key, generalSettings.targetSourceOverrides) === "recorder" ? 1 : 0)
+                    onActivated: win.setSource(modelData.key, index === 1 ? "recorder" : "camera")
+                    ToolTip.visible: hovered
+                    ToolTip.delay: 600
+                    ToolTip.text: qsTr("Where the detection events for this camera come from: the camera's own connection, or the NVR's. Each camera is read from one place only, so nothing is logged twice.")
                 }
 
                 CheckBox {
                     visible: !modelData.header
                     anchors.left: parent.left
                     anchors.leftMargin: modelData.standalone ? 0 : 16
-                    anchors.right: parent.right
+                    anchors.right: modelData.standalone ? parent.right : sourceBox.left
                     anchors.verticalCenter: parent.verticalCenter
                     text: modelData.label
                     checked: parent.on

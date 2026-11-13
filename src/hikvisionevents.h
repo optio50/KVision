@@ -63,6 +63,11 @@ public:
     // from a car): whether each movement is written to the detection log (one line when it starts, then none until the
     // camera has been still for a few seconds), and whether it shows a frame on the tile. Both are off by default.
     Q_INVOKABLE void setUnlabelledMotion(bool log, bool frame);
+    // Where each camera behind a recorder gets its reports from. overridesJson is {"<recorderIp>#<channel>": "camera" | "recorder"};
+    // a camera not in it uses defaultSource. A camera's own connection and the recorder's connection both carry its reports, so
+    // each ignores the cameras that are meant to come from the other, and nothing is logged twice. A camera that is its own
+    // recorder (a standalone camera) is not affected.
+    Q_INVOKABLE void setChannelSources(const QString &overridesJson, const QString &defaultSource);
     // Health of every connection, for the background logger's status file: a list of maps with ip, name, open (a
     // stream is up and data has arrived on it), lastDataMs (ms since 1970, 0 if never), failures, authFailed, unsupported.
     QVariantList connectionStates() const;
@@ -200,6 +205,9 @@ private:
     // quarter of the "pictures per camera" setting) so they cannot push a camera's smart-event pictures out.
     static constexpr qint64 kMotionPictureGapMs = 30000;
     QHash<QString, qint64> m_motionPictureAt; // "ip|channel" -> when the last one was taken (ms)
+    bool sourceAllowed(const Conn *c, int eventChannel) const;
+    QHash<QString, QString> m_sourceOverrides; // "recorderIp#channel" -> "camera" or "recorder"
+    QString m_defaultSource = QStringLiteral("camera");
     QHash<QString, qint64> m_motionSeen; // "ip|channel" -> when an unlabelled motion report last arrived (ms)
     bool m_logUnlabelledMotion = false;
     bool m_frameUnlabelledMotion = false;

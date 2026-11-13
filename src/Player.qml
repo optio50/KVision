@@ -785,7 +785,20 @@ FocusScope {
     // settings say so.
     readonly property bool useRecorderEvents: !root.isStandaloneCamera
                                               && (typeof generalSettings !== "undefined")
-                                              && generalSettings.targetSource === "recorder"
+                                              && root.eventSourceChoice() === "recorder"
+
+    // Where this camera's reports come from: its own choice (set in the detection frame window), else the general setting.
+    function eventSourceChoice() {
+        if (typeof generalSettings === "undefined")
+            return "camera";
+        try {
+            var o = JSON.parse(generalSettings.targetSourceOverrides || "{}");
+            var v = o[root.recorderIp + "#" + root.channelId];
+            if (v === "camera" || v === "recorder")
+                return v;
+        } catch (e) {}
+        return generalSettings.targetSource === "recorder" ? "recorder" : "camera";
+    }
 
     // Per-camera switch for the indicator. It is kept in its own list, not in the saved recorders,
     // because saving the recorder list makes every Hikvision tile reload its source.

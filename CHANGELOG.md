@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Choose where each camera's detection events come from.** The *Choose cameras* window (detection settings) now has a
+  *Reports: camera / NVR* choice for every camera behind a recorder, and *All from camera* / *All from NVR* for a whole
+  recorder. A camera can take its events from its own connection or from the recorder's, and the two can be mixed. Each camera
+  is read from one place only, so nothing is logged twice. A camera with no choice of its own follows the general *Event
+  source* setting. The background logger follows the same choices. Cameras that are their own recorder are not affected.
 * **The detection events window says where each picture came from.** Every new log line ends with `via camera` or `via NVR`:
   the connection the report and its picture arrived on. The picture viewer's caption shows *picture from the camera* or *picture
   from the NVR*, and the picture button's tooltip says the same. The list has a new *Source* column right after the

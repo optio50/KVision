@@ -190,16 +190,19 @@ void HikvisionEventLogger::checkBackground()
 }
 
 void HikvisionEventLogger::configure(bool enabled, const QString &recordersJson, const QString &targetSource,
-                                     const QString &configDir)
+                                     const QString &configDir, const QString &sourceOverridesJson)
 {
     if (m_configured && enabled == m_enabled && recordersJson == m_recordersJson
-        && targetSource == m_targetSource && configDir == m_configDir)
+        && targetSource == m_targetSource && configDir == m_configDir && sourceOverridesJson == m_sourceOverrides)
         return;
     m_configured = true;
     m_enabled = enabled;
     m_recordersJson = recordersJson;
     m_targetSource = targetSource;
     m_configDir = configDir;
+    m_sourceOverrides = sourceOverridesJson;
+    // The listener skips a camera's reports on the connection that is not its chosen one, so every camera is logged once.
+    m_events->setChannelSources(sourceOverridesJson, targetSource);
 
     if (!m_enabled) {
         m_retry->stop();
@@ -220,12 +223,13 @@ void HikvisionEventLogger::startPlan()
     const QByteArray json = m_recordersJson.toUtf8();
     const QString source = m_targetSource;
     const QString dir = m_configDir;
+    const QByteArray overrides = m_sourceOverrides.toUtf8();
     if (m_thread) {
         m_thread->wait();
         delete m_thread;
     }
-    m_thread = QThread::create([this, json, source, dir]() {
-        const Plan plan = buildPlan(json, source, dir);
+    m_thread = QThread::create([this, json, source, dir, overrides]() {
+        const Plan plan = buildPlan(json, source, dir, overrides);
         QMetaObject::invokeMethod(this, [this, plan]() { finishPlan(plan); }, Qt::QueuedConnection);
     });
     m_thread->start();
@@ -282,9 +286,10 @@ void HikvisionEventLogger::applyPlan(const Plan &plan)
 
 // Works out which addresses to listen to, the way a tile does for the camera it shows. Runs on a worker thread.
 HikvisionEventLogger::Plan HikvisionEventLogger::buildPlan(const QByteArray &recordersJson, const QString &targetSource,
-                                                           const QString &configDir)
+                                                           const QString &configDir, const QByteArray &sourceOverridesJson)
 {
     Plan plan;
+    const QJsonObject overrides = QJsonDocument::fromJson(sourceOverridesJson).object();
     const QJsonArray list = QJsonDocument::fromJson(recordersJson).array();
     for (const QJsonValue &rv : list) {
         const QJsonObject rec = rv.toObject();
@@ -335,8 +340,20 @@ HikvisionEventLogger::Plan HikvisionEventLogger::buildPlan(const QByteArray &rec
             continue;
         }
 
-        if (targetSource == QLatin1String("recorder")) {
-            // One connection to the recorder serves every camera behind it.
+        // Each camera behind the recorder takes its reports from its own connection or from the recorder's: its own choice if it
+        // has one, else the general setting. The recorder's connection is opened when any camera wants it, and a camera's own
+        // connection only for the cameras that use it. Each connection ignores the cameras meant for the other.
+        auto sourceOf = [&](int ch) {
+            const QString v = overrides.value(recIp + QLatin1Char('#') + QString::number(ch)).toString();
+            return (v == QLatin1String("camera") || v == QLatin1String("recorder")) ? v : targetSource;
+        };
+        bool anyRecorder = false;
+        for (const QJsonValue &cv : cams)
+            if (sourceOf(channelOf(cv)) == QLatin1String("recorder"))
+                anyRecorder = true;
+
+        if (anyRecorder) {
+            // One connection to the recorder serves every camera behind it that takes its reports from there.
             Entry e = base;
             e.ip = recIp;
             e.recorderMode = true;
@@ -349,14 +366,15 @@ HikvisionEventLogger::Plan HikvisionEventLogger::buildPlan(const QByteArray &rec
             }
             e.chanInfoJson = toJson(info);
             plan.entries.append(e);
-            continue;
         }
 
-        // One connection per camera behind the recorder (cameras that share an address share the connection).
+        // One connection per camera behind the recorder that uses its own (cameras that share an address share the connection).
         QMap<QString, Entry> byIp;
         QMap<QString, QJsonObject> lensByIp;
         for (const QJsonValue &cv : cams) {
             const int ch = channelOf(cv);
+            if (sourceOf(ch) == QLatin1String("recorder"))
+                continue;
             const QVariantMap p = proxy.value(ch);
             const QString ip = p.value(QStringLiteral("ip")).toString();
             if (ip.isEmpty() || ip == recIp)

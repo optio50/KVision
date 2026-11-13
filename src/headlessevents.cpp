@@ -42,6 +42,7 @@ struct Settings {
     QString targets = QStringLiteral("human,vehicle,animal,other");
     int pictures = 100;
     bool logMotion = false; // log motion reports that name no target
+    QString sourceOverrides = QStringLiteral("{}"); // where single cameras behind a recorder get their reports from
 };
 
 Settings readSettings(const QString &configPath)
@@ -53,6 +54,7 @@ Settings readSettings(const QString &configPath)
     r.targets = s.value(QStringLiteral("targetTargets"), r.targets).toString();
     r.pictures = s.value(QStringLiteral("picturesPerCamera"), 100).toInt();
     r.logMotion = s.value(QStringLiteral("logUnlabelledMotion"), false).toBool();
+    r.sourceOverrides = s.value(QStringLiteral("targetSourceOverrides"), QStringLiteral("{}")).toString();
     r.source = s.value(QStringLiteral("targetSource"), QStringLiteral("camera")).toString();
     if (r.source != QLatin1String("camera") && r.source != QLatin1String("recorder"))
         r.source = QStringLiteral("camera");
@@ -145,7 +147,7 @@ int runHeadlessEvents(int argc, char *argv[])
             state = QStringLiteral("logging");
 
         // One writer at a time: only hold connections when enabled and no window is open.
-        logger.configure(state == QLatin1String("logging"), s.recorders, s.source, configDir);
+        logger.configure(state == QLatin1String("logging"), s.recorders, s.source, configDir, s.sourceOverrides);
         current = s;
 
         writeStatus(configDir, state, events, logger);

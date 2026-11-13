@@ -278,6 +278,8 @@ void HikvisionEvents::onReadyRead(const QString &ip)
         const QString type = typeRx.match(body).captured(1);
         const QString camTime = timeRx.match(body).captured(1);
         const int camChannel = chanRx.match(body).captured(1).toInt();
+        if (!sourceAllowed(c, camChannel))
+            continue; // this camera's reports are taken from the other connection (the camera's own, or the recorder's)
         if (type != QLatin1String("VMD")) {
             // A smart event (line crossing, intrusion, region entrance or exit...). The camera names
             // the target inside the rule. All of them go to the detection log and show the tile's
@@ -1057,6 +1059,34 @@ void HikvisionEvents::setAllowedKinds(const QString &kinds)
     const QStringList parts = splitList(kinds);
     for (const QString &p : parts)
         m_allowedKinds.insert(p.trimmed().toLower());
+}
+
+bool HikvisionEvents::sourceAllowed(const Conn *c, int eventChannel) const
+{
+    // A camera with its own address (a standalone camera, or one called without recorder details): its own stream is the only one.
+    if (!c->recorderMode && (c->recIp.isEmpty() || c->recIp == c->ip))
+        return true;
+    int channel = eventChannel; // on a recorder's connection the report names the recorder channel
+    if (!c->recorderMode) {
+        // On a camera's own connection the camera is always channel 1 (or a lens number): the recorder channel is looked up.
+        const auto lens = c->lens.constFind(eventChannel);
+        channel = (lens != c->lens.constEnd() && lens->channel > 0) ? lens->channel : c->recChannel;
+    }
+    const QString key = c->recIp + QLatin1Char('#') + QString::number(channel);
+    const QString wanted = m_sourceOverrides.value(key, m_defaultSource);
+    return c->recorderMode ? wanted == QLatin1String("recorder") : wanted != QLatin1String("recorder");
+}
+
+void HikvisionEvents::setChannelSources(const QString &overridesJson, const QString &defaultSource)
+{
+    m_sourceOverrides.clear();
+    const QJsonObject o = QJsonDocument::fromJson(overridesJson.toUtf8()).object();
+    for (auto it = o.constBegin(); it != o.constEnd(); ++it) {
+        const QString v = it.value().toString();
+        if (v == QLatin1String("camera") || v == QLatin1String("recorder"))
+            m_sourceOverrides.insert(it.key(), v);
+    }
+    m_defaultSource = defaultSource == QLatin1String("recorder") ? defaultSource : QStringLiteral("camera");
 }
 
 void HikvisionEvents::setUnlabelledMotion(bool log, bool frame)
