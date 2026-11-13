@@ -91,13 +91,13 @@ T.CheckBox {
         }
     }
 
-    contentItem: CheckLabel {
+    contentItem: SelectableLabel {
         leftPadding: control.indicator && !control.mirrored ? control.indicator.width + control.spacing : 0
         rightPadding: control.indicator && control.mirrored ? control.indicator.width + control.spacing : 0
 
         text: control.text
         font: control.font
-        color: "#ffffff"
+        textColor: "#ffffff"
         opacity: control.enabled ? 1.0 : 0.5
     }
 }

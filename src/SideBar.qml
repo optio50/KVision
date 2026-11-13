@@ -6,6 +6,7 @@ import Qt.labs.settings 1.0
 import QtGraphicalEffects 1.0
 import CCTV_Viewer.Core 1.0
 import CCTV_Viewer.Themes 1.0
+import "qrc:/Compact"
 import CCTV_Viewer.Utils 1.0
 import CCTV_Viewer.Hikvision 1.0
 import Qt.labs.platform 1.1 as Platform
@@ -2346,17 +2347,17 @@ FocusScope {
                                 spacing: 8
 
                                 CheckBox {
-                                    text: qsTr("Show a frame and label on a camera when it detects a human, vehicle or animal (needs motion detection on in the camera)")
+                                    text: qsTr("Show a frame and label on a camera when it detects a human, vehicle or animal (detection must be set up correctly on the camera or the NVR)")
                                     checked: generalSettings.showTargetIndicator
                                     onCheckedChanged: generalSettings.showTargetIndicator = checked
                                     Layout.fillWidth: true
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("Keep the frame visible for %1 s after the last report").arg(targetHoldSlider.value.toFixed(0))
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
@@ -2371,11 +2372,11 @@ FocusScope {
                                     onMoved: generalSettings.targetHoldSeconds = value
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("Show a frame for these kinds of report")
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
@@ -2401,11 +2402,11 @@ FocusScope {
                                     }
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("Show a frame for these targets")
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
@@ -2453,11 +2454,11 @@ FocusScope {
                                 anchors.fill: parent
                                 spacing: 8
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("Where cameras behind a recorder get their detection reports")
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
@@ -2471,19 +2472,19 @@ FocusScope {
                                     onActivated: generalSettings.targetSource = (index === 1 ? "recorder" : "camera")
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("A standalone camera, a dual-lens camera, and a recorder with one or two cameras always use their own connection. Through the recorder needs the camera's smart event metadata and the recorder's centre action switched on.")
-                                    color: "#6f7f8c"
+                                    textColor: "#6f7f8c"
                                     font.pixelSize: 10
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
-                                Text {
+                                SelectableLabel {
                                 text: qsTr("To choose differently for one camera behind a recorder, open the list below. It also sets where each camera shows a detection frame. A camera is read from one place only, so nothing is logged twice.")
-                                color: "#6f7f8c"
+                                textColor: "#6f7f8c"
                                 font.pixelSize: 10
-                                wrapMode: Text.Wrap
+                                wrapMode: TextEdit.Wrap
                                 Layout.fillWidth: true
                                 }
 
@@ -2528,19 +2529,19 @@ FocusScope {
                                 anchors.fill: parent
                                 spacing: 8
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("Motion that names no target")
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("Some cameras report plain motion: something moved, but not what (their motion detection is not a smart event, so it cannot tell a person from a car). These two choices decide what KVision does with it. The first needs the log switched on above.")
-                                    color: "#6f7f8c"
+                                    textColor: "#6f7f8c"
                                     font.pixelSize: 10
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
@@ -2557,11 +2558,11 @@ FocusScope {
                                     onToggled: generalSettings.frameUnlabelledMotion = checked
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("The detection log keeps every report, whatever is switched off here.")
-                                    color: "#6f7f8c"
+                                    textColor: "#6f7f8c"
                                     font.pixelSize: 10
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
@@ -2603,11 +2604,11 @@ FocusScope {
                                     Layout.fillWidth: true
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("While KVision is open it always logs every configured camera, whether or not it is on screen. With this on, a small background service takes over when KVision closes and steps aside when it opens again. With this off, nothing is logged while KVision is closed. The frame and label in User Interface Settings only control what is drawn on screen; they do not affect the log.")
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
@@ -2645,11 +2646,11 @@ FocusScope {
                                 color: "#2a3540"
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("Event pictures kept for each camera (the newest ones; older ones are deleted)")
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
@@ -2684,11 +2685,11 @@ FocusScope {
                                 anchors.fill: parent
                                 spacing: 8
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("Is each camera set up to report? A read-only check of the camera's settings (metadata, zones, rules, the recorder's centre action). It changes nothing.")
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
@@ -3228,9 +3229,9 @@ FocusScope {
                                     Layout.fillWidth: true
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("Talk microphone")
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
                                 }
 
@@ -3248,9 +3249,9 @@ FocusScope {
                                     onActivated: generalSettings.talkMicrophone = index === 0 ? "" : mics[index - 1]
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("Talk microphone gain: %1x").arg(talkGainSlider.value.toFixed(1))
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
                                 }
 
@@ -3265,11 +3266,11 @@ FocusScope {
                                     onMoved: generalSettings.talkGain = value
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("Talk output boost: %1 dB (louder at the camera speaker)").arg((talkBoostSlider.value >= 0 ? "+" : "") + talkBoostSlider.value.toFixed(0))
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
@@ -3323,11 +3324,11 @@ FocusScope {
                                     Layout.fillWidth: true
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("LNG_00271")
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 10
-                                    wrapMode: Text.WordWrap
+                                    wrapMode: TextEdit.WordWrap
                                     Layout.fillWidth: true
                                 }
 
@@ -3375,11 +3376,11 @@ FocusScope {
                                 anchors.fill: parent
                                 spacing: 8
 
-                                Text {
+                                SelectableLabel {
                                     text: qsTr("The browser KVision opens web pages in: a camera's own page, the recorder's page, the project's links. It is started directly, so it is used even when another browser is already open.")
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     font.pixelSize: 11
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     Layout.fillWidth: true
                                 }
 
@@ -3444,12 +3445,12 @@ FocusScope {
                                     onEditingFinished: generalSettings.webBrowserChoice = "cmd:" + text
                                 }
 
-                                Text {
+                                SelectableLabel {
                                     id: browserNote
                                     Layout.fillWidth: true
-                                    wrapMode: Text.Wrap
+                                    wrapMode: TextEdit.Wrap
                                     font.pixelSize: 11
-                                    color: "#8898a6"
+                                    textColor: "#8898a6"
                                     text: WebBrowser.describe() !== "" ? qsTr("Runs: %1").arg(WebBrowser.describe()) : qsTr("Uses the system's default browser.")
                                 }
                             }

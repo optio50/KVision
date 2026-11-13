@@ -46,6 +46,7 @@
         <file alias="Compact/GroupBox.qml">src/imports/CCTV_Viewer/Themes/Compact/GroupBox.qml</file>
         <file alias="Compact/TextField.qml">src/imports/CCTV_Viewer/Themes/Compact/TextField.qml</file>
         <file alias="Compact/CheckBox.qml">src/imports/CCTV_Viewer/Themes/Compact/CheckBox.qml</file>
+        <file alias="Compact/SelectableLabel.qml">src/imports/CCTV_Viewer/Themes/Compact/SelectableLabel.qml</file>
         <file alias="Compact/ToolTip.qml">src/imports/CCTV_Viewer/Themes/Compact/ToolTip.qml</file>
         <file>images/github.svg</file>
         <file>src/NvrSettingsPanel.qml</file>
