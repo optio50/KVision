@@ -86,7 +86,8 @@ Window {
                                                onlyThisCamera.checked ? logWin.cameraIp : "",
                                                logWin.rangeFromMs(), logWin.rangeToMs(),
                                                logWin.targetChoices[targetBox.currentIndex].key,
-                                               logWin.kindChoices[kindBox.currentIndex].kinds);
+                                               logWin.kindChoices[kindBox.currentIndex].kinds,
+                                               hideUnlabelledBox.checked);
         logWin.total = r.total;
         var list = reset ? [] : logWin.entries.slice();
         for (var i = 0; i < r.entries.length; ++i)
@@ -443,6 +444,22 @@ Window {
                 ToolTip.visible: hovered
                 ToolTip.delay: 600
                 ToolTip.text: qsTr("Only events of this type.")
+            }
+
+            CheckBox {
+                id: hideUnlabelledBox
+                text: qsTr("Hide unlabelled motion")
+                onToggled: logWin.load(true)
+                ToolTip.visible: hovered
+                ToolTip.delay: 600
+                ToolTip.text: qsTr("Leave out motion reports that did not say what moved (no human, vehicle or animal)")
+                contentItem: Text {
+                    leftPadding: hideUnlabelledBox.indicator.width + 6
+                    text: hideUnlabelledBox.text
+                    color: "#eeeeee"
+                    font.pixelSize: 12
+                    verticalAlignment: Text.AlignVCenter
+                }
             }
 
             Item { Layout.fillWidth: true }

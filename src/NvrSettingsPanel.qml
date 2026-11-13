@@ -871,7 +871,7 @@ ColumnLayout {
                         onClicked: {
                             var hPort = modelData.httpPort || (modelData.port == 8000 ? 80 : modelData.port) || 80;
                             var url = "http://" + modelData.ip + (hPort == 80 ? "" : ":" + hPort);
-                            Qt.openUrlExternally(url);
+                            WebBrowser.open(url);
                         }
 
                         ToolTip.delay: Compact.toolTipDelay

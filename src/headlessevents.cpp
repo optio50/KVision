@@ -41,6 +41,7 @@ struct Settings {
     QString kinds = QStringLiteral("motion,line,intrusion,enter,exit,other");
     QString targets = QStringLiteral("human,vehicle,animal,other");
     int pictures = 100;
+    bool logMotion = false; // log motion reports that name no target
 };
 
 Settings readSettings(const QString &configPath)
@@ -51,6 +52,7 @@ Settings readSettings(const QString &configPath)
     r.kinds = s.value(QStringLiteral("targetKinds"), r.kinds).toString();
     r.targets = s.value(QStringLiteral("targetTargets"), r.targets).toString();
     r.pictures = s.value(QStringLiteral("picturesPerCamera"), 100).toInt();
+    r.logMotion = s.value(QStringLiteral("logUnlabelledMotion"), false).toBool();
     r.source = s.value(QStringLiteral("targetSource"), QStringLiteral("camera")).toString();
     if (r.source != QLatin1String("camera") && r.source != QLatin1String("recorder"))
         r.source = QStringLiteral("camera");
@@ -133,6 +135,7 @@ int runHeadlessEvents(int argc, char *argv[])
         events.setAllowedKinds(s.kinds);
         events.setAllowedTargets(s.targets);
         events.setMaxPictures(s.pictures);
+        events.setUnlabelledMotion(s.logMotion, false);
 
         if (!s.enabled)
             state = QStringLiteral("disabled");

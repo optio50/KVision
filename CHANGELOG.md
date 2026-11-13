@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+* **Motion that names no target can be logged and shown.** Some cameras (a panoramic camera's plain motion zone, for one) report
+  that something moved but not what, because their motion detection is not a smart event. KVision kept that off the detection
+  log. Two new choices in the detection settings, both off by default: write each movement to the detection log (one line when
+  it starts, the next only after 10 seconds without motion, so a recorder's one-a-second repeats do not flood it), and show a
+  *MOTION* frame for it on the tile.
+* **Hide unlabelled motion in the detection log window.** A new tick box leaves out the motion reports that did not say what
+  moved, so the list shows only labelled motion and smart events. It works with the other filters.
+* **A picture for labelled motion.** Motion that names a target (human, vehicle, animal or other) is not a smart event and
+  brings no picture, so KVision now asks the camera for a still when one is reported: at most one every 30 seconds for each
+  camera, so a constant stream cannot fill the disk. These pictures are kept apart from the smart-event ones, with their own
+  smaller limit (a quarter of *Pictures kept per camera*), and show in the detection log window like the others. Motion that
+  names no target gets no picture.
+* **Choose the browser KVision opens web pages in.** A new *Web browser* box in General settings picks the browser used for
+  every page KVision opens: a camera's own page (right-click *Open Web UI*, the globe button on a recorder, the setup check)
+  and the project's links. It lists the browsers installed here (from their launcher files) or takes a command of your own
+  (`%u` is where the address goes), with a *Test* button. The chosen browser is started directly, so it is used even when
+  another browser is already open; a browser that is already running just opens a new tab. Only http and https addresses are
+  opened, the address is passed as one argument and never through a shell, and a browser that cannot be started falls back to
+  the system default. The default is *System default*, so nothing changes until you choose.
+
+### Changed
+* **Safer settings file.** KVision keeps one copy of the settings file per day (`KVision.conf.daily-YYYY-MM-DD`, the last 14
+  days) as well as the `.bak` copy that is replaced at every start. A new start also waits up to 10 seconds for a previous
+  window that is still shutting down, so two windows do not write the same settings file at once.
+
 ### Fixed
 * **The event picture viewer no longer draws its own target box on a picture the camera already framed.** A camera reports a
   target several times a second while it is still classifying it (first "Other", then "Animal"), each time with a moving

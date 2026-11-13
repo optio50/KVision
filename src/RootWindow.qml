@@ -265,6 +265,9 @@ ApplicationWindow {
         property string videoPath: ""
         property bool disableAudio: false
         property bool disableTalk: false
+        // The browser KVision opens web pages in: "" = the system default, "id:<launcher>.desktop", or "cmd:<command>".
+        property string webBrowserChoice: ""
+        onWebBrowserChoiceChanged: WebBrowser.setChoice(webBrowserChoice)
         property bool showTargetIndicator: false
         property int targetHoldSeconds: 10
         property int picturesPerCamera: 100
@@ -281,8 +284,15 @@ ApplicationWindow {
         property bool logDetectionEvents: false
         property bool checkSetupAtStart: false // read each camera's detection setup once when KVision starts
         property string targetTargets: "human,vehicle,animal,other"
+        // Motion reports that name no target (the camera's motion detection is not a smart event): write each movement to the
+        // detection log, and show a "MOTION" frame for it. Both off until switched on.
+        property bool logUnlabelledMotion: false
+        property bool frameUnlabelledMotion: false
+        onLogUnlabelledMotionChanged: rootWindow.applyDetectionFilters()
+        onFrameUnlabelledMotionChanged: rootWindow.applyDetectionFilters()
         property string targetOffCameras: "[]" // JSON list of camera addresses with the indicator switched off
         property string targetNvrOnCameras: "[]" // JSON list of "recorderIp#channel" entries switched on for cameras behind a recorder
+        onTargetNvrOnCamerasChanged: rootWindow.noteNvrList()
         property string talkMicrophone: ""
         property real talkGain: 2.0
         property real talkBoostDb: 0.0
@@ -599,6 +609,14 @@ ApplicationWindow {
             if (generalSettings.targetTargets !== diskTargetTargets) {
                 generalSettings.targetTargets = diskTargetTargets;
             }
+            var diskLogMotion = Context.readSetting("", "logUnlabelledMotion", false);
+            if (generalSettings.logUnlabelledMotion !== diskLogMotion) {
+                generalSettings.logUnlabelledMotion = diskLogMotion;
+            }
+            var diskFrameMotion = Context.readSetting("", "frameUnlabelledMotion", false);
+            if (generalSettings.frameUnlabelledMotion !== diskFrameMotion) {
+                generalSettings.frameUnlabelledMotion = diskFrameMotion;
+            }
             var diskTargetNvrOn = String(Context.readSetting("", "targetNvrOnCameras", "[]"));
             if (generalSettings.targetNvrOnCameras !== diskTargetNvrOn) {
                 generalSettings.targetNvrOnCameras = diskTargetNvrOn;
@@ -610,6 +628,10 @@ ApplicationWindow {
             var diskShowTarget = Context.readSetting("", "showTargetIndicator", false);
             if (generalSettings.showTargetIndicator !== diskShowTarget) {
                 generalSettings.showTargetIndicator = diskShowTarget;
+            }
+            var diskWebBrowser = String(Context.readSetting("", "webBrowserChoice", ""));
+            if (generalSettings.webBrowserChoice !== diskWebBrowser) {
+                generalSettings.webBrowserChoice = diskWebBrowser;
             }
             var diskDisableTalk = Context.readSetting("", "disableTalk", false);
             if (generalSettings.disableTalk !== diskDisableTalk) {
@@ -2219,6 +2241,20 @@ ApplicationWindow {
         onTriggered: if (generalSettings.logDetectionEvents) HikvisionEventLogger.ensureBackground(Context.config.fileName)
     }
 
+    // The list of recorder cameras that show a detection frame has been seen to come back empty after a start. This prints how
+    // many it holds whenever it loads or changes, and a warning when a list that had cameras becomes empty, so the terminal
+    // shows when and what happened.
+    property int nvrListCount: -1
+    function noteNvrList() {
+        var n = 0;
+        try { n = JSON.parse(generalSettings.targetNvrOnCameras || "[]").length; } catch (e) { n = -2; }
+        if (n === 0 && rootWindow.nvrListCount > 0)
+            console.warn("[Settings] the list of recorder cameras with a detection frame was emptied (it had", rootWindow.nvrListCount, "cameras)");
+        else if (n !== rootWindow.nvrListCount)
+            console.log("[Settings] recorder cameras with a detection frame:", n);
+        rootWindow.nvrListCount = n;
+    }
+
     function flushSettingsToDisk() {
         if (saveTimer.running) {
             saveTimer.stop();
@@ -2237,6 +2273,7 @@ ApplicationWindow {
         Context.writeSetting("", "snapshotPath", generalSettings.snapshotPath);
         Context.writeSetting("", "videoPath", generalSettings.videoPath);
         Context.writeSetting("", "disableAudio", generalSettings.disableAudio);
+        Context.writeSetting("", "webBrowserChoice", generalSettings.webBrowserChoice);
         Context.writeSetting("", "disableTalk", generalSettings.disableTalk);
         Context.writeSetting("", "showTargetIndicator", generalSettings.showTargetIndicator);
         Context.writeSetting("", "targetHoldSeconds", generalSettings.targetHoldSeconds);
@@ -2247,6 +2284,8 @@ ApplicationWindow {
         Context.writeSetting("", "logDetectionEvents", generalSettings.logDetectionEvents);
         Context.writeSetting("", "checkSetupAtStart", generalSettings.checkSetupAtStart);
         Context.writeSetting("", "targetTargets", generalSettings.targetTargets);
+        Context.writeSetting("", "logUnlabelledMotion", generalSettings.logUnlabelledMotion);
+        Context.writeSetting("", "frameUnlabelledMotion", generalSettings.frameUnlabelledMotion);
         Context.writeSetting("", "targetOffCameras", generalSettings.targetOffCameras);
         Context.writeSetting("", "targetNvrOnCameras", generalSettings.targetNvrOnCameras);
         Context.writeSetting("", "talkMicrophone", generalSettings.talkMicrophone);
@@ -2338,6 +2377,7 @@ ApplicationWindow {
         HikvisionEvents.setAllowedKinds(generalSettings.targetKinds);
         HikvisionEvents.setAllowedTargets(generalSettings.targetTargets);
         HikvisionEvents.setMaxPictures(generalSettings.picturesPerCamera);
+        HikvisionEvents.setUnlabelledMotion(generalSettings.logUnlabelledMotion, generalSettings.frameUnlabelledMotion);
     }
 
     // The logger keeps one watcher on every camera while the log switch is on, independent of the tiles.
@@ -2364,6 +2404,8 @@ ApplicationWindow {
         stackLayout.visible = true;
         rootWindow.applyDetectionFilters();
         rootWindow.applyEventLogger();
+        WebBrowser.setChoice(generalSettings.webBrowserChoice);
+        rootWindow.noteNvrList();
         if (!Context.isAuxiliary && generalSettings.logDetectionEvents)
             backgroundServiceTimer.start();
         if (!Context.isAuxiliary) {

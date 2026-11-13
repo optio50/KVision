@@ -305,13 +305,38 @@ void HikvisionEvents::onReadyRead(const QString &ip)
         }
         QString target = targetRx.match(body).captured(1).trimmed().toLower();
         if (target.isEmpty()) {
-            if (m_allowedKinds.contains(QStringLiteral("motion")))
-                emit motionDetected(ip, camChannel);
+            // Plain motion: the camera says something moved, not what. A recorder repeats it about once a second while
+            // the movement goes on, so one line is written when a movement starts, and the next only after it has been
+            // still for kMotionQuietMs.
+            const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+            const QString motionKey = ip + QLatin1Char('|') + QString::number(camChannel);
+            const qint64 lastMs = m_motionSeen.value(motionKey, 0);
+            m_motionSeen.insert(motionKey, nowMs);
+            if (m_logUnlabelledMotion && nowMs - lastMs >= kMotionQuietMs)
+                logDetection(c, QString(), QStringLiteral("Motion"), camTime, camChannel);
+            if (m_allowedKinds.contains(QStringLiteral("motion"))) {
+                if (m_frameUnlabelledMotion && m_allowedTargets.contains(QStringLiteral("other")))
+                    emit targetDetected(ip, QStringLiteral("other"), QStringLiteral("MOTION"), camChannel); // shows "MOTION"
+                else
+                    emit motionDetected(ip, camChannel); // only keeps a frame that is already shown
+            }
             continue;
         }
         if (target != QLatin1String("human") && target != QLatin1String("vehicle") && target != QLatin1String("animal"))
             target = QStringLiteral("other");
         logDetection(c, target, QStringLiteral("Motion"), camTime, camChannel); // the log keeps every labelled report
+        {
+            // Motion is not a smart event and brings no picture of its own, so a still is asked for from the camera.
+            const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+            const QString picKey = ip + QLatin1Char('|') + QString::number(camChannel);
+            if (nowMs - m_motionPictureAt.value(picKey, 0) >= kMotionPictureGapMs) {
+                m_motionPictureAt.insert(picKey, nowMs);
+                QDateTime when = QDateTime::fromString(camTime, Qt::ISODate);
+                if (!when.isValid())
+                    when = QDateTime::currentDateTime();
+                takeSnapshot(ip, camChannel > 0 ? camChannel : 1, when.toSecsSinceEpoch(), QStringLiteral("Motion"));
+            }
+        }
         if (!m_allowedKinds.contains(QStringLiteral("motion")) || !m_allowedTargets.contains(target))
             continue; // motion, or this target, is switched off for the screen
         qDebug() << "[Events] report from" << ip << "channel" << camChannel << ":" << target;
@@ -610,7 +635,10 @@ void HikvisionEvents::prunePictures(const QString &dirPath, const QString &key)
         const QString cam = name.left(us);
         if (!key.isEmpty() && cam != key)
             continue;
-        if (++seen[cam] > m_maxPictures)
+        // Motion pictures are counted apart from the smart-event ones, and kept fewer.
+        const bool motion = name.endsWith(QLatin1String("-motion"));
+        const int limit = motion ? qMax(10, m_maxPictures / 4) : m_maxPictures;
+        if (++seen[motion ? cam + QLatin1String("|motion") : cam] > limit)
             QFile::remove(fi.absoluteFilePath());
     }
 }
@@ -832,7 +860,8 @@ void HikvisionEvents::logFrame(const QString &ip, const QString &text, int tile,
 }
 
 QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &configDir, const QString &filterIp,
-                                            qint64 fromMs, qint64 toMs, const QString &target, const QString &kinds) const
+                                            qint64 fromMs, qint64 toMs, const QString &target, const QString &kinds,
+                                            bool hideUnlabelledMotion) const
 {
     QVariantMap result;
     QVariantList entries;
@@ -947,6 +976,9 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
                 const QString kindNow = e.value(QStringLiteral("kind")).toString();
                 if (!wantKinds.isEmpty() && !wantKinds.contains(kindNow))
                     continue;
+                if (hideUnlabelledMotion && kindNow == QLatin1String("Motion")
+                    && e.value(QStringLiteral("target")).toString().compare(QLatin1String("Object"), Qt::CaseInsensitive) == 0)
+                    continue;
                 if (!wantTarget.isEmpty()) {
                     QString tg = e.value(QStringLiteral("target")).toString().toLower();
                     if (tg == QLatin1String("object"))
@@ -1017,6 +1049,12 @@ void HikvisionEvents::setAllowedKinds(const QString &kinds)
         m_allowedKinds.insert(p.trimmed().toLower());
 }
 
+void HikvisionEvents::setUnlabelledMotion(bool log, bool frame)
+{
+    m_logUnlabelledMotion = log;
+    m_frameUnlabelledMotion = frame;
+}
+
 void HikvisionEvents::setAllowedTargets(const QString &targets)
 {
     m_allowedTargets.clear();
@@ -1081,7 +1119,7 @@ void HikvisionEvents::logTracking(const QString &ip, const QString &target, int 
 // A still picture of one lens of the camera, from the camera's own picture address (main stream of that channel,
 // channel 1 = 101, channel 2 = 201). One request with the connection's login; a refused login stops all picture
 // requests for this camera, like the event pictures.
-void HikvisionEvents::takeSnapshot(const QString &ip, int cameraChannel, qint64 secs)
+void HikvisionEvents::takeSnapshot(const QString &ip, int cameraChannel, qint64 secs, const QString &kind)
 {
     Conn *c = m_conns.value(ip, nullptr);
     if (!c || c->pictureRefused || c->pictureFetches >= 2 || m_logDir.isEmpty())
@@ -1097,7 +1135,7 @@ void HikvisionEvents::takeSnapshot(const QString &ip, int cameraChannel, qint64 
     QNetworkReply *reply = m_net->get(req);
     reply->setProperty("evUser", c->user);
     reply->setProperty("evPass", c->pass);
-    connect(reply, &QNetworkReply::finished, this, [this, ip, reply, cameraChannel, secs]() {
+    connect(reply, &QNetworkReply::finished, this, [this, ip, reply, cameraChannel, secs, kind]() {
         reply->deleteLater();
         Conn *conn = m_conns.value(ip, nullptr);
         if (conn && conn->pictureFetches > 0)
@@ -1114,7 +1152,7 @@ void HikvisionEvents::takeSnapshot(const QString &ip, int cameraChannel, qint64 
         const QByteArray jpeg = reply->readAll();
         if (jpeg.size() < 1000 || jpeg.left(3) != QByteArray("\xff\xd8\xff", 3))
             return;
-        savePicture(cameraAddress(conn, cameraChannel), pictureLens(conn, cameraChannel), QString(), secs, jpeg);
+        savePicture(cameraAddress(conn, cameraChannel), pictureLens(conn, cameraChannel), kind, secs, jpeg);
     });
 }
 

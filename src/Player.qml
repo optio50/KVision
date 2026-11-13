@@ -1420,7 +1420,7 @@ FocusScope {
             host = proxy.ip;
             port = 80;
         }
-        Qt.openUrlExternally("http://" + host + (port === 80 ? "" : ":" + port));
+        WebBrowser.open("http://" + host + (port === 80 ? "" : ":" + port));
     }
 
     function openPlayback() {

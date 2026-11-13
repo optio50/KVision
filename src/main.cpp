@@ -66,6 +66,7 @@ int qmlRegisterSingletonInstance(const char *uri, int versionMajor, int versionM
 #include "hikvisionbackup.h"
 #include "hikvisioncamerainfo.h"
 #include "hikvisionrecordingspan.h"
+#include "webbrowser.h"
 #include "headlessevents.h"
 #include "eventservice.h"
 #include <QLockFile>
@@ -422,6 +423,21 @@ int main(int argc, char *argv[])
         }
     }
 
+    // A window that is still shutting down (slow to exit) can have given up its single-instance socket while it still has the
+    // settings file open. A new start would then run alongside it, and whichever exits last writes its settings over the other's.
+    // This lock is taken for the whole life of the process (it is never released early, the system drops it when the process is
+    // gone), so a new start waits for the old one to be completely gone.
+    if (!Context::isAuxiliary() && !app.arguments().contains(QStringLiteral("--headless-events"))) {
+        const QString cfg = Context::config() ? Context::config()->fileName() : QSettings().fileName();
+        QSettings lockSettings(cfg, QSettings::IniFormat);
+        if (lockSettings.value(QStringLiteral("singleApplication"), true).toBool()) {
+            auto *lifeLock = new QLockFile(QFileInfo(cfg).absolutePath() + QStringLiteral("/kvision-window.lock")); // intentionally never deleted
+            lifeLock->setStaleLockTime(0);
+            if (!lifeLock->tryLock(10000))
+                qWarning() << "[Startup] a previous KVision window is still shutting down after 10 s; starting anyway";
+        }
+    }
+
     // While this window process runs it holds a lock file, so the background detection logger (if it is
     // running) sees it and steps aside: only one of them holds a camera's event stream at a time.
     std::unique_ptr<QLockFile> uiLock;
@@ -448,6 +464,9 @@ int main(int argc, char *argv[])
 
     auto *hikvisionEvents = new HikvisionEvents();
     qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "HikvisionEvents", hikvisionEvents);
+
+    auto *webBrowser = new WebBrowser();
+    qmlRegisterSingletonInstance("CCTV_Viewer.Utils", 1, 0, "WebBrowser", webBrowser);
 
     auto *hikvisionRecordingSpan = new HikvisionRecordingSpan();
     qmlRegisterSingletonInstance("CCTV_Viewer.Hikvision", 1, 0, "HikvisionRecordingSpan", hikvisionRecordingSpan);

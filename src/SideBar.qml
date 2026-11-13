@@ -1185,7 +1185,7 @@ FocusScope {
                     cursorShape: Qt.PointingHandCursor
                     hoverEnabled: true
                     onClicked: {
-                        Qt.openUrlExternally("https://github.com/optio50/KVision/releases/latest")
+                        WebBrowser.open("https://github.com/optio50/KVision/releases/latest")
                     }
 
                     ColumnLayout {
@@ -1261,7 +1261,7 @@ FocusScope {
                     textFormat: Text.RichText
                     horizontalAlignment: Text.AlignHCenter
                     Layout.fillWidth: true
-                    onLinkActivated: Qt.openUrlExternally(link)
+                    onLinkActivated: WebBrowser.open(link)
                 }
             }
         }
@@ -2415,6 +2415,107 @@ FocusScope {
                     }
 
                     GroupBox {
+                        title: qsTr("Web browser")
+                        Layout.fillWidth: true
+
+                        background: Rectangle {
+                            color: "#141a21"
+                            border.color: "#2a3540"
+                            border.width: 1
+                            radius: 8
+                        }
+                        label: Text {
+                            text: parent.title
+                            color: "#00f5d4"
+                            font.bold: true
+                            font.pixelSize: 12
+                        }
+
+                        ColumnLayout {
+                            anchors.fill: parent
+                            spacing: 8
+
+                            Text {
+                                text: qsTr("The browser KVision opens web pages in: a camera's own page, the recorder's page, the project's links. It is started directly, so it is used even when another browser is already open.")
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                ComboBox {
+                                    id: browserCombo
+                                    Layout.fillWidth: true
+                                    property var found: []
+                                    // 0 = system default, then the browsers found, then "another command"
+                                    model: [qsTr("System default")].concat(found.map(function(b) { return b.name; })).concat([qsTr("Another command...")])
+                                    Component.onCompleted: {
+                                        found = WebBrowser.browsers();
+                                        browserCombo.syncFromSetting();
+                                    }
+                                    function syncFromSetting() {
+                                        var c = generalSettings.webBrowserChoice;
+                                        if (c.indexOf("cmd:") === 0) {
+                                            currentIndex = found.length + 1;
+                                            return;
+                                        }
+                                        for (var i = 0; i < found.length; ++i) {
+                                            if (c === "id:" + found[i].id) {
+                                                currentIndex = i + 1;
+                                                return;
+                                            }
+                                        }
+                                        currentIndex = 0;
+                                    }
+                                    onActivated: {
+                                        if (index === 0)
+                                            generalSettings.webBrowserChoice = "";
+                                        else if (index <= found.length)
+                                            generalSettings.webBrowserChoice = "id:" + found[index - 1].id;
+                                        else
+                                            generalSettings.webBrowserChoice = "cmd:" + customBrowserField.text;
+                                    }
+                                }
+
+                                Button {
+                                    id: browserTestBtn
+                                    text: qsTr("Test")
+                                    onClicked: {
+                                        browserNote.text = WebBrowser.open("https://github.com/optio50/KVision")
+                                            ? qsTr("Opened the KVision page in the chosen browser.")
+                                            : qsTr("Could not open it. Check the choice.");
+                                    }
+                                }
+                            }
+
+                            TextField {
+                                id: customBrowserField
+                                Layout.fillWidth: true
+                                visible: browserCombo.currentIndex === browserCombo.found.length + 1
+                                placeholderText: qsTr("Command, e.g. brave-browser --new-window %u   (%u is where the address goes)")
+                                selectByMouse: true
+                                color: "white"
+                                text: generalSettings.webBrowserChoice.indexOf("cmd:") === 0 ? generalSettings.webBrowserChoice.substring(4) : ""
+                                background: Rectangle { color: "#0f151b"; radius: 4; border.color: customBrowserField.activeFocus ? "#ff7a00" : "#2a3540" }
+                                onEditingFinished: generalSettings.webBrowserChoice = "cmd:" + text
+                            }
+
+                            Text {
+                                id: browserNote
+                                Layout.fillWidth: true
+                                wrapMode: Text.Wrap
+                                font.pixelSize: 11
+                                color: "#8898a6"
+                                text: WebBrowser.describe() !== "" ? qsTr("Runs: %1").arg(WebBrowser.describe()) : qsTr("Uses the system's default browser.")
+                            }
+                        }
+                    }
+
+                    GroupBox {
                         title: qsTr("LNG_00269")
                         Layout.fillWidth: true
 
@@ -2774,6 +2875,35 @@ FocusScope {
                                         onToggled: generalSettings.targetTargets = rootSideBar.toggledList(generalSettings.targetTargets, modelData.key, checked)
                                     }
                                 }
+                            }
+
+                            Text {
+                                text: qsTr("Motion that names no target")
+                                color: "#8898a6"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            Text {
+                                text: qsTr("Some cameras report plain motion: something moved, but not what (their motion detection is not a smart event, so it cannot tell a person from a car). These two choices decide what KVision does with it. The first needs the log switched on above.")
+                                color: "#6f7f8c"
+                                font.pixelSize: 10
+                                wrapMode: Text.Wrap
+                                Layout.fillWidth: true
+                            }
+
+                            CheckBox {
+                                text: qsTr("Write it to the detection log (one line per movement)")
+                                checked: generalSettings.logUnlabelledMotion
+                                onToggled: generalSettings.logUnlabelledMotion = checked
+                            }
+
+                            CheckBox {
+                                text: qsTr("Show a MOTION frame for it")
+                                enabled: generalSettings.showTargetIndicator
+                                checked: generalSettings.frameUnlabelledMotion
+                                onToggled: generalSettings.frameUnlabelledMotion = checked
                             }
 
                             Text {

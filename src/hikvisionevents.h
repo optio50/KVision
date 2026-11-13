@@ -59,6 +59,10 @@ public:
     Q_INVOKABLE void setAllowedKinds(const QString &kinds);
     // Which targets may show a frame and be logged: a comma list of human, vehicle, animal, other.
     Q_INVOKABLE void setAllowedTargets(const QString &targets);
+    // Motion reports that name no target (a camera whose motion detection is not a smart event, so it cannot tell a person
+    // from a car): whether each movement is written to the detection log (one line when it starts, then none until the
+    // camera has been still for a few seconds), and whether it shows a frame on the tile. Both are off by default.
+    Q_INVOKABLE void setUnlabelledMotion(bool log, bool frame);
     // Health of every connection, for the background logger's status file: a list of maps with ip, name, open (a
     // stream is up and data has arrived on it), lastDataMs (ms since 1970, 0 if never), failures, authFailed, unsupported.
     QVariantList connectionStates() const;
@@ -90,7 +94,9 @@ public:
     // "Line crossing,Intrusion"; empty = every kind except plain labelled Motion). When any
     // filter is used the whole range is read and the result also carries "total", the number of matching entries.
     Q_INVOKABLE QVariantMap readDetections(int skip, int count, const QString &configDir, const QString &filterIp = QString(),
-                                           qint64 fromMs = 0, qint64 toMs = 0, const QString &target = QString(), const QString &kinds = QString()) const;
+                                           qint64 fromMs = 0, qint64 toMs = 0, const QString &target = QString(), const QString &kinds = QString(),
+                                           bool hideUnlabelledMotion = false) const;
+    // hideUnlabelledMotion leaves out motion reports that named no target (written as "Object detected, Motion").
     // What the newest event picture from a camera showed: a map with state ("on" if the picture carries the red
     // target frame, "off" if the camera sent a clean picture, empty if none has been seen since KVision started)
     // and time. address is the camera's own address. The picture is only looked at, never kept.
@@ -182,12 +188,21 @@ private:
     void fetchPicture(const QString &ip, const QUrl &url, const QString &address, int lens, const QString &kind, qint64 secs, bool hasRect, const QRectF &rect);
     void judgeJpeg(const QString &address, bool hasRect, const QRectF &rect, const QByteArray &jpeg);
     void savePicture(const QString &address, int lens, const QString &kind, qint64 secs, const QByteArray &jpeg);
-    void takeSnapshot(const QString &ip, int cameraChannel, qint64 secs);
+    void takeSnapshot(const QString &ip, int cameraChannel, qint64 secs, const QString &kind = QString());
     // An event type KVision has no kind for (a face event, "duration", ...): one line in logs/OtherEvents.log with the
     // raw type name and the start of the camera's message, so unknown events can be seen. Throttled: a line is written
     // when the state of that event changes, and at most every ten minutes while it stays the same.
     void logOtherEvent(const Conn *c, const QString &type, const QString &state, const QString &cameraTime, int eventChannel,
                        const QString &body);
+    static constexpr qint64 kMotionQuietMs = 10000; // a movement that has been still this long is over; the next starts a new log line
+    // A labelled motion report (human, vehicle, animal, other) gets a still picture, at most once per kMotionPictureGapMs for
+    // each camera, so a constant stream of reports cannot fill the disk. These pictures have their own, smaller limit (a
+    // quarter of the "pictures per camera" setting) so they cannot push a camera's smart-event pictures out.
+    static constexpr qint64 kMotionPictureGapMs = 30000;
+    QHash<QString, qint64> m_motionPictureAt; // "ip|channel" -> when the last one was taken (ms)
+    QHash<QString, qint64> m_motionSeen; // "ip|channel" -> when an unlabelled motion report last arrived (ms)
+    bool m_logUnlabelledMotion = false;
+    bool m_frameUnlabelledMotion = false;
     QHash<QString, QPair<QString, qint64>> m_otherSeen; // "ip|channel|type" -> last state logged and when (ms)
     QHash<QString, qint64> m_lastTrack; // when a lens last logged a track (ms), to ignore a second tile of the same camera
     int pictureLens(const Conn *c, int eventChannel) const;

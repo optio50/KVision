@@ -1,5 +1,6 @@
 import QtQuick 2.11
 import QtQuick.Controls 2.4
+import CCTV_Viewer.Utils 1.0
 
 // The list of check results: one card per camera, the card clicked shows every line the check found.
 ListView {
@@ -111,7 +112,7 @@ ListView {
                         id: webArea
                         anchors.fill: parent
                         hoverEnabled: true
-                        onClicked: Qt.openUrlExternally("http://" + modelData.camIp + (modelData.camPort > 0 && modelData.camPort !== 80 ? ":" + modelData.camPort : ""))
+                        onClicked: WebBrowser.open("http://" + modelData.camIp + (modelData.camPort > 0 && modelData.camPort !== 80 ? ":" + modelData.camPort : ""))
                         ToolTip.visible: containsMouse
                         ToolTip.delay: 500
                         ToolTip.text: qsTr("Open %1 in your browser (the same as the right-click item on a tile)").arg(modelData.camIp)
