@@ -33,7 +33,7 @@ public:
 
     // key identifies the camera (recorder address # channel). For a camera behind a recorder (behindRecorder) the
     // recorder is asked for the camera's address and the recorder's login is used for both. throughRecorder says
-    // the settings send reports through the recorder, so the recorder's centre action and the camera's metadata
+    // the settings send reports through the recorder, so Notify Surveillance Center and the camera's metadata
     // switch matter. Checks are queued and run one after another.
     Q_INVOKABLE void check(const QString &key, const QString &name, const QString &recorderIp, int httpPort,
                            const QString &user, const QString &pass, int channel, bool behindRecorder,
@@ -68,7 +68,7 @@ private:
         QStringList nvrSet;   // kinds the recorder itself has a line or zone for (rules that live in the recorder)
         // Trigger reads still to do, each as host, port, path, event name, side ("recorder" or "camera").
         QList<QStringList> trig;
-        QStringList recOk, recMissing, camOk, camMissing; // events with and without the centre action, per side
+        QStringList recOk, recMissing, camOk, camMissing; // events with and without Notify Surveillance Center, per side
     };
     using JobPtr = QSharedPointer<Job>;
 

@@ -35,12 +35,12 @@ Status key: `[ ]` not started, `[~]` started, `[x]` done.
 
 ### 4. [x] "Check detection setup" for a camera (done, not yet committed; fixes are the next step)
 - **Why:** on 10 Nov nearly every "no events" problem was a setting in the camera or recorder: metadata off, a rule
-  switched off, no centre action, no zone drawn, a switch that did not save. Their README says the same: "For NVR/DVR,
+  switched off, no Notify Surveillance Center, no zone drawn, a switch that did not save. Their README says the same: "For NVR/DVR,
   remember to select Notify Alarm Center... otherwise the NVR won't emit any alarm event."
 - **Idea:** a right-click item that reads (read-only) and lists what is missing for that camera. The reads are listed in
   `docs/AUDIT-2026-11-10.md`, section "Reads that answer 'why no events'".
 - **Never changes anything.** It only reports.
-- **Done when:** run on Garage3 as it was before the fixes, it names metadata, the rule switches and the centre action.
+- **Done when:** run on Garage3 as it was before the fixes, it names metadata, the rule switches and Notify Surveillance Center.
 
 ### 5. [x] Keep the picture that comes with an event (done, not yet committed)
 - **Done so far:** the setup check reports whether event pictures carry the rule and target frames (tested on Garage3's
@@ -63,7 +63,7 @@ Status key: `[ ]` not started, `[~]` started, `[x]` done.
 - [ ] **Find out why the "NVR cameras switched on" list emptied itself** (`targetNvrOnCameras=[]` appeared in the
       saved configuration). Best guess: one of the offscreen test runs of the app saved an empty list. Not proven.
       It was restored by hand to 14 cameras. If it empties again, look at how the settings are written on exit.
-- [ ] **Decide what to do with the temporary centre action on Garage3 (NVR channel 17).** The backups hold the
+- [ ] **Decide what to do with the temporary Notify Surveillance Center on Garage3 (NVR channel 17).** The backups hold the
       "record only" originals. See the audit trail for how to put them back.
 - [ ] **Livingroom2 (NVR channel 18)** has no smart detection set up and is a different model. Not touched.
 - [ ] **Doorbell (192.168.20.185)** did not answer the device-type questions, so how KVision classifies it is untested.

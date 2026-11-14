@@ -159,7 +159,7 @@ The same changes as the list above, in more detail. The original application alr
     NVR, which relays every camera's events with the channel number, and each tile takes its own channel. A standalone
     camera, a dual-lens camera and a recorder with one or two cameras always use their own connection. Through the
     recorder needs, for each camera, the smart-event metadata switched on in the camera, its detection rule and zone
-    set up, and the centre action ("Notify Surveillance Center") on the recorder's trigger for that event.
+    set up, and "Notify Surveillance Center" on the recorder's trigger for that event.
   - Tick the kinds of report that may show a frame (Motion, Line crossing, Intrusion, Region entrance, Region exit,
     Other smart events) and the targets (Human, Vehicle, Animal, Other). The detection log keeps every report.
   - The frame label and border scale with the tile's height, down to a floor that stays readable.

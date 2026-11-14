@@ -368,7 +368,7 @@ void HikvisionSetupCheck::stepSmartDone(const JobPtr &j)
         if (j->smartSet.isEmpty() && j->nvrSet.isEmpty() && !j->motionSet)
             add(j, QStringLiteral("rules"), tr("Anything to report"), QStringLiteral("problem"),
                 tr("No motion zone and no line or area is drawn, so this camera has nothing to report."));
-        // The centre action matters only when the settings send reports through the recorder.
+        // Notify Surveillance Center matters only when the settings send reports through the recorder.
         if (j->behindRecorder && j->through) {
             QStringList events;
             if (j->motionSet)
@@ -486,14 +486,14 @@ void HikvisionSetupCheck::stepSmartRead(const JobPtr &j, int index)
     });
 }
 
-// 7. The recorder's centre action for each event this camera reports. Without it a recorder sends nothing on.
+// 7. Notify Surveillance Center for each event this camera reports. Without it a recorder sends nothing on.
 void HikvisionSetupCheck::stepTriggers(const JobPtr &j, int index)
 {
     if (index >= j->trig.size()) {
         if (j->recMissing.isEmpty() && !j->recOk.isEmpty())
-            add(j, QStringLiteral("center"), tr("Recorder centre action"), QStringLiteral("ok"), j->recOk.join(QStringLiteral(", ")));
+            add(j, QStringLiteral("center"), tr("Notify Surveillance Center"), QStringLiteral("ok"), j->recOk.join(QStringLiteral(", ")));
         else if (!j->recMissing.isEmpty())
-            add(j, QStringLiteral("center"), tr("Recorder centre action"), QStringLiteral("problem"),
+            add(j, QStringLiteral("center"), tr("Notify Surveillance Center"), QStringLiteral("problem"),
                 tr("Not switched on for: %1. In the recorder's event settings tick \"Notify Surveillance Center\" for this camera.")
                     .arg(j->recMissing.join(QStringLiteral(", "))));
         finish(j);

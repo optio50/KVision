@@ -269,8 +269,8 @@ All notable changes to this project will be documented in this file.
 ### Added
 * **Check detection setup (read-only).** Right-click a camera, or use the *Check now* button in the sidebar, to see
   whether it is set up to report detection events: login, address, online, firmware, smart-event metadata, motion
-  zone, line and area rules (drawn but switched off, or switched on with nothing drawn) and the recorder's centre
-  action. Results open in a window and are also written to `logs/SetupCheck.log`. An optional tick box runs the check
+  zone, line and area rules (drawn but switched off, or switched on with nothing drawn) and Notify Surveillance
+  Center. Results open in a window and are also written to `logs/SetupCheck.log`. An optional tick box runs the check
   at start-up (off by default). It only reads, one request at a time, and stops at the first refused login so it cannot
   lock a camera out.
 * **Setup check labels are no longer cut off.** Long labels wrap, and "lives in the camera / recorder" moved into the detail text.

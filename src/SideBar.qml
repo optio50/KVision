@@ -172,7 +172,7 @@ FocusScope {
             changes: [
                 qsTr("Choose where cameras behind a recorder get their detection reports: each camera directly, or through the recorder (one connection, human, vehicle and animal labels and the event type with the channel number)."),
                 qsTr("Choose which event types (motion, line crossing, intrusion, region entrance, region exit, other) and which targets (human, vehicle, animal, other) show a frame. The detection log keeps every report."),
-                qsTr("Check detection setup: a read-only check of each camera and recorder (metadata, zones, rules, centre action, where a rule lives). Right-click a camera or use the sidebar buttons."),
+                qsTr("Check detection setup: a read-only check of each camera and recorder (metadata, zones, rules, Notify Surveillance Center, where a rule lives). Right-click a camera or use the sidebar buttons."),
                 qsTr("Event pictures are saved, shown in the detection log window, and kept per camera (100, 500 or 1000 in the settings)."),
                 qsTr("One window with a tick box for every camera to switch the detection frame on or off, with All on and All off."),
                 qsTr("Fixed line crossings and intrusions missed on camera streams that attach a picture, and streams that die are reopened. The frame label no longer changes to plain motion right after a line or intrusion report.")
@@ -2473,7 +2473,7 @@ FocusScope {
                                 }
 
                                 SelectableLabel {
-                                    text: qsTr("A standalone camera, a dual-lens camera, and a recorder with one or two cameras always use their own connection. Through the recorder needs the camera's smart event metadata and the recorder's centre action switched on.")
+                                    text: qsTr("A standalone camera, a dual-lens camera, and a recorder with one or two cameras always use their own connection. Through the recorder needs the camera's smart event metadata and Notify Surveillance Center switched on.")
                                     textColor: "#6f7f8c"
                                     font.pixelSize: 10
                                     wrapMode: TextEdit.Wrap
@@ -3694,7 +3694,7 @@ FocusScope {
                                     spacing: 8
 
                                     SelectableLabel {
-                                        text: qsTr("Is each camera set up to report? A read-only check of the camera's settings (metadata, zones, rules, the recorder's centre action). It changes nothing.")
+                                        text: qsTr("Is each camera set up to report? A read-only check of the camera's settings (metadata, zones, rules, Notify Surveillance Center). It changes nothing.")
                                         textColor: "#8898a6"
                                         font.pixelSize: 11
                                         wrapMode: TextEdit.Wrap
