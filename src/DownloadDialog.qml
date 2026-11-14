@@ -113,15 +113,26 @@ Popup {
         return true
     }
 
+    // Dates are shown and typed as "13 Nov 2026" (English month names, no leading zero on the day).
+    readonly property var monthAbbr: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    function formatDateText(d) {
+        return d.getDate() + " " + monthAbbr[d.getMonth()] + " " + d.getFullYear()
+    }
+
+    // Returns the Date for text such as "13 Nov 2026", or null when it is not a real date.
+    function parseDateText(text) {
+        var m = /^\s*(0?[1-9]|[12][0-9]|3[01]) ([A-Za-z]{3}) (\d{4})\s*$/.exec(text)
+        if (!m) return null
+        var month = monthAbbr.indexOf(m[2].charAt(0).toUpperCase() + m[2].slice(1).toLowerCase())
+        if (month < 0) return null
+        var day = parseInt(m[1]), year = parseInt(m[3])
+        var d = new Date(year, month, day)
+        return (d.getFullYear() === year && d.getMonth() === month && d.getDate() === day) ? d : null
+    }
+
     function validateDate(text) {
-        var dateRegex = /^(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[0-2])\.\d{4}$/;
-        if (!dateRegex.test(text)) return false;
-        var parts = text.split(".");
-        var day = parseInt(parts[0]);
-        var month = parseInt(parts[1]);
-        var year = parseInt(parts[2]);
-        var d = new Date(year, month - 1, day);
-        return d.getFullYear() === year && d.getMonth() === month - 1 && d.getDate() === day;
+        return parseDateText(text) !== null
     }
 
     function validateTime(text) {
@@ -242,10 +253,10 @@ Popup {
                                 var newDate = new Date(calendarPopup.viewYear, calendarPopup.viewMonth, modelData)
                                 if (isSelectingStart) {
                                     startDate = newDate
-                                    startDateField.text = Qt.formatDateTime(startDate, "dd.MM.yyyy")
+                                    startDateField.text = downloadDialog.formatDateText(startDate)
                                 } else {
                                     endDate = newDate
-                                    endDateField.text = Qt.formatDateTime(endDate, "dd.MM.yyyy")
+                                    endDateField.text = downloadDialog.formatDateText(endDate)
                                 }
                                 calendarPopup.close()
                             }
@@ -689,8 +700,8 @@ Popup {
             endDate = new Date(rangeEnd)
             startDate.setHours(0, 0, 0, 0)
             endDate.setHours(0, 0, 0, 0)
-            startDateField.text = Qt.formatDateTime(rangeStart, "dd.MM.yyyy")
-            endDateField.text = Qt.formatDateTime(rangeEnd, "dd.MM.yyyy")
+            startDateField.text = downloadDialog.formatDateText(rangeStart)
+            endDateField.text = downloadDialog.formatDateText(rangeEnd)
             startTimeField.text = Qt.formatTime(rangeStart, "hh:mm:ss")
             endTimeField.text = Qt.formatTime(rangeEnd, "hh:mm:ss")
         } else {
@@ -700,8 +711,8 @@ Popup {
             endDate = new Date(baseDate)
             endDate.setHours(23, 59, 59, 0)
 
-            startDateField.text = Qt.formatDateTime(startDate, "dd.MM.yyyy")
-            endDateField.text = Qt.formatDateTime(endDate, "dd.MM.yyyy")
+            startDateField.text = downloadDialog.formatDateText(startDate)
+            endDateField.text = downloadDialog.formatDateText(endDate)
             startTimeField.text = "00:00:00"
             endTimeField.text = "01:00:00"
         }
@@ -802,22 +813,14 @@ Popup {
     }
 
     function getStartDateTime() {
-        var partsDateStart = startDateField.text.split(".")
-        var start = new Date()
-        if (partsDateStart.length === 3) {
-            start.setFullYear(parseInt(partsDateStart[2]), parseInt(partsDateStart[1])-1, parseInt(partsDateStart[0]))
-        }
+        var start = parseDateText(startDateField.text) || new Date()
         var partsStart = startTimeField.text.split(/[:\.]/)
         start.setHours(parseInt(partsStart[0]||"0"), parseInt(partsStart[1]||"0"), parseInt(partsStart[2]||"0"), 0)
         return start
     }
     
     function getEndDateTime() {
-        var partsDateEnd = endDateField.text.split(".")
-        var end = new Date()
-        if (partsDateEnd.length === 3) {
-            end.setFullYear(parseInt(partsDateEnd[2]), parseInt(partsDateEnd[1])-1, parseInt(partsDateEnd[0]))
-        }
+        var end = parseDateText(endDateField.text) || new Date()
         var partsEnd = endTimeField.text.split(/[:\.]/)
         end.setHours(parseInt(partsEnd[0]||"23"), parseInt(partsEnd[1]||"59"), parseInt(partsEnd[2]||"59"), 0)
         return end
@@ -861,10 +864,10 @@ Popup {
                     onTextChanged: {
                         forceShow = false
                         customErrorText = ""
-                        if (text.length === 10) {
-                            hasError = !downloadDialog.validateDate(text)
-                        } else if (text.length > 10) {
+                        if (text.length > 11) {
                             hasError = true
+                        } else if (text.length >= 10) {
+                            hasError = !downloadDialog.validateDate(text) // "9 Nov 2026" is 10 characters, "13 Nov 2026" is 11
                         } else {
                             hasError = false
                         }
@@ -885,7 +888,7 @@ Popup {
                     ToolTip {
                         id: startDateFieldTip
                         visible: startDateField.hasError && (startDateField.hovered || startDateField.activeFocus || startDateField.forceShow)
-                        text: startDateField.customErrorText !== "" ? startDateField.customErrorText : qsTr("LNG_00031")
+                        text: startDateField.customErrorText !== "" ? startDateField.customErrorText : qsTr("Incorrect date format! Required format: D Mon YYYY (e.g. 26 Jun 2026)")
                         delay: 0
                         timeout: 5000
                         background: Rectangle {
@@ -912,10 +915,8 @@ Popup {
                     enabled: !downloadDialog.isAnyDownloading()
                     onClicked: {
                         isSelectingStart = true
-                        var parts = startDateField.text.split(".")
-                        if (parts.length === 3) {
-                            startDate.setFullYear(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]))
-                        }
+                        var typed = downloadDialog.parseDateText(startDateField.text)
+                        if (typed) startDate = typed
                         calendarPopup.viewYear = startDate.getFullYear()
                         calendarPopup.viewMonth = startDate.getMonth()
                         calendarPopup.updateDaysModel()
@@ -1018,10 +1019,10 @@ Popup {
                     onTextChanged: {
                         forceShow = false
                         customErrorText = ""
-                        if (text.length === 10) {
-                            hasError = !downloadDialog.validateDate(text)
-                        } else if (text.length > 10) {
+                        if (text.length > 11) {
                             hasError = true
+                        } else if (text.length >= 10) {
+                            hasError = !downloadDialog.validateDate(text) // "9 Nov 2026" is 10 characters, "13 Nov 2026" is 11
                         } else {
                             hasError = false
                         }
@@ -1042,7 +1043,7 @@ Popup {
                     ToolTip {
                         id: endDateFieldTip
                         visible: endDateField.hasError && (endDateField.hovered || endDateField.activeFocus || endDateField.forceShow)
-                        text: endDateField.customErrorText !== "" ? endDateField.customErrorText : qsTr("LNG_00031")
+                        text: endDateField.customErrorText !== "" ? endDateField.customErrorText : qsTr("Incorrect date format! Required format: D Mon YYYY (e.g. 26 Jun 2026)")
                         delay: 0
                         timeout: 5000
                         background: Rectangle {
@@ -1069,10 +1070,8 @@ Popup {
                     enabled: !downloadDialog.isAnyDownloading()
                     onClicked: {
                         isSelectingStart = false
-                        var parts = endDateField.text.split(".")
-                        if (parts.length === 3) {
-                            endDate.setFullYear(parseInt(parts[2]), parseInt(parts[1])-1, parseInt(parts[0]))
-                        }
+                        var typed = downloadDialog.parseDateText(endDateField.text)
+                        if (typed) endDate = typed
                         calendarPopup.viewYear = endDate.getFullYear()
                         calendarPopup.viewMonth = endDate.getMonth()
                         calendarPopup.updateDaysModel()

@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+* **Dates are written as "13 Nov 2026".** The Changelog screen, the Download window (the date boxes, which now take
+  typing such as "9 Nov 2026"), the Playback window, the Detection events list (no leading zero on the day now), the setup
+  check results, the backup list, the recorder status window and every date in the documentation use one form: day,
+  three-letter English month, year. The files KVision writes for itself (the detection log, `SetupCheck.log`, picture and
+  backup file names) and everything sent to or read from a recorder or camera keep their own formats.
 * **A new "Camera Tools" tab in Settings.** Camera backup (with restore and the read-only camera settings window), the Setup
   check and Troubleshooting (unstick event detection) are together on one page, in that order. They moved from the NVR tab
   (backup and troubleshooting) and the Detection tab (setup check). Nothing about how they work has changed.
@@ -65,7 +70,7 @@ All notable changes to this project will be documented in this file.
   picture. It now judges the picture by every box logged for it, and draws nothing if any of them sits on the camera's
   red outline.
 
-## [3.6.0] - 2026-11-12
+## [3.6.0] - 12 Nov 2026
 
 ### Added
 * **Detection events window shows which entries still have video.** When the window opens, KVision asks each recorder
@@ -153,7 +158,7 @@ All notable changes to this project will be documented in this file.
 * **Detection events filter.** "All types" now really means everything: plain labelled Motion events are included in
   that list instead of requiring their own filter choice. Choose "Motion" to see only those.
 
-## [3.5.0] - 2026-11-12
+## [3.5.0] - 12 Nov 2026
 
 ### Added
 * **Overlay text from MQTT.** A new *Overlay text from MQTT...* button in the settings (under the detection options) opens a
@@ -210,7 +215,7 @@ All notable changes to this project will be documented in this file.
 * The README explains that the 1x1, 2x2 and similar top bar grids are temporary, are never saved, and go away when you
   click a saved layout.
 
-## [3.4.0] - 2026-11-11
+## [3.4.0] - 11 Nov 2026
 
 ### Added
 * **The picture viewer steps through the whole list.** Click the Picture button on any entry and the viewer opens on that
@@ -264,7 +269,7 @@ All notable changes to this project will be documented in this file.
 * The right-click item and the window "Detection log" are now called **Detection events**, because the window shows more
   than the log (events, pictures and tracks). The file is still `logs/Detection.log`.
 
-## [3.3.0] - 2026-11-11
+## [3.3.0] - 11 Nov 2026
 
 ### Added
 * **Check detection setup (read-only).** Right-click a camera, or use the *Check now* button in the sidebar, to see
@@ -331,7 +336,7 @@ All notable changes to this project will be documented in this file.
 * `docs/TODO.md` (the to-do list, with ideas from the Node-RED Hikvision project) and
   `docs/AUDIT-2026-11-10.md` (a record of the changes made on 10 Nov 2026 and how to undo them).
 
-## [3.2.0] - 2026-11-10
+## [3.2.0] - 10 Nov 2026
 
 ### Added
 * **On-screen event detection.** A tile shows a coloured frame and a caption when its camera reports a target: HUMAN, VEHICLE or ANIMAL, followed by the kind of report (`MOTION`, `LINE`, `INTRUSION`, `ENTER`, `EXIT`), for example `HUMAN - LINE`. It listens to each camera's event stream (`/ISAPI/Event/notification/alertStream`), one shared connection per camera. Off by default.
@@ -352,7 +357,7 @@ All notable changes to this project will be documented in this file.
 ### Documentation
 * The README now says that on-screen detection depends heavily on correct detection settings inside each camera, and that setting them up takes attention to detail and patience.
 
-## [3.1.0] - 2026-11-09
+## [3.1.0] - 9 Nov 2026
 
 ### Added
 * **Hold-to-talk two-way audio** for Hikvision cameras. A microphone badge on live tiles sends your voice (G.711 u-law, 8 kHz) to the camera speaker while held. Cameras behind an NVR are reached directly using the address the NVR reports for them.
@@ -364,7 +369,7 @@ All notable changes to this project will be documented in this file.
 ### Documentation
 * README: logo at the top and a screenshots section (the pictures come from upstream 2.x and show the original interface).
 
-## [3.0.0] - 2026-11-09
+## [3.0.0] - 9 Nov 2026
 
 First release of this independent Linux-only fork. It starts from upstream KVision 2.7.5 (Arkanista) and is no longer tracking upstream. Earlier entries below are upstream history.
 
@@ -399,7 +404,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 * Builds on Debian 10 (GCC 9, Qt 5.11); root `./kvision` launcher configures, builds and starts the app.
 * FFmpeg 4.4: the RTSP timeout option is no longer passed because it enables listen mode.
 
-## [2.7.5] - 2026-10-29
+## [2.7.5] - 29 Oct 2026
 
 ### EN: Features, Improvements & Bug Fixes
 * **Windows System Statistics Panel (`SystemStats` / `StatsWorker`):**
@@ -415,7 +420,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
   * Dodano odczyt obciążenia GPU i pamięci VRAM na Windowsie poprzez bibliotekę NVIDIA `nvml.dll` (`C:\Windows\System32\nvml.dll` z obsługą symboli `_v2` i filtrowaniem wartości `NVML_VALUE_NOT_AVAILABLE` na sterownikach WDDM) oraz uniwersalne liczniki systemowe Windows PDH (`pdh.dll`: `\GPU Engine(*)\Utilization Percentage` i `\GPU Process Memory(*)\Dedicated Usage` / `Local Usage`) działające na kartach NVIDIA, AMD oraz Intel.
   * Ustabilizowano 1-sekundowy takt pomiaru prędkości sieci (`Mbps`) oraz delty CPU przy otwieraniu panelu statystyk (`StatsWorker::emitLatest()`).
 
-## [2.7.4] - 2026-10-29
+## [2.7.4] - 29 Oct 2026
 
 ### EN: Features, Improvements & Bug Fixes
 * **Archive Video Download & Conversion Pipeline (`HikvisionDownloader`):**
@@ -441,7 +446,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 * **Ikona programu Windows (`.exe`) i metadane wersji (`kvision.rc`, `images/kvision.ico`):**
   * Osadzono wielorozdzielczą (`256x256` – `16x16`) ikonę programu KVision oraz zasoby `VERSIONINFO` bezpośrednio w pliku wykonywalnym `kvision.exe`.
 
-## [2.7.3] - 2026-10-28
+## [2.7.3] - 28 Oct 2026
 
 ### EN: Features, Improvements & Bug Fixes
 * **Windows x64 Build Support & CI Workflow:** Integrated full Windows x64 compilation support (`MSVC 2022` / CMake / GitHub Actions CI, contributed by @kunxiang1 in PR #7) with automated artifact packaging (`windeployqt`, FFmpeg, Hikvision SDK, OpenSSL, and cURL DLLs) and multi-mirror HTTPS fallback for `aqtinstall`.
@@ -455,7 +460,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 * **Naprawa pliku konfiguracyjnego (`KVision.ini`) i ścieżek na Windowsie:** Wymuszono format `QSettings::IniFormat` na Windowsie (zapis w pliku `%APPDATA%\KVision\KVision.ini` zamiast w Rejestrze Windows) oraz wyeliminowano błędny początkowy ukośnik (`/C:/...`) w ścieżkach katalogów stopklatek i nagrań wideo poprzez użycie `QUrl::toLocalFile()` i `QUrl::fromLocalFile()`.
 * **Poprawki wizualne ciemnego motywu `Compact` i pól wyboru (`CheckBox`):** Naprawiono wygląd pól wyboru (`CheckBox`) w wersji dla Windowsa, gdzie domyślna jasna paleta systemowa Qt powodowała czarny, nieczytelny tekst etykiet oraz nienaturalnie duże (`24x24`) białe kwadraty. Przeprojektowano `Compact/CheckBox.qml` (kompaktowy ciemny wskaźnik `18x18`, seledynowe obramowanie i wektorowy znacznik SVG `#00f5d4`, biały tekst `#ffffff`) oraz zdefiniowano pełną ciemną paletę `[Compact\Palette]` w `qtquickcontrols2.conf`.
 
-## [2.7.2] - 2026-10-27
+## [2.7.2] - 27 Oct 2026
 
 ### EN: Features, Improvements & Bug Fixes
 * **Chinese (`zh_CN`) Localization Overhaul:** Rewrote all active Simplified Chinese UI strings with proper, consistent video surveillance industry terminology (e.g., `摄像机`, `录像机/NVR`, `码流`, `主码流/子码流`, `窗格`, `回放`, `云台`) and fixed typographic conventions and format placeholders (contributed by @kunxiang1 in PR #6).
@@ -475,7 +480,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 * **Logowanie krytycznych błędów ładowania QML:** Zaktualizowano filtr `customMessageHandler` w `main.cpp`, aby przepuszczał twarde błędy kompilacji/ładowania komponentów QML (`is not a type`, `Cannot assign`, `is not defined`, `non-existent property`, `Unable to assign`) na `stderr` nawet przy wyłączonych pełnych logach diagnostycznych.
 * **Jawne typowanie deletera `AVDictionaryPtr`:** Zastąpiono generyczny parametr lambdy `[](auto p)` jawnym typem `[](AVDictionary **p)` w `qmlavoptions.h` dla pełnej zgodności ze standardem C++17.
 
-## [2.7.1-rc5] - 2026-08-27
+## [2.7.1-rc5] - 27 Aug 2026
 
 ### EN: Features & Bug Fixes
 * **Custom Ports Live Streaming Fix:** Fixed an issue where custom HTTP/RTSP ports failed to stream video in Live View. Added dynamic reactivity in `Player.qml` to NVR settings changes, robust IP matching, and proper credential URL encoding.
@@ -491,7 +496,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 * **Kodowanie poświadczeń w demuxerze FFmpeg:** Zabezpieczono przekazywanie zakodowanych znaków w adresach RTSP bezpośrednio do demuxera QmlAV.
 * **Symulator rejestratora do testów:** Dodano skrypt `tools/mock_hikvision_server.py` symulujący rejestrator Hikvision (ISAPI + RTSP H.264) na dowolnych portach do testów lokalnych.
 
-## [2.7.1-rc4] - 2026-08-07
+## [2.7.1-rc4] - 7 Aug 2026
 
 ### EN: Features & Bug Fixes
 * **URI Migration:** Added an automatic migration script at startup to clean up old saved `hikvision://` URIs in existing layouts, ensuring legacy saved layouts also benefit from the simplified and secure URI format (removing credentials and ports from the UI).
@@ -499,7 +504,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 ### PL: Funkcje i Poprawki Błędów
 * **Migracja adresów URI:** Dodano automatyczny skrypt migracyjny przy starcie programu czyszczący stare zapisane adresy `hikvision://` w istniejących układach, dzięki czemu wcześniejsze układy również korzystają z uproszczonego i bezpieczniejszego formatu URI (usunięcie haseł i portów z interfejsu).
 
-## [2.7.1-rc3] - 2026-08-07
+## [2.7.1-rc3] - 7 Aug 2026
 
 ### EN: Features & Bug Fixes
 * **Simplified Internal URIs:** Removed credentials and port numbers from internal `hikvision://` URIs, cleaning up the configuration and improving internal URL generation logic.
@@ -509,7 +514,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 * **Uproszczenie wewnętrznych URI:** Usunięto dane logowania i numery portów z wewnętrznych adresów `hikvision://`, upraszczając konfigurację i poprawiając logikę generowania URL.
 * **Obsługa niestandardowych portów:** Naprawiono błąd, przez który wyszukiwanie nagrań ISAPI HTTP niepoprawnie powracało do portu 80 lub portu SDK zamiast skonfigurowanego portu HTTP.
 
-## [2.7.1-rc2] - 2026-08-07
+## [2.7.1-rc2] - 7 Aug 2026
 
 ### EN: Features & Diagnostics
 * **Diagnostic Logs:** Introduced a new UI option to enable writing comprehensive diagnostic logs (including previously silenced FFmpeg and QML errors) to a dedicated `kvision_diagnostic.log` file in the application config directory. This assists in troubleshooting issues like memory leaks or silent decoding failures.
@@ -517,7 +522,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 ### PL: Funkcje i Diagnostyka
 * **Logi diagnostyczne:** Wprowadzono nową opcję w interfejsie umożliwiającą zapis pełnych logów diagnostycznych (w tym wyciszonych wcześniej błędów FFmpeg i QML) do dedykowanego pliku `kvision_diagnostic.log` w katalogu konfiguracyjnym aplikacji. Pomaga to w diagnozowaniu problemów z wyciekami pamięci lub cichymi błędami dekodowania.
 
-## [2.7.1-rc1] - 2026-08-04
+## [2.7.1-rc1] - 4 Aug 2026
 
 ### EN: Features & Bug Fixes
 * **Per-NVR RTSP Transport:** Added a dedicated RTSP Transport setting (Auto/TCP/UDP) for each NVR recorder. This resolves recent connection issues over WAN/NAT by allowing users to force a specific protocol for Live View per device.
@@ -527,7 +532,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 * **Protokół RTSP per Rejestrator:** Dodano możliwość ręcznego wyboru protokołu RTSP (Auto/TCP/UDP) indywidualnie dla każdego rejestratora NVR. Rozwiązuje to ostatnie problemy z połączeniami przez WAN/NAT, umożliwiając wymuszenie protokołu dla wybranego urządzenia.
 * **Synchronizacja interfejsu RTSP:** Naprawiono błąd wizualny w oknie ustawień viewportu i na pasku bocznym. Wyświetlane tam parametry FFmpeg (`-rtsp_transport`) poprawnie odzwierciedlają teraz nadpisany protokół (UDP lub TCP) przypisany do konkretnego rejestratora NVR.
 
-## [2.7.0] - 2026-07-27
+## [2.7.0] - 27 Jul 2026
 
 ### EN: Features & Improvements
 * **Hikvision Multi-Port Support:** Implemented independent port configuration for SDK, HTTP, and RTSP ports per NVR recorder, enabling seamless connection to recorders using non-standard or custom forwarded ports.
@@ -539,7 +544,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 * **Udoskonalenia interfejsu ustawień NVR:** Zastąpiono znikające etykiety stałymi nagłówkami tekstowymi nad polami wprowadzania portów, co gwarantuje pełną czytelność po wpisaniu wartości.
 * **Lokalizacja i wsparcie wielojęzyczne:** Zaktualizowano wszystkie 22 wspierane języki o przetłumaczone frazy dla opcji portów.
 
-## [2.6.3] - 2026-07-08
+## [2.6.3] - 8 Jul 2026
 
 ### EN: Bug Fixes
 * **Console Memory Reporting:** Enhanced the periodic memory reclaiming timer to log the exact amount of RAM (in MB) successfully returned to the operating system kernel via `malloc_trim(0)`. This message is always visible in standard console output without requiring `--verbose` mode.
@@ -547,7 +552,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 ### PL: Poprawki Błędów
 * **Logowanie odzysku pamięci:** Ulepszono mechanizm okresowego zwalniania pamięci, dodając precyzyjną informację o dokładnej ilości pamięci RAM (w MB) pomyślnie zwróconej do jądra systemu za pomocą `malloc_trim(0)`. Komunikat ten jest zawsze widoczny na konsoli, również w trybie normalnym bez konieczności uruchamiania z flagą `--verbose`.
 
-## [2.6.2] - 2026-07-08
+## [2.6.2] - 8 Jul 2026
 
 ### EN: Bug Fixes
 * **Reduced Log Spam:** Suppressed repetitive QML/JS warnings, TypeErrors, and video packet decoding errors (e.g. "Unable send packet to decoder: Invalid data found...") from default output. These diagnostic logs are now only visible when running with `--verbose`.
@@ -557,7 +562,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 * **Ograniczenie hałasu w logach:** Wyciszono uciążliwe i powtarzające się błędy silnika QML (np. TypeError) oraz błędy dekodowania pakietów wideo ze standardowego wyjścia. Te komunikaty diagnostyczne są teraz wypisywane tylko przy uruchomieniu z parametrem `--verbose`.
 * **Okresowe zwalnianie pamięci:** Dodano działający w tle zegar, który raz na godzinę wymusza odśmiecanie pamięci oraz wywołuje `malloc_trim(0)`, zwracając wszelkie nieużywane zasoby pamięci podręcznej sterty z powrotem do jądra systemu Linux.
 
-## [2.6.1] - 2026-07-07
+## [2.6.1] - 7 Jul 2026
 
 ### EN: Bug Fixes
 * **Fixed GPU Driver Memory Leak (NVIDIA/GLX):** Resolved a critical memory leak within the graphics driver stack (primarily affecting NVIDIA) by ensuring that the previous GLX texture image binding is explicitly released via `glXReleaseTexImageEXT` before drawing the next frame onto the X11 pixmap.
@@ -567,7 +572,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 * **Eliminacja wycieku pamięci w dekoderze (NVIDIA/GLX):** Naprawiono krytyczny wyciek pamięci na poziomie sterownika graficznego (szczególnie NVIDIA), powodowany brakiem zwalniania powiązania tekstury GLX (`glXReleaseTexImageEXT`) przed aktualizacją pixmapy X11 nową klatką wideo.
 * **Ograniczenie liczby wątków dekodowania:** Ustawiono domyślną liczbę wątków dekodera FFmpeg na `1` dla każdego strumienia (zamiast `0` czyli auto-wykrywania), zapobiegając eksplozji wątków (np. 24 wątki na kamerę na 24-rdzeniowych procesorach AMD Ryzen 9) i drastycznie zmniejszając zużycie pamięci RAM oraz narzut przełączania kontekstu.
 
-## [2.6.0] - 2026-07-03
+## [2.6.0] - 3 Jul 2026
 
 ### EN: New Features
 * **Localization Expansion:** KVision is now fully localized into 20 new AI-translated languages, bringing the total number of supported languages to 22 (English, Polish, and 20 new languages). Both the entire application interface (UI) and the complete user manuals have been translated.
@@ -581,7 +586,7 @@ First release of this independent Linux-only fork. It starts from upstream KVisi
 
 ---
 
-## [2.5.0] - 2026-07-03
+## [2.5.0] - 3 Jul 2026
 
 ### EN: New Features
 * **Pan Zoom:** Added the ability to freely pan the zoomed-in video (Live, Mini-player, Archive) by holding down the middle mouse button (scroll wheel) and dragging the cursor.

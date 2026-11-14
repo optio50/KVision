@@ -146,7 +146,7 @@ FocusScope {
     property var changelogData: [
         {
             version: "v3.5.0",
-            date: "12.11.2026",
+            date: "12 Nov 2026",
             changes: [
                 qsTr("Overlay text from MQTT: show a value from an MQTT broker (an outside temperature, for instance) in a camera's on-screen text, refreshed every few minutes, in Celsius or Fahrenheit. Off by default."),
                 qsTr("Detection events window: search by time range, target and type across all cameras, with a count, and save the picture you are looking at as a snapshot."),
@@ -157,7 +157,7 @@ FocusScope {
         },
         {
             version: "v3.4.0",
-            date: "11.11.2026",
+            date: "11 Nov 2026",
             changes: [
                 qsTr("Two-lens PTZ cameras: each lens is logged and shown as its own camera, with its own pictures. A PTZ that follows a target shows an amber TRACKING frame, and a Tracking entry keeps two snapshots a second apart."),
                 qsTr("Detection events window (was Detection log): the picture viewer steps through every picture in the list, with Right going to the next newest."),
@@ -168,7 +168,7 @@ FocusScope {
         },
         {
             version: "v3.3.0",
-            date: "11.11.2026",
+            date: "11 Nov 2026",
             changes: [
                 qsTr("Choose where cameras behind a recorder get their detection reports: each camera directly, or through the recorder (one connection, human, vehicle and animal labels and the event type with the channel number)."),
                 qsTr("Choose which event types (motion, line crossing, intrusion, region entrance, region exit, other) and which targets (human, vehicle, animal, other) show a frame. The detection log keeps every report."),
@@ -180,7 +180,7 @@ FocusScope {
         },
         {
             version: "v3.2.0",
-            date: "10.11.2026",
+            date: "10 Nov 2026",
             changes: [
                 qsTr("On-screen event detection: a tile shows a frame and a caption such as HUMAN - LINE when its camera reports a human, vehicle or animal. Works for standalone cameras and cameras behind an NVR."),
                 qsTr("Reads labelled motion, line crossing, intrusion, region entrance and region exit. It depends on the detection settings inside each camera being set up correctly."),
@@ -189,7 +189,7 @@ FocusScope {
         },
         {
             version: "v3.1.0",
-            date: "09.11.2026",
+            date: "9 Nov 2026",
             changes: [
                 qsTr("Hold-to-talk two-way audio: hold the microphone badge on a live Hikvision tile to speak through the camera speaker. Works for standalone cameras and cameras behind an NVR."),
                 qsTr("Follows the audio format each camera asks for: G.711 u-law, G.711 A-law or AAC (older doorbells)."),
@@ -198,7 +198,7 @@ FocusScope {
         },
         {
             version: "v3.0.0",
-            date: "09.11.2026",
+            date: "9 Nov 2026",
             changes: [
                 qsTr("Independent Linux-only fork of KVision 2.7.5. Windows, packaging recipes and extra languages removed."),
                 qsTr("Live view: mouse PTZ with double-digit presets and focus, drag-and-swap cells, right-click camera picker, wheel zoom, third Hikvision stream, 18x18 grid."),
@@ -208,14 +208,14 @@ FocusScope {
         },
         {
             version: "v2.7.5",
-            date: "29.10.2026",
+            date: "29 Oct 2026",
             changes: [
                 qsTr("LNG_00568")
             ]
         },
         {
             version: "v2.7.4",
-            date: "29.10.2026",
+            date: "29 Oct 2026",
             changes: [
                 qsTr("LNG_00565"),
                 qsTr("LNG_00566"),
@@ -224,14 +224,14 @@ FocusScope {
         },
         {
             version: "v2.7.3",
-            date: "28.10.2026",
+            date: "28 Oct 2026",
             changes: [
                 qsTr("LNG_00564")
             ]
         },
         {
             version: "v2.7.2",
-            date: "27.10.2026",
+            date: "27 Oct 2026",
             changes: [
                 qsTr("LNG_00547"),
                 qsTr("LNG_00548"),
@@ -240,7 +240,7 @@ FocusScope {
         },
         {
             version: "v2.7.1-rc5",
-            date: "27.08.2026",
+            date: "27 Aug 2026",
             changes: [
                 qsTr("LNG_00544"),
                 qsTr("LNG_00545")
@@ -248,14 +248,14 @@ FocusScope {
         },
         {
             version: "v2.7.1-rc4",
-            date: "07.08.2026",
+            date: "7 Aug 2026",
             changes: [
                 qsTr("LNG_00542")
             ]
         },
         {
             version: "v2.7.1-rc3",
-            date: "07.08.2026",
+            date: "7 Aug 2026",
             changes: [
                 qsTr("LNG_00540"),
                 qsTr("LNG_00541")
@@ -263,14 +263,14 @@ FocusScope {
         },
         {
             version: "v2.7.1-rc2",
-            date: "07.08.2026",
+            date: "7 Aug 2026",
             changes: [
                 qsTr("LNG_00543")
             ]
         },
         {
             version: "v2.7.1-rc1",
-            date: "04.08.2026",
+            date: "4 Aug 2026",
             changes: [
                 qsTr("LNG_00538"),
                 qsTr("LNG_00539")
@@ -278,7 +278,7 @@ FocusScope {
         },
         {
             version: "v2.7.0",
-            date: "27.07.2026",
+            date: "27 Jul 2026",
             changes: [
                 qsTr("LNG_00535"),
                 qsTr("LNG_00536"),
@@ -287,14 +287,14 @@ FocusScope {
         },
         {
             version: "v2.6.3",
-            date: "08.07.2026",
+            date: "8 Jul 2026",
             changes: [
                 qsTr("LNG_00546")
             ]
         },
         {
             version: "v2.6.2",
-            date: "08.07.2026",
+            date: "8 Jul 2026",
             changes: [
                 qsTr("LNG_00527"),
                 qsTr("LNG_00528"),
@@ -303,7 +303,7 @@ FocusScope {
         },
         {
             version: "v2.6.1",
-            date: "07.07.2026",
+            date: "7 Jul 2026",
             changes: [
                 qsTr("LNG_00529"),
                 qsTr("LNG_00530")
@@ -311,7 +311,7 @@ FocusScope {
         },
         {
             version: "v2.6.0",
-            date: "03.07.2026",
+            date: "3 Jul 2026",
             changes: [
                 qsTr("LNG_00517"),
                 qsTr("LNG_00518")
@@ -319,7 +319,7 @@ FocusScope {
         },
         {
             version: "v2.5.0",
-            date: "03.07.2026",
+            date: "3 Jul 2026",
             changes: [
                 qsTr("LNG_00519"),
                 qsTr("LNG_00520"),
@@ -333,7 +333,7 @@ FocusScope {
         },
         {
             version: "v2.4.6",
-            date: "02.07.2026",
+            date: "2 Jul 2026",
             changes: [
                 qsTr("LNG_00452"),
                 qsTr("LNG_00451")
@@ -341,7 +341,7 @@ FocusScope {
         },
         {
             version: "v2.4.5",
-            date: "02.07.2026",
+            date: "2 Jul 2026",
             changes: [
                 qsTr("LNG_00450"),
                 qsTr("LNG_00449"),
@@ -352,14 +352,14 @@ FocusScope {
         },
         {
             version: "v2.4.4",
-            date: "02.07.2026",
+            date: "2 Jul 2026",
             changes: [
                 qsTr("LNG_00445")
             ]
         },
         {
             version: "v2.4.3",
-            date: "01.07.2026",
+            date: "1 Jul 2026",
             changes: [
                 qsTr("LNG_00444"),
                 qsTr("LNG_00443")
@@ -367,7 +367,7 @@ FocusScope {
         },
         {
             version: "v2.4.2",
-            date: "01.07.2026",
+            date: "1 Jul 2026",
             changes: [
                 qsTr("LNG_00442"),
                 qsTr("LNG_00441")
@@ -375,7 +375,7 @@ FocusScope {
         },
         {
             version: "v2.4.1",
-            date: "01.07.2026",
+            date: "1 Jul 2026",
             changes: [
                 qsTr("LNG_00440"),
                 qsTr("LNG_00439"),
@@ -385,14 +385,14 @@ FocusScope {
         },
         {
             version: "v2.4.0",
-            date: "30.06.2026",
+            date: "30 Jun 2026",
             changes: [
                 qsTr("LNG_00436")
             ]
         },
         {
             version: "v2.3.0",
-            date: "30.06.2026",
+            date: "30 Jun 2026",
             changes: [
                 qsTr("LNG_00435"),
                 qsTr("LNG_00434"),
@@ -405,7 +405,7 @@ FocusScope {
         },
         {
             version: "v2.2.8-2",
-            date: "29.06.2026",
+            date: "29 Jun 2026",
             changes: [
                 qsTr("LNG_00428"),
                 qsTr("LNG_00427")
@@ -413,7 +413,7 @@ FocusScope {
         },
         {
             version: "v2.2.8-1",
-            date: "29.06.2026",
+            date: "29 Jun 2026",
             changes: [
                 qsTr("LNG_00426"),
                 qsTr("LNG_00425"),
@@ -427,21 +427,21 @@ FocusScope {
         },
         {
             version: "v2.2.7-5",
-            date: "29.06.2026",
+            date: "29 Jun 2026",
             changes: [
                 qsTr("LNG_00418")
             ]
         },
         {
             version: "v2.2.7-4",
-            date: "29.06.2026",
+            date: "29 Jun 2026",
             changes: [
                 qsTr("LNG_00417")
             ]
         },
         {
             version: "v2.2.7-3",
-            date: "29.06.2026",
+            date: "29 Jun 2026",
             changes: [
                 qsTr("LNG_00416"),
                 qsTr("LNG_00415"),
@@ -457,7 +457,7 @@ FocusScope {
         },
         {
             version: "v2.2.6-3",
-            date: "27.06.2026",
+            date: "27 Jun 2026",
             changes: [
                 qsTr("LNG_00406"),
                 qsTr("LNG_00405"),
@@ -475,7 +475,7 @@ FocusScope {
         },
         {
             version: "v2.2.5",
-            date: "25.06.2026",
+            date: "25 Jun 2026",
             changes: [
                 qsTr("LNG_00394"),
                 qsTr("LNG_00393"),
@@ -490,7 +490,7 @@ FocusScope {
         },
         {
             version: "v2.2.0",
-            date: "24.06.2026",
+            date: "24 Jun 2026",
             changes: [
                 qsTr("LNG_00385"),
                 qsTr("LNG_00384"),
@@ -501,7 +501,7 @@ FocusScope {
         },
         {
             version: "v2.1.9",
-            date: "23.06.2026",
+            date: "23 Jun 2026",
             changes: [
                 qsTr("LNG_00380"),
                 qsTr("LNG_00379"),
@@ -516,7 +516,7 @@ FocusScope {
         },
         {
             version: "v2.1.8",
-            date: "23.06.2026",
+            date: "23 Jun 2026",
             changes: [
                 qsTr("LNG_00371"),
                 qsTr("LNG_00370"),
@@ -525,21 +525,21 @@ FocusScope {
         },
         {
             version: "v2.1.7",
-            date: "23.06.2026",
+            date: "23 Jun 2026",
             changes: [
                 qsTr("LNG_00368")
             ]
         },
         {
             version: "v2.1.6",
-            date: "23.06.2026",
+            date: "23 Jun 2026",
             changes: [
                 qsTr("LNG_00367")
             ]
         },
         {
             version: "v2.1.5",
-            date: "23.06.2026",
+            date: "23 Jun 2026",
             changes: [
                 qsTr("LNG_00366"),
                 qsTr("LNG_00365"),
@@ -548,7 +548,7 @@ FocusScope {
         },
         {
             version: "v2.1.4",
-            date: "23.06.2026",
+            date: "23 Jun 2026",
             changes: [
                 qsTr("LNG_00363"),
                 qsTr("LNG_00362"),
@@ -558,7 +558,7 @@ FocusScope {
         },
         {
             version: "v2.1.3",
-            date: "22.06.2026",
+            date: "22 Jun 2026",
             changes: [
                 qsTr("LNG_00359"),
                 qsTr("LNG_00358"),
@@ -567,14 +567,14 @@ FocusScope {
         },
         {
             version: "v2.1.2",
-            date: "19.06.2026",
+            date: "19 Jun 2026",
             changes: [
                 qsTr("LNG_00356")
             ]
         },
         {
             version: "v2.1.1",
-            date: "19.06.2026",
+            date: "19 Jun 2026",
             changes: [
                 qsTr("LNG_00355"),
                 qsTr("LNG_00354"),
@@ -583,7 +583,7 @@ FocusScope {
         },
         {
             version: "v2.1.0",
-            date: "19.06.2026",
+            date: "19 Jun 2026",
             changes: [
                 qsTr("LNG_00352"),
                 qsTr("LNG_00351"),
@@ -599,7 +599,7 @@ FocusScope {
         },
         {
             version: "v2.0.9-2 (Patch)",
-            date: "19.06.2026",
+            date: "19 Jun 2026",
             changes: [
                 qsTr("LNG_00342"),
                 qsTr("LNG_00341")
@@ -607,7 +607,7 @@ FocusScope {
         },
         {
             version: "v2.0.9",
-            date: "19.06.2026",
+            date: "19 Jun 2026",
             changes: [
                 qsTr("LNG_00340"),
                 qsTr("LNG_00339"),
@@ -617,7 +617,7 @@ FocusScope {
         },
         {
             version: "v2.0.7-8",
-            date: "17.06.2026",
+            date: "17 Jun 2026",
             changes: [
                 qsTr("LNG_00336"),
                 qsTr("LNG_00335")
@@ -625,7 +625,7 @@ FocusScope {
         },
         {
             version: "v2.0.6",
-            date: "15.06.2026",
+            date: "15 Jun 2026",
             changes: [
                 qsTr("LNG_00334"),
                 qsTr("LNG_00333"),
@@ -640,7 +640,7 @@ FocusScope {
         },
         {
             version: "v2.0.0",
-            date: "05.06.2026",
+            date: "5 Jun 2026",
             changes: [
                 qsTr("LNG_00325"),
                 qsTr("LNG_00324"),

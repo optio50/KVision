@@ -544,7 +544,7 @@ void HikvisionSetupCheck::finish(const JobPtr &j)
     QVariantMap r;
     r.insert(QStringLiteral("key"), j->key);
     r.insert(QStringLiteral("name"), j->name);
-    r.insert(QStringLiteral("time"), QLocale::c().toString(QDateTime::currentDateTime(), QStringLiteral("dd MMM yyyy HH:mm:ss")));
+    r.insert(QStringLiteral("time"), QLocale::c().toString(QDateTime::currentDateTime(), QStringLiteral("d MMM yyyy HH:mm:ss")));
     r.insert(QStringLiteral("model"), j->model);
     r.insert(QStringLiteral("firmware"), j->firmware);
     r.insert(QStringLiteral("camIp"), j->camIp);     // where the camera's own web page is, for the button on the card
@@ -561,7 +561,7 @@ void HikvisionSetupCheck::finish(const JobPtr &j)
         QFile f(dir + QStringLiteral("/SetupCheck.log"));
         if (f.open(QIODevice::Append | QIODevice::Text)) {
             QTextStream out(&f);
-            out << r.value(QStringLiteral("time")).toString() << ", " << j->name << ", " << r.value(QStringLiteral("summary")).toString() << "\n";
+            out << QLocale::c().toString(QDateTime::currentDateTime(), QStringLiteral("dd MMM yyyy HH:mm:ss")) << ", " << j->name << ", " << r.value(QStringLiteral("summary")).toString() << "\n";
             for (const QVariant &v : j->items) {
                 const QVariantMap m = v.toMap();
                 if (m.value(QStringLiteral("state")).toString() != QLatin1String("ok"))

@@ -979,6 +979,8 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
             e.insert(QStringLiteral("channel"), channel);
             const QDateTime when = QLocale::c().toDateTime(e.value(QStringLiteral("time")).toString(), QStringLiteral("dd MMM yyyy HH:mm:ss"));
             e.insert(QStringLiteral("epochMs"), when.isValid() ? when.toMSecsSinceEpoch() : qint64(0));
+            if (when.isValid()) // shown as "9 Nov 2026 08:52:24"; the log file itself keeps its own format
+                e.insert(QStringLiteral("time"), QLocale::c().toString(when, QStringLiteral("d MMM yyyy HH:mm:ss")));
             if (!filterIp.isEmpty() && e.value(QStringLiteral("ip")).toString() != filterIp)
                 continue;
             {

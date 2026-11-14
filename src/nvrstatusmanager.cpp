@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QCoreApplication>
 #include <QDateTime>
+#include <QLocale>
 
 NvrStatusManager* NvrStatusManager::m_instance = nullptr;
 
@@ -403,7 +404,7 @@ void NvrStatusWorker::run()
 {
     QVariantList errors;
     QVariantList checkedRecorders;
-    QString lastCheckTime = QDateTime::currentDateTime().toString("dd.MM.yyyy hh:mm:ss");
+    QString lastCheckTime = QLocale::c().toString(QDateTime::currentDateTime(), "d MMM yyyy hh:mm:ss");
 
     bool simulateError = QCoreApplication::arguments().contains("--simulate-error");
     if (simulateError) {

@@ -562,7 +562,7 @@ QVariantList HikvisionBackup::listBackups(const QString &ip) const
         const QDateTime when = QDateTime::fromString(o.value(QStringLiteral("saved")).toString(), Qt::ISODate);
         out.append(QVariantMap{{QStringLiteral("file"), cfg},
                                {QStringLiteral("label"), QStringLiteral("%1  (firmware %2, %3 KB)")
-                                    .arg(QLocale::c().toString(when, QStringLiteral("dd MMM yyyy HH:mm")),
+                                    .arg(QLocale::c().toString(when, QStringLiteral("d MMM yyyy HH:mm")),
                                          o.value(QStringLiteral("firmware")).toString())
                                     .arg(qint64(o.value(QStringLiteral("bytes")).toDouble()) / 1024)}});
     }

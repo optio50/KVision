@@ -105,6 +105,11 @@ Window {
 
     color: "#0a0f14"
 
+    // A date as "13 Nov 2026": English month names, no leading zero on the day.
+    readonly property var monthAbbr: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    function formatDay(d) {
+        return d.getDate() + " " + monthAbbr[d.getMonth()] + " " + d.getFullYear()
+    }
     property var monthNames: [qsTr("LNG_00185"), qsTr("LNG_00184"), qsTr("LNG_00183"), qsTr("LNG_00182"), qsTr("LNG_00181"), qsTr("LNG_00180"), qsTr("LNG_00179"), qsTr("LNG_00178"), qsTr("LNG_00177"), qsTr("LNG_00176"), qsTr("LNG_00175"), qsTr("LNG_00174")]
 
     property bool isSearchingRecordings: false
@@ -2994,7 +2999,7 @@ Window {
                                         anchors.centerIn: parent
                                         text: {
                                             var t = new Date(playheadTimeMs);
-                                            return Qt.formatDateTime(t, "yyyy-MM-dd HH:mm:ss");
+                                            return playbackWindow.formatDay(t) + " " + Qt.formatDateTime(t, "HH:mm:ss");
                                         }
                                         color: "#00ff66"
                                         font {
@@ -3078,7 +3083,7 @@ Window {
                             }
                             CctvButton {
                                 id: calendarButton
-                                text: Qt.formatDate(currentDate, "yyyy-MM-dd")
+                                text: playbackWindow.formatDay(currentDate)
                                 iconSource: {
                                     var colorStr = calendarButton.hovered ? "%2300f5d4" : "%238898a6"
                                     return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='4' width='18' height='18' rx='2' ry='2'></rect><line x1='16' y1='2' x2='16' y2='6'></line><line x1='8' y1='2' x2='8' y2='6'></line><line x1='3' y1='10' x2='21' y2='10'></line><path d='M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01'></path></svg>"
@@ -3784,7 +3789,7 @@ Window {
                                     ctx.fillStyle = "#ffaa00"
                                     ctx.font = "12px sans-serif"
                                     var d = new Date(currentDate.getTime() + dayMs)
-                                    ctx.fillText(Qt.formatDate(d, "yyyy-MM-dd"), dx + 5, 15)
+                                    ctx.fillText(playbackWindow.formatDay(d), dx + 5, 15)
                                 }
                             }
                             ctx.stroke()

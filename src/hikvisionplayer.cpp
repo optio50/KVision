@@ -3,6 +3,7 @@
 #include <QPen>
 #include <QBrush>
 #include <QDebug>
+#include <QLocale>
 #include <cmath>
 #include <atomic>
 
@@ -163,7 +164,7 @@ void HikvisionPlayer::paint(QPainter *painter)
 
     // 4. Draw OSD real-time clock (top right)
     QDateTime current = QDateTime::currentDateTime();
-    QString timeStr = current.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    QString timeStr = QLocale::c().toString(current, "d MMM yyyy hh:mm:ss.zzz");
     painter->setPen(QPen(QColor("#eeeeee"), 1));
     QFont clockFont = painter->font();
     clockFont.setPixelSize(11);
