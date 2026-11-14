@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+* **Rule lines on the video stream can be switched on and off from Camera Tools.** A new "Rule lines on the video stream" box
+  picks a camera and has Check, Turn on and Turn off. It is the camera's own switch (web page: VCA > Smart Event > General
+  Settings > Metadata > Enable Stream Rule and Sub-Stream, which work as a pair), so the camera draws its line, intrusion and
+  region rules on the stream, including the sub-stream the small tiles use. It reads the camera first, changes only
+  `enabled` and `streamType` (the separate "Overlay Rule Frame on Background Picture" switch is written back as it was), and
+  reads the camera again to confirm. A camera without the switch says so. It uses the camera's own address and saved login,
+  never the recorder's, and a refused login is not tried again. Recorders set Offline are not listed.
+
 ### Changed
 * **A recorder can be set "Offline" when its network is not connected.** The "Mute" box in the recorder monitoring window is now
   "Offline". Ticked, KVision makes no connection at all to that recorder's cameras: no video (its tiles say "Offline by

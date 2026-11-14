@@ -442,6 +442,155 @@ ColumnLayout {
         }
     }
 
+    // ── Rule lines on the video stream: the camera's own switch (web page: VCA > Smart Event > General Settings > Metadata) ──
+    property string ruleState: ""      // on, off, unavailable, error, or "" when not read yet
+    property string ruleMessage: ""
+    property string ruleForIp: ""
+    Connections {
+        target: HikvisionBackup
+        function onRuleLinesResult(ip, state, message) {
+            rootPanel.ruleForIp = ip;
+            rootPanel.ruleState = state;
+            rootPanel.ruleMessage = message;
+        }
+    }
+
+    Frame {
+        Layout.fillWidth: true
+        background: Rectangle {
+            color: "#1c242c"
+            radius: 6
+            border.color: "#2a3540"
+            border.width: 1
+        }
+
+        ColumnLayout {
+            width: parent.width
+            spacing: 8
+
+            Text {
+                text: "Rule lines on the video stream"
+                color: "white"
+                font.pixelSize: 13
+                font.bold: true
+                Layout.fillWidth: true
+            }
+
+            ComboBox {
+                id: ruleCameraCombo
+                Layout.fillWidth: true
+                enabled: !HikvisionBackup.ruleBusy
+                model: rootPanel.backupCameraModel
+                textRole: "name"
+                onCurrentIndexChanged: {
+                    rootPanel.ruleState = "";
+                    rootPanel.ruleMessage = "";
+                }
+            }
+
+            Text {
+                property var sel: ruleCameraCombo.currentIndex >= 0 ? rootPanel.backupCameraModel[ruleCameraCombo.currentIndex] : null
+                text: {
+                    if (HikvisionBackup.ruleBusy)
+                        return "Asking the camera...";
+                    if (!sel)
+                        return "No camera to choose.";
+                    if (rootPanel.ruleForIp !== sel.ip || rootPanel.ruleState === "")
+                        return "Not read yet. Press Check to see what this camera is set to.";
+                    if (rootPanel.ruleState === "on")
+                        return "ON: this camera draws its rule lines and targets on the stream. " + rootPanel.ruleMessage + ".";
+                    if (rootPanel.ruleState === "off")
+                        return "OFF: the stream is clean. " + rootPanel.ruleMessage + ".";
+                    if (rootPanel.ruleState === "unavailable")
+                        return "Not available: " + rootPanel.ruleMessage + ".";
+                    return "Problem: " + rootPanel.ruleMessage + ".";
+                }
+                color: (rootPanel.ruleState === "on") ? "#00ff66" : ((rootPanel.ruleState === "error") ? "#ff6666" : "#8898a6")
+                font.pixelSize: 11
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Button {
+                    id: ruleCheckBtn
+                    text: "Check"
+                    enabled: !HikvisionBackup.ruleBusy && ruleCameraCombo.currentIndex >= 0
+                    contentItem: Text {
+                        text: ruleCheckBtn.text
+                        color: "white"
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 10
+                        rightPadding: 10
+                    }
+                    background: Rectangle {
+                        color: ruleCheckBtn.pressed ? "#303a46" : (ruleCheckBtn.hovered ? "#3a4550" : "#2a3540")
+                        border.color: "#00f5d4"
+                        radius: 4
+                    }
+                    onClicked: HikvisionBackup.checkRuleLines(rootPanel.backupCameraModel[ruleCameraCombo.currentIndex].ip)
+                }
+
+                Button {
+                    id: ruleOnBtn
+                    text: "Turn on"
+                    enabled: !HikvisionBackup.ruleBusy && ruleCameraCombo.currentIndex >= 0
+                    contentItem: Text {
+                        text: ruleOnBtn.text
+                        color: "white"
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 10
+                        rightPadding: 10
+                    }
+                    background: Rectangle {
+                        color: ruleOnBtn.pressed ? "#0a8f4a" : (ruleOnBtn.hovered ? "#14a24c" : "#118a41")
+                        radius: 4
+                    }
+                    onClicked: HikvisionBackup.setRuleLines(rootPanel.backupCameraModel[ruleCameraCombo.currentIndex].ip, true)
+                }
+
+                Button {
+                    id: ruleOffBtn
+                    text: "Turn off"
+                    enabled: !HikvisionBackup.ruleBusy && ruleCameraCombo.currentIndex >= 0
+                    contentItem: Text {
+                        text: ruleOffBtn.text
+                        color: "white"
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 10
+                        rightPadding: 10
+                    }
+                    background: Rectangle {
+                        color: ruleOffBtn.pressed ? "#b01c18" : (ruleOffBtn.hovered ? "#e0241f" : "#c9201b")
+                        radius: 4
+                    }
+                    onClicked: HikvisionBackup.setRuleLines(rootPanel.backupCameraModel[ruleCameraCombo.currentIndex].ip, false)
+                }
+            }
+
+            Text {
+                text: "Some cameras can draw the lines and boxes of their smart-event rules (line crossing, intrusion, region) on the video "
+                      + "they send, including the sub-stream that KVision's smaller tiles use. This is the camera's own switch (in its web "
+                      + "page: VCA > Smart Event > General Settings > Metadata > Enable Stream Rule and Sub-Stream). It is read first, only "
+                      + "that switch is changed, and the camera is asked again to confirm. A camera without the switch says so. It uses each "
+                      + "camera's own address and saved login, never the recorder's, and a refused login is not tried again."
+                color: "#8898a6"
+                font.pixelSize: 9
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+        }
+    }
+
     ColumnLayout {
         id: betweenColumn
         Layout.fillWidth: true

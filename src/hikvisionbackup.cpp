@@ -1,6 +1,7 @@
 #include "hikvisionbackup.h"
 
 #include "hikvisionmanager.h"
+#include "offlinerecorders.h"
 
 #include <QDateTime>
 #include <QDebug>
@@ -63,6 +64,124 @@ int curlGet(const QString &url, const QString &user, const QString &pass, int ma
     return out.trimmed().toInt();
 }
 
+// PUT a small JSON text to a camera with curl. Returns the HTTP status (0 when it could not connect).
+int curlPutJson(const QString &url, const QString &user, const QString &pass, int maxSeconds, const QByteArray &json,
+                QByteArray *body)
+{
+    QStringList args;
+    args << QStringLiteral("-s") << QStringLiteral("-k") << QStringLiteral("--anyauth") << QStringLiteral("-u")
+         << QStringLiteral("%1:%2").arg(user, pass) << QStringLiteral("--max-time") << QString::number(maxSeconds)
+         << QStringLiteral("-X") << QStringLiteral("PUT") << QStringLiteral("-d") << QString::fromUtf8(json)
+         << QStringLiteral("-H") << QStringLiteral("Content-Type: application/json")
+         << QStringLiteral("-w") << QStringLiteral("%{http_code}") << url;
+    QProcess p;
+    p.start(QStringLiteral("curl"), args);
+    if (!p.waitForFinished((maxSeconds + 5) * 1000)) {
+        p.kill();
+        return 0;
+    }
+    const QByteArray out = p.readAllStandardOutput();
+    if (body)
+        *body = out.left(qMax(0, int(out.size()) - 3));
+    return out.right(3).toInt();
+}
+
+struct RuleLinesAnswer {
+    QString state;   // "on", "off", "unavailable" or "error"
+    QString message;
+};
+
+// The camera's own switch for drawing the VCA rule lines and targets on the video stream (the web page's
+// VCA > Smart Event > General Settings > Metadata > "Enable Stream Rule" and "Sub-Stream", which work as a pair).
+// Read: GET /ISAPI/Streaming/channels/1/smartOverlap?format=json
+//   {"SmartOverlap": {"enabled": bool, "streamType": 0 or 2, "bkgImageOverlapEnabled": bool}}
+// On is enabled=true with streamType=2; off is enabled=false with streamType=0. bkgImageOverlapEnabled is a different
+// switch (the rule frame on the picture a camera saves) and is always written back exactly as it was read.
+// mode: 0 only read, 1 turn on, 2 turn off. A refused login is never retried.
+RuleLinesAnswer ruleLinesOne(const HikvisionBackup::Cam &cam, int mode)
+{
+    RuleLinesAnswer a;
+    a.state = QStringLiteral("error");
+    if (cam.user.isEmpty() || cam.pass.isEmpty()) {
+        a.message = QStringLiteral("no login saved for this camera (a blank password is never sent)");
+        return a;
+    }
+    const QString url = QStringLiteral("http://%1:%2/ISAPI/Streaming/channels/1/smartOverlap?format=json").arg(cam.ip).arg(cam.httpPort);
+    auto explain = [&](int code) -> bool {
+        if (code == 0)
+            a.message = QStringLiteral("could not connect");
+        else if (code == 401)
+            a.message = QStringLiteral("the camera refused the login (not tried again, so it cannot lock the camera)");
+        else if (code == 404 || code == 403 || code == 501) {
+            a.state = QStringLiteral("unavailable");
+            a.message = QStringLiteral("this camera has no switch for rule lines on the stream");
+        } else
+            a.message = QStringLiteral("the camera answered HTTP %1").arg(code);
+        return code != 200;
+    };
+    auto readState = [&](QJsonObject *so, QString *why) -> bool {
+        QByteArray body;
+        const int code = curlGet(url, cam.user, cam.pass, 8, QString(), &body);
+        if (explain(code)) {
+            *why = a.message;
+            return false;
+        }
+        const QJsonObject o = QJsonDocument::fromJson(body).object().value(QStringLiteral("SmartOverlap")).toObject();
+        if (!o.contains(QStringLiteral("enabled"))) {
+            a.state = QStringLiteral("error");
+            *why = QStringLiteral("the camera's answer was not understood");
+            return false;
+        }
+        *so = o;
+        return true;
+    };
+
+    QJsonObject so;
+    QString why;
+    if (!readState(&so, &why)) {
+        a.message = why;
+        return a;
+    }
+    const bool nowOn = so.value(QStringLiteral("enabled")).toBool();
+    auto stateText = [](bool on) { return on ? QStringLiteral("on") : QStringLiteral("off"); };
+    if (mode == 0) {
+        a.state = stateText(nowOn);
+        a.message = QStringLiteral("rule lines on the stream are %1").arg(a.state);
+        return a;
+    }
+    const bool want = (mode == 1);
+    const int wantType = want ? 2 : 0;
+    if (nowOn == want && so.value(QStringLiteral("streamType")).toInt() == wantType) {
+        a.state = stateText(want);
+        a.message = QStringLiteral("already %1, nothing changed").arg(a.state);
+        return a;
+    }
+    QJsonObject out = so; // every other field goes back as it was read
+    out.insert(QStringLiteral("enabled"), want);
+    out.insert(QStringLiteral("streamType"), wantType);
+    QByteArray reply;
+    const int putCode = curlPutJson(url, cam.user, cam.pass, 10,
+                                    QJsonDocument(QJsonObject{{QStringLiteral("SmartOverlap"), out}}).toJson(QJsonDocument::Compact), &reply);
+    if (putCode != 200 || QJsonDocument::fromJson(reply).object().value(QStringLiteral("statusCode")).toInt() != 1) {
+        a.state = QStringLiteral("error");
+        a.message = putCode == 200 ? QStringLiteral("the camera did not accept the change")
+                                   : (explain(putCode), a.message);
+        return a;
+    }
+    // Read it back: only report success for what the camera now says.
+    QJsonObject after;
+    if (!readState(&after, &why)) {
+        a.state = QStringLiteral("error");
+        a.message = QStringLiteral("changed, but could not read it back: %1").arg(why);
+        return a;
+    }
+    const bool isOn = after.value(QStringLiteral("enabled")).toBool();
+    a.state = stateText(isOn);
+    a.message = isOn == want ? QStringLiteral("rule lines on the stream are now %1").arg(a.state)
+                             : QStringLiteral("the camera still says %1").arg(a.state);
+    return a;
+}
+
 QString tag(const QString &xml, const QString &name)
 {
     const QRegularExpression rx(QStringLiteral("<%1>([^<]*)</%1>").arg(name));
@@ -74,7 +193,7 @@ HikvisionBackup::HikvisionBackup(QObject *parent) : QObject(parent) {}
 
 HikvisionBackup::~HikvisionBackup()
 {
-    for (QThread *t : {m_worker, m_loader}) {
+    for (QThread *t : {m_worker, m_loader, m_ruleWorker}) {
         if (t) {
             t->disconnect(this);
             t->wait();
@@ -91,7 +210,8 @@ QString HikvisionBackup::backupDir() const
 void HikvisionBackup::loadCameras(const QString &recordersJson, const QString &configPath)
 {
     m_configPath = configPath;
-    const QByteArray json = recordersJson.toUtf8();
+    // A recorder the user set Offline is not contacted at all, so its cameras are not listed.
+    const QByteArray json = OfflineRecorders::withoutOffline(recordersJson, OfflineRecorders::readNames(configPath)).toUtf8();
     if (m_loader && m_loader->isRunning()) {
         m_hasPending = true; // the answer being worked out may already be out of date: run again when it is done
         m_pendingJson = json;
@@ -280,6 +400,51 @@ void HikvisionBackup::backupCamera(const QString &ip, const QString &user, const
         }
     }
     emit finished(QStringLiteral("That camera is not in the list. Refresh the list and try again."), false);
+}
+
+void HikvisionBackup::checkRuleLines(const QString &ip)
+{
+    runRuleLines(ip, 0);
+}
+
+void HikvisionBackup::setRuleLines(const QString &ip, bool on)
+{
+    runRuleLines(ip, on ? 1 : 2);
+}
+
+void HikvisionBackup::runRuleLines(const QString &ip, int mode)
+{
+    if (m_ruleBusy)
+        return;
+    Cam found;
+    bool have = false;
+    for (const Cam &c : m_cams) {
+        if (c.ip == ip) {
+            found = c;
+            have = true;
+            break;
+        }
+    }
+    if (!have) {
+        emit ruleLinesResult(ip, QStringLiteral("error"), QStringLiteral("That camera is not in the list. Refresh the list and try again."));
+        return;
+    }
+    m_ruleBusy = true;
+    emit ruleBusyChanged();
+    if (m_ruleWorker) {
+        m_ruleWorker->wait();
+        m_ruleWorker->deleteLater();
+    }
+    m_ruleWorker = QThread::create([this, found, mode]() {
+        const RuleLinesAnswer a = ruleLinesOne(found, mode);
+        QMetaObject::invokeMethod(this, [this, found, mode, a]() {
+            qInfo() << "[RuleLines]" << found.ip << (mode == 0 ? "read:" : (mode == 1 ? "turn on:" : "turn off:")) << a.state << "-" << a.message;
+            m_ruleBusy = false;
+            emit ruleBusyChanged();
+            emit ruleLinesResult(found.ip, a.state, a.message);
+        }, Qt::QueuedConnection);
+    });
+    m_ruleWorker->start();
 }
 
 void HikvisionBackup::backupAll()
