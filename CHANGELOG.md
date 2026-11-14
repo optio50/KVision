@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+* **A recorder can be set "Offline" when its network is not connected.** The "Mute" box in the recorder monitoring window is now
+  "Offline". Ticked, KVision makes no connection at all to that recorder's cameras: no video (its tiles say "Offline by
+  choice"), no detection events, no logging (also in the background `kvision-events` service) and no status check (the
+  recorder shows a grey OFFLINE badge, not an error). Unticking it connects again straight away. Recorders already muted
+  keep that setting, so they are now offline as well. The terminal prints an `[Offline]` line when you change it.
 * **The setup check no longer shows red for a camera that works.** A camera is red only when it cannot report detection (it
   is unreachable, the login is refused, or nothing is set up to report). When at least one kind of detection works and a single
   feature has a fault (motion with no zone drawn, for example), the card is yellow, says "Working, 1 thing(s) to look at", and

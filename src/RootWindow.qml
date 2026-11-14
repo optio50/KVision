@@ -136,6 +136,11 @@ ApplicationWindow {
 
     property alias hikvisionRecordersJson: hikvisionSettings.recordersJson
     onHikvisionRecordersJsonChanged: rootWindow.applyEventLogger()
+    // A recorder was set offline or back online: stop or start its camera connections.
+    Connections {
+        target: NvrStatusManager
+        function onOfflineChanged() { rootWindow.applyEventLogger() }
+    }
     property alias layoutRepeater: layoutRepeater
     property alias layoutIndex: stackLayout.currentIndex
     property alias generalSettings: generalSettings
@@ -2395,7 +2400,7 @@ ApplicationWindow {
             return;
         // While this window is open it always logs every configured camera. The setting only decides whether the
         // background service takes over after the window is closed.
-        HikvisionEventLogger.configure(true, rootWindow.hikvisionRecordersJson || "[]",
+        HikvisionEventLogger.configure(true, NvrStatusManager.withoutOfflineRecorders(rootWindow.hikvisionRecordersJson || "[]"),
                                        generalSettings.targetSource, Context.configDirPath(), generalSettings.targetSourceOverrides);
         HikvisionEventLogger.monitorBackground(generalSettings.logDetectionEvents, Context.configDirPath(), Context.config.fileName);
     }

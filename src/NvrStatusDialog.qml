@@ -104,7 +104,7 @@ Dialog {
                     width: recorderListView.width
                     implicitHeight: recorderColumn.implicitHeight + 20
                     color: "#1c242c"
-                    border.color: modelData.hasError ? "#ff4d4d" : "#2a3540"
+                    border.color: (modelData.hasError && !modelData.offline) ? "#ff4d4d" : "#2a3540"
                     border.width: 1
                     radius: 6
 
@@ -123,7 +123,7 @@ Dialog {
                                 width: 8
                                 height: 8
                                 radius: 4
-                                color: modelData.hasError ? "#ff4d4d" : "#22c55e"
+                                color: modelData.offline ? "#8898a6" : (modelData.hasError ? "#ff4d4d" : "#22c55e")
                                 Layout.alignment: Qt.AlignVCenter
                             }
 
@@ -141,7 +141,8 @@ Dialog {
                                 }
 
                                 Text {
-                                    text: qsTr("LNG_00108") + (modelData.lastCheck ? modelData.lastCheck : qsTr("LNG_00107"))
+                                    text: modelData.offline ? "Set offline: KVision does not connect to its cameras"
+                                                        : qsTr("LNG_00108") + (modelData.lastCheck ? modelData.lastCheck : qsTr("LNG_00107"))
                                     color: "#8898a6"
                                     font.pixelSize: 10
                                     Layout.fillWidth: true
@@ -149,7 +150,10 @@ Dialog {
                             }
 
                             CheckBox {
-                                text: qsTr("LNG_00106")
+                                text: "Offline"
+                                ToolTip.visible: hovered
+                                ToolTip.delay: 400
+                                ToolTip.text: "Tick this when the recorder's network is not connected. KVision stops all video, detection events, logging and status checks for its cameras, and connects again when you untick it."
                                 checked: modelData.muted
                                 onClicked: {
                                     NvrStatusManager.setRecorderMuted(modelData.name, checked)
@@ -162,15 +166,15 @@ Dialog {
                                 width: 54
                                 height: 20
                                 radius: 4
-                                color: modelData.hasError ? "#33ff4d4d" : "#3322c55e"
-                                border.color: modelData.hasError ? "#ff4d4d" : "#22c55e"
+                                color: modelData.offline ? "#338898a6" : (modelData.hasError ? "#33ff4d4d" : "#3322c55e")
+                                border.color: modelData.offline ? "#8898a6" : (modelData.hasError ? "#ff4d4d" : "#22c55e")
                                 border.width: 1
                                 Layout.alignment: Qt.AlignVCenter
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: modelData.hasError ? qsTr("LNG_00105") : qsTr("LNG_00104")
-                                    color: modelData.hasError ? "#ff4d4d" : "#22c55e"
+                                    text: modelData.offline ? "OFFLINE" : (modelData.hasError ? qsTr("LNG_00105") : qsTr("LNG_00104"))
+                                    color: modelData.offline ? "#8898a6" : (modelData.hasError ? "#ff4d4d" : "#22c55e")
                                     font.bold: true
                                     font.pixelSize: 10
                                 }

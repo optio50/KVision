@@ -21,6 +21,8 @@ class NvrStatusManager : public QObject
 
     Q_PROPERTY(bool monitoringEnabled READ monitoringEnabled WRITE setMonitoringEnabled NOTIFY monitoringEnabledChanged)
     Q_PROPERTY(bool hasConfiguredRecorders READ hasConfiguredRecorders NOTIFY hasConfiguredRecordersChanged)
+    // Goes up by one whenever the set of offline recorders changes, so QML bindings that call isAddressOffline() re-run.
+    Q_PROPERTY(int offlineRevision READ offlineRevision NOTIFY offlineChanged)
 
     Q_PROPERTY(bool checkOffline READ checkOffline WRITE setCheckOffline NOTIFY checkOfflineChanged)
     Q_PROPERTY(bool checkCpu READ checkCpu WRITE setCheckCpu NOTIFY checkCpuChanged)
@@ -65,6 +67,12 @@ public:
 
     Q_INVOKABLE bool isRecorderMuted(const QString &name) const;
     Q_INVOKABLE void setRecorderMuted(const QString &name, bool muted);
+    // A recorder ticked "Offline" is not contacted by anything: no video, no detection events, no logging, no status check.
+    // (Stored as the old "muted" list, by recorder name, so recorders muted before keep that setting.)
+    Q_INVOKABLE bool isAddressOffline(const QString &address) const;
+    // The recorder list (JSON text) without the offline recorders.
+    Q_INVOKABLE QString withoutOfflineRecorders(const QString &recordersJson) const;
+    int offlineRevision() const { return m_offlineRevision; }
 
 signals:
     void hasErrorsChanged();
@@ -74,6 +82,7 @@ signals:
 
     void monitoringEnabledChanged();
     void hasConfiguredRecordersChanged();
+    void offlineChanged();
 
     void checkOfflineChanged();
     void checkCpuChanged();
@@ -101,6 +110,9 @@ private:
     QVariantList m_rawErrors;
     QVariantList m_rawCheckedRecorders;
     QSet<QString> m_mutedRecorders;
+    QSet<QString> m_offlineHosts; // addresses of the recorders in m_mutedRecorders
+    int m_offlineRevision = 0;
+    void refreshOffline();
 
     bool m_monitoringEnabled = true;
 

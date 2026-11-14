@@ -3,6 +3,7 @@
 #include "eventservice.h"
 #include "hikvisioneventlogger.h"
 #include "hikvisionevents.h"
+#include "offlinerecorders.h"
 
 #include <QCoreApplication>
 #include <QCommandLineParser>
@@ -60,6 +61,9 @@ Settings readSettings(const QString &configPath)
         r.source = QStringLiteral("camera");
     s.beginGroup(QStringLiteral("Hikvision"));
     r.recorders = s.value(QStringLiteral("recordersJson"), QStringLiteral("[]")).toString();
+    s.endGroup();
+    // Recorders the user set offline (their network is not connected) are left alone completely.
+    r.recorders = OfflineRecorders::withoutOffline(r.recorders, OfflineRecorders::readNames(configPath));
     return r;
 }
 

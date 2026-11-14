@@ -185,6 +185,7 @@ set(PROJ_FILES
     src/talkaacencoder.cpp src/talkaacencoder.h
     src/hikvisionevents.cpp src/hikvisionevents.h
     src/hikvisioneventlogger.cpp src/hikvisioneventlogger.h
+    src/offlinerecorders.h
     src/eventservice.cpp src/eventservice.h
     src/hikvisionbackup.cpp src/hikvisionbackup.h
     src/hikvisioncamerainfo.cpp src/hikvisioncamerainfo.h

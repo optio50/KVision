@@ -1,6 +1,7 @@
 #include "nvrstatusmanager.h"
 #include "hikvisionmanager.h"
 #include "context.h"
+#include "offlinerecorders.h"
 #include <QSettings>
 #include <QDebug>
 #include <QCoreApplication>
@@ -134,6 +135,7 @@ void NvrStatusManager::checkNow()
 
 void NvrStatusManager::onRecordersChanged()
 {
+    refreshOffline();
     emit hasConfiguredRecordersChanged();
 
     if (!hasConfiguredRecorders() || !m_monitoringEnabled) {
@@ -195,6 +197,7 @@ void NvrStatusManager::startCheck()
     configs["checkHdd"] = m_checkHdd;
     configs["checkUnformatted"] = m_checkUnformatted;
     configs["checkFull"] = m_checkFull;
+    configs["offline"] = QStringList(m_mutedRecorders.begin(), m_mutedRecorders.end());
 
     QThread *thread = new QThread();
     NvrStatusWorker *worker = new NvrStatusWorker(recorders, configs);
@@ -233,6 +236,11 @@ void NvrStatusManager::applyMuting()
         QString name = rec.value("name").toString();
         bool isMuted = m_mutedRecorders.contains(name);
         rec["muted"] = isMuted;
+        rec["offline"] = isMuted;
+        if (isMuted) {
+            rec["hasError"] = false;
+            rec["errors"] = QVariantList();
+        }
 
         filteredCheckedRecorders.append(rec);
     }
@@ -278,7 +286,34 @@ void NvrStatusManager::setRecorderMuted(const QString &name, bool muted)
         m_mutedRecorders.remove(name);
     }
     saveSettings();
+    qInfo() << "[Offline] recorder" << name << (muted ? "set offline: KVision stops connecting to its cameras"
+                                                        : "back online: KVision connects to its cameras again");
+    refreshOffline();
+    startCheck();
     applyMuting();
+}
+
+void NvrStatusManager::refreshOffline()
+{
+    QString path = Context::config() ? Context::config()->fileName() : QSettings().fileName();
+    QSettings settings(path, QSettings::IniFormat);
+    const QString json = settings.value("Hikvision/recordersJson", "[]").toString();
+    const QSet<QString> hosts = OfflineRecorders::offlineHosts(json, m_mutedRecorders);
+    if (hosts == m_offlineHosts && m_offlineRevision > 0)
+        return;
+    m_offlineHosts = hosts;
+    ++m_offlineRevision;
+    emit offlineChanged();
+}
+
+bool NvrStatusManager::isAddressOffline(const QString &address) const
+{
+    return m_offlineHosts.contains(OfflineRecorders::hostOf(address));
+}
+
+QString NvrStatusManager::withoutOfflineRecorders(const QString &recordersJson) const
+{
+    return OfflineRecorders::withoutOffline(recordersJson, m_mutedRecorders);
 }
 
 void NvrStatusManager::loadSettings()
@@ -298,6 +333,7 @@ void NvrStatusManager::loadSettings()
     m_mutedRecorders = QSet<QString>(mutedList.begin(), mutedList.end());
 
     settings.endGroup();
+    refreshOffline();
 }
 
 void NvrStatusManager::saveSettings()
@@ -357,6 +393,7 @@ void NvrStatusManager::reloadSettings()
     m_checkUnformatted = newCheckUnformatted;
     m_checkFull = newCheckFull;
     m_mutedRecorders = newMutedRecorders;
+    refreshOffline();
 
     if (enabledChanged) {
         emit monitoringEnabledChanged();
@@ -493,6 +530,8 @@ void NvrStatusWorker::run()
     bool checkHdd = m_configs.value("checkHdd", true).toBool();
     bool checkUnformatted = m_configs.value("checkUnformatted", true).toBool();
     bool checkFull = m_configs.value("checkFull", true).toBool();
+    const QStringList offlineList = m_configs.value("offline").toStringList();
+    const QSet<QString> offlineNames(offlineList.begin(), offlineList.end());
 
     for (int i = 0; i < m_recorders.size(); ++i) {
         QJsonObject recorder = m_recorders[i].toObject();
@@ -509,6 +548,15 @@ void NvrStatusWorker::run()
         rec["lastCheck"] = lastCheckTime;
         rec["hasError"] = false;
         QVariantList recErrors;
+
+        // Set offline by the user: never contact it. It stays in the list so it can be switched back on.
+        if (offlineNames.contains(name)) {
+            rec["lastCheck"] = QString();
+            rec["offline"] = true;
+            rec["errors"] = recErrors;
+            checkedRecorders.append(rec);
+            continue;
+        }
 
         // Try to fetch existing connection session, or open a new cached session
         LONG lUserID = HikvisionManager::instance()->getSession(ip, port, username, password);

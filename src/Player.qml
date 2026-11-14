@@ -429,6 +429,20 @@ FocusScope {
         Qt.callLater(updateSource);
     }
 
+    // The user set this tile's recorder offline (its network is not connected): no stream, no detection watch, no retries.
+    readonly property bool recorderOffline: {
+        var rev = NvrStatusManager.offlineRevision; // re-evaluate when the offline set changes
+        return root.isHikvision && root.recorderIp !== "" && NvrStatusManager.isAddressOffline(root.recorderIp);
+    }
+    onRecorderOfflineChanged: {
+        if (recorderOffline) {
+            autoReconnectTimer.stop();
+            console.log("[Offline] tile " + root.index + ": recorder " + root.recorderIp + " is offline, stream stopped");
+        }
+        Qt.callLater(updateSource);
+        Qt.callLater(updateTargetWatch);
+    }
+
     onIsSubStreamChanged: {
         Qt.callLater(updateSource);
     }
@@ -481,7 +495,8 @@ FocusScope {
     }
 
     function updateSource() {
-        if (!root.visible || root.isQuickPlayback) {
+        if (!root.visible || root.isQuickPlayback || root.recorderOffline) {
+            autoReconnectTimer.stop();
             qmlAvPlayer1.source = "";
             qmlAvPlayer1.isSubStreamOfPlayer = false;
             qmlAvPlayer2.source = "";
@@ -758,7 +773,7 @@ FocusScope {
     property bool targetWatching: false
     readonly property bool targetWanted: (typeof generalSettings !== "undefined") && generalSettings.showTargetIndicator
                                           && root.isHikvision && !root.isQuickPlayback && root.recorderIp !== ""
-                                          && root.visible && root.source !== ""
+                                          && root.visible && root.source !== "" && !root.recorderOffline
                                           && root.targetSwitchedOn() && root.savedLoginFor(root.recorderIp) !== null
     // The camera this tile is looking at: for a camera behind a recorder (NVR) it is looked up from
     // the recorder, once, and remembered.
@@ -3737,6 +3752,23 @@ FocusScope {
             if (root.isHikvision) {
                 updateSource();
             }
+        }
+    }
+
+    // Shown instead of video while the tile's recorder is set offline (see the recorder monitoring window).
+    Rectangle {
+        anchors.fill: parent
+        visible: root.recorderOffline
+        color: "#10161c"
+        z: 50
+        Text {
+            anchors.centerIn: parent
+            width: parent.width - 16
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+            color: "#8898a6"
+            font.pixelSize: Math.max(10, Math.min(16, parent.width / 14))
+            text: "Offline by choice\n" + root.recorderIp
         }
     }
 
