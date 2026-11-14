@@ -12,6 +12,9 @@ All notable changes to this project will be documented in this file.
   `enabled` and `streamType` (the separate "Overlay Rule Frame on Background Picture" switch is written back as it was), and
   reads the camera again to confirm. A camera without the switch says so. It uses the camera's own address and saved login,
   never the recorder's, and a refused login is not tried again. Recorders set Offline are not listed.
+  "Check all", "Turn on all" and "Turn off all" do the same for every camera in the list, one after the other, after a
+  confirmation. Cameras that cannot take the switch are skipped and counted, and a login that one camera refused is not sent to
+  another camera. (A recorder itself has no such switch over the network; its own screen menu button is not reachable.)
 
 ### Changed
 * **A recorder can be set "Offline" when its network is not connected.** The "Mute" box in the recorder monitoring window is now

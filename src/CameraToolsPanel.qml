@@ -453,6 +453,26 @@ ColumnLayout {
             rootPanel.ruleState = state;
             rootPanel.ruleMessage = message;
         }
+        function onRuleLinesAllProgress(name, done, total) {
+            rootWindow.showNotice("Rule lines on the stream\n" + done + " of " + total + ": " + name, "#00f5d4", 0);
+        }
+        function onRuleLinesAllFinished(summary, ok) {
+            rootWindow.showNotice(summary, ok ? "#00ff66" : "#ff3333", ok ? 10000 : 20000);
+            rootPanel.ruleState = "";
+            rootPanel.ruleMessage = "";
+        }
+    }
+
+    ConfirmDialog {
+        id: ruleAllConfirm
+        property bool turnOn: true
+        title: turnOn ? "Turn on rule lines for all cameras" : "Turn off rule lines for all cameras"
+        iconSource: "qrc:/images/icon-warning.svg"
+        message: (turnOn ? "Make every camera in the list draw its rule lines on the video stream?"
+                         : "Make every camera in the list stop drawing its rule lines on the video stream?")
+                 + "\n\n" + rootPanel.backupCameraModel.length + " camera(s) will be asked, one after the other, each on its own address. "
+                 + "A camera without the switch is skipped. Nothing else on a camera is changed."
+        onAccepted: HikvisionBackup.setRuleLinesAll(turnOn)
     }
 
     Frame {
@@ -574,6 +594,72 @@ ColumnLayout {
                         radius: 4
                     }
                     onClicked: HikvisionBackup.setRuleLines(rootPanel.backupCameraModel[ruleCameraCombo.currentIndex].ip, false)
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                Button {
+                    id: ruleAllCheckBtn
+                    text: "Check all"
+                    enabled: !HikvisionBackup.ruleBusy && rootPanel.backupCameraModel.length > 0
+                    contentItem: Text {
+                        text: ruleAllCheckBtn.text
+                        color: "white"
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 10
+                        rightPadding: 10
+                    }
+                    background: Rectangle {
+                        color: ruleAllCheckBtn.pressed ? "#303a46" : (ruleAllCheckBtn.hovered ? "#3a4550" : "#2a3540")
+                        border.color: "#00f5d4"
+                        radius: 4
+                    }
+                    onClicked: HikvisionBackup.checkRuleLinesAll()
+                }
+
+                Button {
+                    id: ruleAllOnBtn
+                    text: "Turn on all"
+                    enabled: !HikvisionBackup.ruleBusy && rootPanel.backupCameraModel.length > 0
+                    contentItem: Text {
+                        text: ruleAllOnBtn.text
+                        color: "white"
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 10
+                        rightPadding: 10
+                    }
+                    background: Rectangle {
+                        color: ruleAllOnBtn.pressed ? "#0a8f4a" : (ruleAllOnBtn.hovered ? "#14a24c" : "#118a41")
+                        radius: 4
+                    }
+                    onClicked: { ruleAllConfirm.turnOn = true; ruleAllConfirm.open() }
+                }
+
+                Button {
+                    id: ruleAllOffBtn
+                    text: "Turn off all"
+                    enabled: !HikvisionBackup.ruleBusy && rootPanel.backupCameraModel.length > 0
+                    contentItem: Text {
+                        text: ruleAllOffBtn.text
+                        color: "white"
+                        font.bold: true
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        leftPadding: 10
+                        rightPadding: 10
+                    }
+                    background: Rectangle {
+                        color: ruleAllOffBtn.pressed ? "#b01c18" : (ruleAllOffBtn.hovered ? "#e0241f" : "#c9201b")
+                        radius: 4
+                    }
+                    onClicked: { ruleAllConfirm.turnOn = false; ruleAllConfirm.open() }
                 }
             }
 

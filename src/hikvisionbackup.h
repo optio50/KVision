@@ -50,6 +50,10 @@ public:
     // changes only "enabled" and "streamType", and reads it back. The answer comes in ruleLinesResult().
     Q_INVOKABLE void checkRuleLines(const QString &ip);
     Q_INVOKABLE void setRuleLines(const QString &ip, bool on);
+    // The same for every camera of the loaded list, one after the other. A camera without the switch is skipped and
+    // counted; a login that one camera refused is not sent to another. The result comes in ruleLinesAllFinished().
+    Q_INVOKABLE void checkRuleLinesAll();
+    Q_INVOKABLE void setRuleLinesAll(bool on);
 
 signals:
     void camerasLoaded(const QVariantList &cameras);
@@ -60,6 +64,8 @@ signals:
     void ruleBusyChanged();
     // state is "on", "off", "unavailable" (the camera has no such switch) or "error"; message says what happened.
     void ruleLinesResult(const QString &ip, const QString &state, const QString &message);
+    void ruleLinesAllProgress(const QString &name, int done, int total);
+    void ruleLinesAllFinished(const QString &summary, bool ok);
 
 public:
     struct Cam {
@@ -77,6 +83,7 @@ public:
 
 private:
     void runRuleLines(const QString &ip, int mode);
+    void runRuleLinesAll(int mode);
     void startLoad(const QByteArray &json, const QString &configPath);
     void start(const QList<Cam> &cams, bool single, const QString &overrideUser, const QString &overridePass);
     static Result backupOne(const Cam &cam, const QString &dir);

@@ -16,6 +16,7 @@
 #include <QMetaObject>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QSet>
 #include <QSettings>
 #include <QThread>
 
@@ -89,6 +90,7 @@ int curlPutJson(const QString &url, const QString &user, const QString &pass, in
 struct RuleLinesAnswer {
     QString state;   // "on", "off", "unavailable" or "error"
     QString message;
+    bool refused = false; // the camera refused the login
 };
 
 // The camera's own switch for drawing the VCA rule lines and targets on the video stream (the web page's
@@ -110,8 +112,10 @@ RuleLinesAnswer ruleLinesOne(const HikvisionBackup::Cam &cam, int mode)
     auto explain = [&](int code) -> bool {
         if (code == 0)
             a.message = QStringLiteral("could not connect");
-        else if (code == 401)
+        else if (code == 401) {
+            a.refused = true;
             a.message = QStringLiteral("the camera refused the login (not tried again, so it cannot lock the camera)");
+        }
         else if (code == 404 || code == 403 || code == 501) {
             a.state = QStringLiteral("unavailable");
             a.message = QStringLiteral("this camera has no switch for rule lines on the stream");
@@ -442,6 +446,88 @@ void HikvisionBackup::runRuleLines(const QString &ip, int mode)
             m_ruleBusy = false;
             emit ruleBusyChanged();
             emit ruleLinesResult(found.ip, a.state, a.message);
+        }, Qt::QueuedConnection);
+    });
+    m_ruleWorker->start();
+}
+
+void HikvisionBackup::checkRuleLinesAll()
+{
+    runRuleLinesAll(0);
+}
+
+void HikvisionBackup::setRuleLinesAll(bool on)
+{
+    runRuleLinesAll(on ? 1 : 2);
+}
+
+// Goes through every camera of the loaded list, one after the other, one request set each. A camera that cannot take the
+// switch (no switch, no saved login, not reachable) is reported and skipped. A login the camera refused is never sent to
+// another camera either, so one wrong password cannot be tried again and again.
+void HikvisionBackup::runRuleLinesAll(int mode)
+{
+    if (m_ruleBusy)
+        return;
+    if (m_cams.isEmpty()) {
+        emit ruleLinesAllFinished(QStringLiteral("No cameras found. Refresh the list first."), false);
+        return;
+    }
+    m_ruleBusy = true;
+    emit ruleBusyChanged();
+    const QList<Cam> cams = m_cams;
+    if (m_ruleWorker) {
+        m_ruleWorker->wait();
+        m_ruleWorker->deleteLater();
+    }
+    m_ruleWorker = QThread::create([this, cams, mode]() {
+        int on = 0, off = 0, unchanged = 0, unavailable = 0, failed = 0;
+        QStringList problems;
+        QSet<QString> refusedLogins;
+        int n = 0;
+        for (const Cam &cam : cams) {
+            ++n;
+            const QString login = cam.user + QLatin1Char('\n') + cam.pass;
+            RuleLinesAnswer a;
+            if (refusedLogins.contains(login)) {
+                a.state = QStringLiteral("error");
+                a.message = QStringLiteral("skipped: this login was already refused by another camera");
+            } else {
+                QMetaObject::invokeMethod(this, [this, cam, n, total = int(cams.size())]() {
+                    emit ruleLinesAllProgress(cam.name, n, total);
+                }, Qt::QueuedConnection);
+                a = ruleLinesOne(cam, mode);
+                if (a.refused && !login.isEmpty())
+                    refusedLogins.insert(login);
+            }
+            qInfo() << "[RuleLines]" << cam.ip << cam.name << a.state << "-" << a.message;
+            if (a.state == QLatin1String("unavailable"))
+                ++unavailable;
+            else if (a.state == QLatin1String("error")) {
+                ++failed;
+                problems << QStringLiteral("%1: %2").arg(cam.name, a.message);
+            } else if (a.message.startsWith(QLatin1String("already")))
+                ++unchanged;
+            else if (a.state == QLatin1String("on"))
+                ++on;
+            else
+                ++off;
+        }
+        QString summary;
+        if (mode == 0) {
+            summary = QStringLiteral("Read %1 camera(s): %2 on or off as listed, %3 without the switch, %4 could not be read.")
+                          .arg(cams.size()).arg(on + off + unchanged).arg(unavailable).arg(failed);
+        } else {
+            summary = QStringLiteral("Rule lines %1: %2 camera(s) changed, %3 already that way, %4 without the switch, %5 failed.")
+                          .arg(mode == 1 ? QStringLiteral("turned on") : QStringLiteral("turned off"))
+                          .arg(mode == 1 ? on : off).arg(unchanged).arg(unavailable).arg(failed);
+        }
+        if (!problems.isEmpty())
+            summary += QStringLiteral("\n") + problems.join(QLatin1Char('\n'));
+        const bool ok = failed == 0;
+        QMetaObject::invokeMethod(this, [this, summary, ok]() {
+            m_ruleBusy = false;
+            emit ruleBusyChanged();
+            emit ruleLinesAllFinished(summary, ok);
         }, Qt::QueuedConnection);
     });
     m_ruleWorker->start();
