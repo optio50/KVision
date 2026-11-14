@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+* **The Recorders screen lines up.** Each recorder's row now keeps the connection status and the five buttons in the same
+  columns, however long its name is (a long name is cut short instead of pushing them along), and the three port boxes share
+  the row evenly. The rows no longer run past the edge of the boxes around them.
 * **Settings are split into sections.** The Settings page was one long column of nine boxes. It now has five tabs: *Detection*
   (the frame, where events come from, unlabelled motion, the log and pictures, and the setup check), *NVR* (status monitoring),
   *Cameras and display* (the right-click menu, on-screen badges, zoom and playback), *Audio*, and *General* (instances,

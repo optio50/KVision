@@ -424,6 +424,7 @@ ColumnLayout {
                 ColumnLayout {
                     spacing: 2
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
 
                     Text {
                         text: qsTr("LNG_00532")
@@ -454,6 +455,7 @@ ColumnLayout {
                 ColumnLayout {
                     spacing: 2
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
 
                     Text {
                         text: qsTr("LNG_00533")
@@ -484,6 +486,7 @@ ColumnLayout {
                 ColumnLayout {
                     spacing: 2
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
 
                     Text {
                         text: qsTr("LNG_00534")
@@ -519,6 +522,7 @@ ColumnLayout {
                 ColumnLayout {
                     spacing: 2
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
 
                     Text {
                         text: qsTr("LNG_00094")
@@ -545,6 +549,7 @@ ColumnLayout {
                 ColumnLayout {
                     spacing: 2
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
 
                     Text {
                         text: qsTr("LNG_00093")
@@ -576,6 +581,7 @@ ColumnLayout {
                 ColumnLayout {
                     spacing: 2
                     Layout.fillWidth: true
+                    Layout.preferredWidth: 1
 
                     Text {
                         text: "RTSP Transport"
@@ -780,6 +786,8 @@ ColumnLayout {
             model: rootPanel.recorders
             delegate: Rectangle {
                 Layout.fillWidth: true
+                Layout.minimumWidth: 0
+                Layout.preferredWidth: 1
                 height: 38
                 color: "#1c242c"
                 radius: 4
@@ -793,17 +801,23 @@ ColumnLayout {
                     ColumnLayout {
                         spacing: 1
                         Layout.fillWidth: true
+                        Layout.preferredWidth: 0
+                        Layout.minimumWidth: 0
 
                         Text {
                             text: modelData.name ? modelData.name + " (" + modelData.ip + ")" : modelData.ip
                             color: "white"
                             font.bold: true
                             font.pixelSize: 11
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
                         }
                         Text {
                             text: qsTr("LNG_00086").arg(modelData.cameras ? modelData.cameras.length : 0)
                             color: "#8898a6"
                             font.pixelSize: 9
+                            elide: Text.ElideRight
+                            Layout.fillWidth: true
                         }
                     }
 
@@ -811,7 +825,8 @@ ColumnLayout {
                         id: statusArea
                         Layout.alignment: Qt.AlignVCenter
                         Layout.rightMargin: 4
-                        implicitWidth: statusLayout.implicitWidth
+                        Layout.preferredWidth: 100
+                        implicitWidth: 100
                         implicitHeight: statusLayout.implicitHeight
                         hoverEnabled: true
 
@@ -849,6 +864,8 @@ ColumnLayout {
                         hoverEnabled: true
                         implicitWidth: 30
                         implicitHeight: 30
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 30
                         Layout.alignment: Qt.AlignVCenter
 
                         contentItem: Image {
@@ -885,6 +902,8 @@ ColumnLayout {
                         hoverEnabled: true
                         implicitWidth: 30
                         implicitHeight: 30
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 30
                         Layout.alignment: Qt.AlignVCenter
 
                         contentItem: Image {
@@ -917,6 +936,8 @@ ColumnLayout {
                         hoverEnabled: true
                         implicitWidth: 30
                         implicitHeight: 30
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 30
                         Layout.alignment: Qt.AlignVCenter
 
                         contentItem: Image {
@@ -951,6 +972,8 @@ ColumnLayout {
                         hoverEnabled: true
                         implicitWidth: 30
                         implicitHeight: 30
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 30
                         Layout.alignment: Qt.AlignVCenter
 
                         contentItem: Image {
@@ -1002,6 +1025,8 @@ ColumnLayout {
                         hoverEnabled: true
                         implicitWidth: 30
                         implicitHeight: 30
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 30
                         Layout.alignment: Qt.AlignVCenter
 
                         contentItem: Image {
