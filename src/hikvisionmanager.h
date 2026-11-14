@@ -57,8 +57,8 @@ public:
     static QHash<int, QVariantMap> fetchProxyChannels(const QString &nvrIp, int httpPort, const QString &username, const QString &password);
 
     // Unstick a camera whose LAN event-push dispatcher has wedged (accepts connections,
-    // heartbeats, but delivers zero detection events). Toggles the "center" (Surveillance
-    // Center / LAN push) notification method off and back on for every event trigger of the
+    // heartbeats, but delivers zero detection events). Toggles "Notify Surveillance
+    // Center" (the LAN push) notification method off and back on for every event trigger of the
     // given channel (motion, line crossing, intrusion, ...), restoring the original config.
     // Returns "ok (N trigger(s) reset)" or an error/warning string.
     // Blocking worker; emits unstickProgress() while it runs. Use the async variant from the UI.

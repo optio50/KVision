@@ -160,8 +160,8 @@ static QByteArray putUrl(const QString &ip, int port, const QString &username, c
 }
 
 // Unstick a camera whose LAN event-push dispatcher has wedged. For every event trigger of the
-// given channel (motion, line crossing, intrusion, tamper, ...) that has the "center"
-// (Surveillance Center / LAN push) notification enabled, toggles that notification off and back
+// given channel (motion, line crossing, intrusion, tamper, ...) that has "Notify Surveillance
+// Center" (the LAN push) enabled, toggles that notification off and back
 // on, restoring the original config. Works for standalone cameras and NVR channels.
 // Returns "ok..." or an error/warning string.
 QString HikvisionManager::unstickEventDetection(const QString &ip, int httpPort, const QString &username,
@@ -217,7 +217,7 @@ QString HikvisionManager::unstickEventDetection(const QString &ip, int httpPort,
         const QString path = QStringLiteral("/ISAPI/Event/triggers/") + id;
         emit unstickProgress(label, QStringLiteral("Checking %1...").arg(id));
 
-        // 2. Read the trigger's current config; skip triggers that don't push to the center
+        // 2. Read the trigger's current config; skip triggers that don't have Notify Surveillance Center
         const QByteArray original = fetchUrl(cleanIp, port, username, password, path);
         if (original.isEmpty())
             continue;
@@ -226,19 +226,19 @@ QString HikvisionManager::unstickEventDetection(const QString &ip, int httpPort,
             continue;
         centerOffXml.remove(centerBlock);
 
-        // 3. PUT center OFF
+        // 3. PUT Notify Surveillance Center OFF
         emit unstickProgress(label, QStringLiteral("Resetting %1...").arg(id));
         const QByteArray putOff = putUrl(cleanIp, port, username, password, path, centerOffXml.toUtf8());
         if (putOff.isEmpty() || !accepted(putOff)) {
-            problems << QStringLiteral("%1: center OFF %2").arg(id, putOff.isEmpty() ? QStringLiteral("failed (no response)")
+            problems << QStringLiteral("%1: Notify Surveillance Center OFF %2").arg(id, putOff.isEmpty() ? QStringLiteral("failed (no response)")
                                                                                    : QStringLiteral("rejected"));
             continue;
         }
 
-        // 4. PUT original back (center ON - restores the user's config)
+        // 4. PUT original back (Notify Surveillance Center ON - restores the user's config)
         const QByteArray putOn = putUrl(cleanIp, port, username, password, path, original);
         if (putOn.isEmpty() || !accepted(putOn)) {
-            problems << QStringLiteral("%1: center left OFF, restore failed - run again").arg(id);
+            problems << QStringLiteral("%1: Notify Surveillance Center left OFF, restore failed - run again").arg(id);
             continue;
         }
         ++fixed;
@@ -247,7 +247,7 @@ QString HikvisionManager::unstickEventDetection(const QString &ip, int httpPort,
     if (!problems.isEmpty())
         return QStringLiteral("warning: ") + problems.join(QStringLiteral("; "));
     if (fixed == 0)
-        return QStringLiteral("error: no event triggers with center push found for channel %1 (check credentials/connectivity)").arg(channel);
+        return QStringLiteral("error: no event triggers with Notify Surveillance Center found for channel %1 (check credentials/connectivity)").arg(channel);
     return QStringLiteral("ok (%1 trigger(s) reset)").arg(fixed);
 }
 

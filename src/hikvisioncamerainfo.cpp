@@ -495,7 +495,7 @@ void videoSections(const Cam &cam, QVariantList &out)
 }
 
 namespace {
-// What an event does on the camera itself: its own actions (record, beep, centre, light).
+// What an event does on the camera itself: its own actions (record, beep, Notify Surveillance Center, light).
 QString triggerActions(const Cam &cam, const QString &id)
 {
     QByteArray b;
