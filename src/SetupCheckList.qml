@@ -19,7 +19,7 @@ ListView {
     ScrollBar.vertical: ScrollBar {}
 
     function stateColor(state) {
-        return state === "ok" ? "#2ecc71" : (state === "problem" ? "#ff5a36" : (state === "note" || state === "warning" ? "#e0a040" : (state === "off" ? "#667788" : "#8899aa")));
+        return state === "ok" ? "#14a24c" : (state === "problem" ? "#e0241f" : (state === "note" || state === "warning" ? "#e0a040" : (state === "off" ? "#667788" : "#8899aa")));
     }
 
     function stateMark(state) {
@@ -35,7 +35,7 @@ ListView {
         color: isFocus ? "#1c2f44" : "#141b22"
         radius: 4
         border.width: isFocus ? 2 : 1
-        border.color: isFocus ? "#4a9eff" : (modelData.problems > 0 ? "#5a3a32" : (modelData.warnings > 0 ? "#5a4a28" : "#1f3a2c"))
+        border.color: isFocus ? "#4a9eff" : (modelData.problems > 0 ? "#7a2a26" : (modelData.warnings > 0 ? "#5a4a28" : "#1f5a38"))
 
         MouseArea {
             anchors.left: parent.left
@@ -55,7 +55,7 @@ ListView {
             Rectangle {
                 width: 16; height: 16; radius: 8
                 anchors.verticalCenter: parent.verticalCenter
-                color: modelData.problems > 0 ? "#ff5a36" : (modelData.warnings > 0 ? "#e0a040" : "#2ecc71")
+                color: modelData.problems > 0 ? "#e0241f" : (modelData.warnings > 0 ? "#e0a040" : "#14a24c")
             }
             Text {
                 text: modelData.name
@@ -70,7 +70,7 @@ ListView {
             }
             Text {
                 text: modelData.summary
-                color: modelData.problems > 0 ? "#ff8a6a" : (modelData.warnings > 0 ? "#e8b86a" : "#6fd39a"); font.pixelSize: 12
+                color: modelData.problems > 0 ? "#f2574f" : (modelData.warnings > 0 ? "#e8b86a" : "#3dbb78"); font.pixelSize: 12
                 anchors.verticalCenter: parent.verticalCenter
             }
             Text {
@@ -158,7 +158,7 @@ ListView {
                     Text { text: modelData.label; color: "#dddddd"; font.pixelSize: 12; width: 170; wrapMode: Text.Wrap }
                     Text {
                         text: modelData.detail
-                        color: modelData.state === "problem" ? "#ff8a6a" : (modelData.state === "warning" ? "#e8b86a" : "#8899aa")
+                        color: modelData.state === "problem" ? "#f2574f" : (modelData.state === "warning" ? "#e8b86a" : "#8899aa")
                         font.pixelSize: 12
                         width: body.width - 14 - 170 - 16
                         wrapMode: Text.Wrap

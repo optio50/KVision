@@ -60,7 +60,7 @@ Window {
     }
 
     function stateColor(state) {
-        return state === "ok" ? "#2ecc71" : (state === "problem" ? "#ff5a36" : (state === "note" || state === "warning" ? "#e0a040" : (state === "off" ? "#667788" : "#8899aa")));
+        return state === "ok" ? "#14a24c" : (state === "problem" ? "#e0241f" : (state === "note" || state === "warning" ? "#e0a040" : (state === "off" ? "#667788" : "#8899aa")));
     }
 
     function stateMark(state) {
