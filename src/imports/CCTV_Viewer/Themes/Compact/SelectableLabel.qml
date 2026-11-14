@@ -63,6 +63,9 @@ TextEdit {
     MouseArea {
         id: area
         anchors.fill: parent
+        // Once a press starts here, no scrolling view behind may take the mouse over, however far or fast the
+        // drag goes. Without this a drag is cut short and only part of a line, or a single word, gets selected.
+        preventStealing: true
         anchors.leftMargin: label.leftPadding
         anchors.rightMargin: label.rightPadding
         acceptedButtons: Qt.LeftButton | Qt.RightButton
