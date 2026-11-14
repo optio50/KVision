@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+* **The setup check can judge event pictures straight after start-up.** The "Event pictures" row (do the pictures carry the
+  rule and target frames?) used to be learned only from a live event, so it read "Not known yet" after every restart. It now
+  also looks at the newest pictures already saved for the camera and says which one it used ("..., from a saved picture").
+  A camera whose events name no rectangle (a line crossing with only a line, for example) still reads "Not known yet".
 * **Dates are written as "13 Nov 2026".** The Changelog screen, the Download window (the date boxes, which now take
   typing such as "9 Nov 2026"), the Playback window, the Detection events list (no leading zero on the day now), the setup
   check results, the backup list, the recorder status window and every date in the documentation use one form: day,

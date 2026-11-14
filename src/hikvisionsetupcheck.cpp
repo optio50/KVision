@@ -526,7 +526,13 @@ void HikvisionSetupCheck::finish(const JobPtr &j)
     // off they are clean photos, which show less when an alarm is looked at later.
     if (m_events && !j->smartSet.isEmpty() && !j->camIp.isEmpty()) {
         const QString label = tr("Event pictures");
-        const QVariantMap pf = m_events->pictureFrames(j->camIp);
+        QVariantMap pf = m_events->pictureFrames(j->camIp);
+        if (pf.value(QStringLiteral("state")).toString().isEmpty()) {
+            // Nothing seen live since KVision started: judge the newest pictures already saved for this camera.
+            pf = m_events->savedPictureFrames(j->camIp, j->configDir);
+            if (!pf.isEmpty())
+                pf.insert(QStringLiteral("time"), pf.value(QStringLiteral("time")).toString() + tr(", from a saved picture"));
+        }
         const QString state = pf.value(QStringLiteral("state")).toString();
         if (state == QLatin1String("on"))
             add(j, QStringLiteral("pictures"), label, QStringLiteral("ok"), tr("show the rule and target frames (seen at %1)").arg(pf.value(QStringLiteral("time")).toString()));
@@ -535,7 +541,7 @@ void HikvisionSetupCheck::finish(const JobPtr &j)
                 tr("The last picture (%1) was a clean photo with no frame on the target. On the camera's page, under Configuration > Event > Smart Event > Metadata (or the rule's settings), tick \"Overlay Rule Frame and Target Frame on Background Picture\".").arg(pf.value(QStringLiteral("time")).toString()));
         else
             add(j, QStringLiteral("pictures"), label, QStringLiteral("note"),
-                tr("Not known yet. It is learned from the next line or area event KVision receives from this camera, then check again."));
+                tr("Not known yet. No saved picture of a line crossing, intrusion or region event with a rule frame position was found for this camera. It is learned from the next such event KVision receives, then check again."));
     }
     int problems = 0;
     for (const QVariant &v : j->items)

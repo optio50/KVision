@@ -663,6 +663,64 @@ QVariantMap HikvisionEvents::pictureFrames(const QString &address) const
     return m;
 }
 
+QVariantMap HikvisionEvents::savedPictureFrames(const QString &address, const QString &configDir) const
+{
+    QVariantMap m;
+    if (address.isEmpty() || configDir.isEmpty())
+        return m;
+    QFile f(configDir + QStringLiteral("/logs/Detection.log"));
+    if (!f.open(QIODevice::ReadOnly))
+        return m;
+    // Only the end of the log is needed: the newest pictures.
+    const qint64 tail = 4 * 1024 * 1024;
+    if (f.size() > tail)
+        f.seek(f.size() - tail);
+    const QList<QByteArray> lines = f.readAll().split('\n');
+    static const QRegularExpression boxRx(QStringLiteral("\\bbox ([0-9.]+)/([0-9.]+)/([0-9.]+)/([0-9.]+)"));
+    static const QRegularExpression recRx(QStringLiteral("\\brecorder \\S+ ch (\\d+)"));
+    const QString needle = QStringLiteral(", ") + address + QStringLiteral(", ");
+    int judged = 0;
+    for (int i = lines.size() - 1; i >= 0 && judged < 40; --i) {
+        const QString line = QString::fromUtf8(lines.at(i));
+        if (!line.contains(needle))
+            continue;
+        const QStringList parts = line.split(QStringLiteral(", "));
+        if (parts.size() < 5)
+            continue;
+        const QString kind = parts.at(2);
+        if (kind == QLatin1String("Motion") || kind == QLatin1String("Tracking"))
+            continue; // plain motion has no rule frame, and Tracking shows the camera's own box
+        const QRegularExpressionMatch bm = boxRx.match(line);
+        if (!bm.hasMatch())
+            continue; // nothing to look for
+        const QDateTime when = QLocale::c().toDateTime(parts.at(0), QStringLiteral("dd MMM yyyy HH:mm:ss"));
+        if (!when.isValid())
+            continue;
+        const qint64 secs = when.toMSecsSinceEpoch() / 1000;
+        const QRegularExpressionMatch rm = recRx.match(line);
+        const int channel = rm.hasMatch() ? rm.captured(1).toInt() : 0;
+        const QString tries[4] = { picturePath(configDir, address, secs, channel, kind), picturePath(configDir, address, secs, 0, kind),
+                                   picturePath(configDir, address, secs, channel), picturePath(configDir, address, secs) };
+        QString pic;
+        for (const QString &t : tries) {
+            if (QFile::exists(t)) {
+                pic = t;
+                break;
+            }
+        }
+        if (pic.isEmpty())
+            continue;
+        ++judged;
+        const int v = pictureHasFrame(pic, bm.captured(1).toDouble(), bm.captured(2).toDouble(), bm.captured(3).toDouble(), bm.captured(4).toDouble());
+        if (v < 0)
+            continue;
+        m.insert(QStringLiteral("state"), v == 1 ? QStringLiteral("on") : QStringLiteral("off"));
+        m.insert(QStringLiteral("time"), QLocale::c().toString(when, QStringLiteral("d MMM yyyy HH:mm:ss")));
+        return m;
+    }
+    return m;
+}
+
 void HikvisionEvents::onFinished(const QString &ip, QNetworkReply *reply)
 {
     Conn *c = m_conns.value(ip, nullptr);

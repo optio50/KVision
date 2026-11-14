@@ -106,6 +106,10 @@ public:
     // target frame, "off" if the camera sent a clean picture, empty if none has been seen since KVision started)
     // and time. address is the camera's own address. The picture is only looked at, never kept.
     Q_INVOKABLE QVariantMap pictureFrames(const QString &address) const;
+    // The same answer taken from the newest pictures already saved for the camera (found through the detection log, so
+    // it works straight after KVision starts): state "on" or "off" as above, and time as a full date and time. Only line,
+    // area and intrusion events that name a rectangle can be judged. Empty if none of the saved pictures can be.
+    Q_INVOKABLE QVariantMap savedPictureFrames(const QString &address, const QString &configDir) const;
     // The saved picture for a camera address at a moment (seconds since 1970), or an empty string if there is none.
     // The detection log entries carry this as "picture" already; this is for anything else that wants one.
     // A camera with more than one lens (one address, several channels) keeps each lens's pictures apart: lens is the
