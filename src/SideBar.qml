@@ -2277,7 +2277,7 @@ FocusScope {
                     x: 24
                     width: page4ScrollView.width - 48
                     spacing: 20
-                    property int section: 0 // the shown settings section: Detection, NVR, Cameras and display, Audio, General
+                    property int section: 0 // the shown settings section: Detection, NVR, Cameras and display, Audio, General, Camera Tools
 
                     Text {
                         text: qsTr("LNG_00274")
@@ -2291,7 +2291,7 @@ FocusScope {
                     Row {
                         spacing: 6
                         Repeater {
-                            model: [qsTr("Detection"), qsTr("NVR"), qsTr("Cameras and display"), qsTr("Audio"), qsTr("General")]
+                            model: [qsTr("Detection"), qsTr("NVR"), qsTr("Cameras and display"), qsTr("Audio"), qsTr("General"), qsTr("Camera Tools")]
                             delegate: Rectangle {
                                 readonly property bool selected: page4Layout.section === index
                                 width: tabLabel.implicitWidth + 32
@@ -2659,83 +2659,6 @@ FocusScope {
                                     model: [100, 500, 1000]
                                     currentIndex: Math.max(0, model.indexOf(generalSettings.picturesPerCamera))
                                     onActivated: generalSettings.picturesPerCamera = model[index]
-                                }
-
-                            }
-                        }
-
-                        GroupBox {
-                            title: qsTr("Setup check")
-                            Layout.fillWidth: true
-
-                            background: Rectangle {
-                                color: "#141a21"
-                                border.color: "#2a3540"
-                                border.width: 1
-                                radius: 8
-                            }
-                            label: Text {
-                                text: parent.title
-                                color: "#00f5d4"
-                                font.bold: true
-                                font.pixelSize: 12
-                            }
-
-                            ColumnLayout {
-                                anchors.fill: parent
-                                spacing: 8
-
-                                SelectableLabel {
-                                    text: qsTr("Is each camera set up to report? A read-only check of the camera's settings (metadata, zones, rules, the recorder's centre action). It changes nothing.")
-                                    textColor: "#8898a6"
-                                    font.pixelSize: 11
-                                    wrapMode: TextEdit.Wrap
-                                    Layout.fillWidth: true
-                                }
-
-                                CheckBox {
-                                    text: qsTr("Check every detection camera once when KVision starts")
-                                    checked: generalSettings.checkSetupAtStart
-                                    onToggled: generalSettings.checkSetupAtStart = checked
-                                    enabled: generalSettings.showTargetIndicator
-                                    Layout.fillWidth: true
-                                }
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 8
-
-                                    Button {
-                                        text: qsTr("Check now")
-                                        enabled: generalSettings.showTargetIndicator && HikvisionSetupCheck.pending === 0
-                                        onClicked: {
-                                            rootWindow.checkDetectionSetup("");
-                                            var win = setupCheckComponent.createObject(rootWindow, { "focusKey": "" });
-                                            if (win)
-                                                win.show();
-                                        }
-                                    }
-
-                                    Button {
-                                        text: qsTr("Show results")
-                                        onClicked: {
-                                            var win = setupCheckComponent.createObject(rootWindow, { "focusKey": "" });
-                                            if (win)
-                                                win.show();
-                                        }
-                                    }
-
-                                    Text {
-                                        visible: HikvisionSetupCheck.pending > 0
-                                        text: qsTr("Checking... %1 left").arg(HikvisionSetupCheck.pending)
-                                        color: "#8899aa"
-                                        font.pixelSize: 11
-                                    }
-                                }
-
-                                Component {
-                                    id: setupCheckComponent
-                                    SetupCheckWindow {}
                                 }
 
                             }
@@ -3734,6 +3657,95 @@ FocusScope {
                                             }
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        id: page4Section5
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: 980
+                        spacing: 20
+                        visible: page4Layout.section === 5
+
+                        CameraToolsPanel {
+                            Layout.fillWidth: true
+
+                            GroupBox {
+                                title: qsTr("Setup check")
+                                Layout.fillWidth: true
+
+                                background: Rectangle {
+                                    color: "#141a21"
+                                    border.color: "#2a3540"
+                                    border.width: 1
+                                    radius: 8
+                                }
+                                label: Text {
+                                    text: parent.title
+                                    color: "#00f5d4"
+                                    font.bold: true
+                                    font.pixelSize: 12
+                                }
+
+                                ColumnLayout {
+                                    anchors.fill: parent
+                                    spacing: 8
+
+                                    SelectableLabel {
+                                        text: qsTr("Is each camera set up to report? A read-only check of the camera's settings (metadata, zones, rules, the recorder's centre action). It changes nothing.")
+                                        textColor: "#8898a6"
+                                        font.pixelSize: 11
+                                        wrapMode: TextEdit.Wrap
+                                        Layout.fillWidth: true
+                                    }
+
+                                    CheckBox {
+                                        text: qsTr("Check every detection camera once when KVision starts")
+                                        checked: generalSettings.checkSetupAtStart
+                                        onToggled: generalSettings.checkSetupAtStart = checked
+                                        enabled: generalSettings.showTargetIndicator
+                                        Layout.fillWidth: true
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 8
+
+                                        Button {
+                                            text: qsTr("Check now")
+                                            enabled: generalSettings.showTargetIndicator && HikvisionSetupCheck.pending === 0
+                                            onClicked: {
+                                                rootWindow.checkDetectionSetup("");
+                                                var win = setupCheckComponent.createObject(rootWindow, { "focusKey": "" });
+                                                if (win)
+                                                    win.show();
+                                            }
+                                        }
+
+                                        Button {
+                                            text: qsTr("Show results")
+                                            onClicked: {
+                                                var win = setupCheckComponent.createObject(rootWindow, { "focusKey": "" });
+                                                if (win)
+                                                    win.show();
+                                            }
+                                        }
+
+                                        Text {
+                                            visible: HikvisionSetupCheck.pending > 0
+                                            text: qsTr("Checking... %1 left").arg(HikvisionSetupCheck.pending)
+                                            color: "#8899aa"
+                                            font.pixelSize: 11
+                                        }
+                                    }
+
+                                    Component {
+                                        id: setupCheckComponent
+                                        SetupCheckWindow {}
+                                    }
+
                                 }
                             }
                         }

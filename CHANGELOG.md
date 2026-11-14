@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+* **A new "Camera Tools" tab in Settings.** Camera backup (with restore and the read-only camera settings window), the Setup
+  check and Troubleshooting (unstick event detection) are together on one page, in that order. They moved from the NVR tab
+  (backup and troubleshooting) and the Detection tab (setup check). Nothing about how they work has changed.
 * **The Recorders screen lines up.** Each recorder's row now keeps the connection status and the five buttons in the same
   columns, however long its name is (a long name is cut short instead of pushing them along), and the three port boxes share
   the row evenly. The rows no longer run past the edge of the boxes around them.

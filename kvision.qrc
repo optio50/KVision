@@ -50,6 +50,7 @@
         <file alias="Compact/ToolTip.qml">src/imports/CCTV_Viewer/Themes/Compact/ToolTip.qml</file>
         <file>images/github.svg</file>
         <file>src/NvrSettingsPanel.qml</file>
+        <file>src/CameraToolsPanel.qml</file>
         <file>src/NvrCamerasWindow.qml</file>
         <file>src/DetectionLogWindow.qml</file>
         <file>src/CameraSettingsWindow.qml</file>
