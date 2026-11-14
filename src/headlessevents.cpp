@@ -80,6 +80,7 @@ void writeStatus(const QString &configDir, const QString &state, HikvisionEvents
                                  {QStringLiteral("unsupported"), m.value(QStringLiteral("unsupported")).toBool()}});
     }
     QJsonObject o{{QStringLiteral("state"), state},
+                  {QStringLiteral("version"), QStringLiteral(APP_VERSION)},
                   {QStringLiteral("pid"), double(::getpid())},
                   {QStringLiteral("updatedMs"), double(now)},
                   {QStringLiteral("watched"), logger.watchedCount()},
@@ -118,7 +119,7 @@ int runHeadlessEvents(int argc, char *argv[])
             configPath = QString::fromLocal8Bit(argv[i + 1]);
     }
     const QString configDir = QDir::fromNativeSeparators(QFileInfo(configPath).absolutePath());
-    qInfo() << "[Headless] KVision background detection logger, config" << configPath;
+    qInfo() << "[Headless] KVision background detection logger, version" << APP_VERSION << "config" << configPath;
 
     HikvisionEvents events;
     HikvisionEventLogger logger(&events);
@@ -127,6 +128,7 @@ int runHeadlessEvents(int argc, char *argv[])
     QString state = QStringLiteral("starting");
     int tick = 0;
     bool started = false;
+    QByteArray lastStatusLine;
 
     auto step = [&]() {
         ++tick;
@@ -151,10 +153,16 @@ int runHeadlessEvents(int argc, char *argv[])
         current = s;
 
         writeStatus(configDir, state, events, logger);
+        // The "Status:" line of systemctl --user status: which build is running, and what it is doing.
+        const QByteArray statusLine = (QStringLiteral("STATUS=KVision ") + QStringLiteral(APP_VERSION) + QStringLiteral(" - ") + state
+                                       + QStringLiteral(", watching ") + QString::number(logger.watchedCount()) + QStringLiteral(" camera(s)")).toUtf8();
         if (!started) {
             started = true;
-            EventService::notifySystemd("READY=1");
+            EventService::notifySystemd(QByteArray("READY=1\n" + statusLine).constData());
+        } else if (statusLine != lastStatusLine) {
+            EventService::notifySystemd(statusLine.constData());
         }
+        lastStatusLine = statusLine;
         if (tick % kWatchdogEveryTicks == 0)
             EventService::notifySystemd("WATCHDOG=1");
     };

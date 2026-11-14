@@ -32,6 +32,13 @@ execute_process(COMMAND git -C ${CMAKE_SOURCE_DIR} log --pretty=format:%h -n 1
     ERROR_QUIET
 )
 
+# Configure again whenever a commit is made, so the commit shown in the version is the one that was built.
+foreach(git_file HEAD logs/HEAD)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/.git/${git_file}")
+        set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_SOURCE_DIR}/.git/${git_file}")
+    endif()
+endforeach()
+
 if(NOT DEFINED PACKAGER)
     if ("${GIT_COMMIT}" STREQUAL "")
         set(PACKAGER "SRC")

@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+* **The background logger shows its version.** `systemctl --user status kvision-events` now has a `Status:` line such as
+  `KVision 3.6.0 GIT.8134301 (x86_64) - logging, watching 24 camera(s)`, the journal's first line says the version, and
+  `logs/EventLogger.status` has a `version` field. The commit in the version now follows each new commit, where it
+  used to stay at the one from the last full configure.
 * **The setup check can judge event pictures straight after start-up.** The "Event pictures" row (do the pictures carry the
   rule and target frames?) used to be learned only from a live event, so it read "Not known yet" after every restart. It now
   also looks at the newest pictures already saved for the camera and says which one it used ("..., from a saved picture").
