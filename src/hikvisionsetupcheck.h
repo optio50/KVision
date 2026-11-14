@@ -86,6 +86,7 @@ private:
     void stepNvrSmart(const JobPtr &j, int index);
     void stepSmartDone(const JobPtr &j);
     void stepSmartRead(const JobPtr &j, int index);
+    void stepSizeLimits(const JobPtr &j, int index, const QStringList &zones);
     void stepOnline(const JobPtr &j);
     void stepTriggers(const JobPtr &j, int index);
 

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **The setup check warns about target size limits.** Each smart-event zone on a camera has a "Max Target Size" and a "Min Target
+  Size" box on the camera's rule page, kept in the camera apart from the zone. A Max box shrunk by accident while drawing makes
+  the camera ignore every person bigger than it, and nothing says so. For line crossing, intrusion, region entrance and region
+  exit, the setup check now reads those boxes for each zone that has a line or area drawn and is switched on. It warns, in
+  words, when a Max box is under 70% of the picture's height or width (for example "Zone 1 ignores targets taller than 14% of
+  the picture"), or a Min box is over 5%. It only reads the camera. A camera that does not offer the setting is not mentioned.
+
+### Added
 * **Rule lines on the video stream can be switched on and off from Camera Tools.** A new "Rule lines on the video stream" box
   picks a camera and has Check, Turn on and Turn off. It is the camera's own switch (web page: VCA > Smart Event > General
   Settings > Metadata > Enable Stream Rule and Sub-Stream, which work as a pair), so the camera draws its line, intrusion and

@@ -459,11 +459,18 @@ void HikvisionSetupCheck::stepSmartRead(const JobPtr &j, int index)
                                         QRegularExpression::DotMatchesEverythingOption);
         const QRegularExpression ptRx(QStringLiteral("<positionX>(\\d+)</positionX>\\s*<positionY>(\\d+)</positionY>"));
         auto it = itemRx.globalMatch(body);
-        while (it.hasNext() && !drawn) {
-            auto p = ptRx.globalMatch(it.next().captured(0));
+        QStringList drawnZones; // ids of the zones that have a line or area drawn
+        const QRegularExpression zoneIdRx(QStringLiteral("<id>(\\d+)</id>"));
+        while (it.hasNext()) {
+            const QString item = it.next().captured(0);
+            auto p = ptRx.globalMatch(item);
             while (p.hasNext()) {
                 const auto m = p.next();
-                if (m.captured(1) != QLatin1String("0") || m.captured(2) != QLatin1String("0")) { drawn = true; break; }
+                if (m.captured(1) != QLatin1String("0") || m.captured(2) != QLatin1String("0")) {
+                    drawn = true;
+                    drawnZones << zoneIdRx.match(item).captured(1);
+                    break;
+                }
             }
         }
         if (drawn)
@@ -482,6 +489,76 @@ void HikvisionSetupCheck::stepSmartRead(const JobPtr &j, int index)
             add(j, id, label, QStringLiteral("problem"), tr("A line or area is drawn but the feature is switched off. Switch it on and save."));
         else
             add(j, id, label, QStringLiteral("problem"), tr("Switched on but no line or area is drawn, so it never fires."));
+        if (drawn && overall) {
+            stepSizeLimits(j, index, drawnZones); // then carries on with the next kind
+            return;
+        }
+        stepSmart(j, index + 1);
+    });
+}
+
+// The smallest and largest target a zone accepts (the "Max" and "Min" boxes drawn on the camera's rule page). They are
+// kept in the camera apart from the zone, and a box shrunk by accident while drawing makes the camera ignore every target
+// bigger (or smaller) than it, without any message. Only zones that are in use are looked at, and only a limit that would
+// ignore a person is reported. Values run 0..1000 across the picture.
+void HikvisionSetupCheck::stepSizeLimits(const JobPtr &j, int index, const QStringList &zones)
+{
+    const QString path = QStringLiteral("/ISAPI/Smart/channels/%1/calibrations/%2").arg(j->camId).arg(QLatin1String(kSmartPath[index]));
+    get(j->camIp, j->camPort, path, j->user, j->pass, [this, j, index, zones](int code, const QString &body) {
+        if (code == 200) {
+            const QRegularExpression calRx(QStringLiteral("<SmartCalibration[ >].*?</SmartCalibration>"), QRegularExpression::DotMatchesEverythingOption);
+            const QRegularExpression idRx(QStringLiteral("<ID>(\\d+)</ID>"));
+            const QRegularExpression ptRx(QStringLiteral("<positionX>(\\d+)</positionX>\\s*<positionY>(\\d+)</positionY>"));
+            // Width and height of a box, or 0 when it is not set.
+            auto sizeOf = [&](const QString &block, const char *tag, int *w, int *h) {
+                *w = *h = 0;
+                const QRegularExpression boxRx(QStringLiteral("<%1>(.*?)</%1>").arg(QLatin1String(tag)), QRegularExpression::DotMatchesEverythingOption);
+                const QRegularExpressionMatch bm = boxRx.match(block);
+                if (!bm.hasMatch())
+                    return;
+                int x0 = 1 << 20, x1 = -1, y0 = 1 << 20, y1 = -1;
+                auto p = ptRx.globalMatch(bm.captured(1));
+                while (p.hasNext()) {
+                    const auto m = p.next();
+                    const int x = m.captured(1).toInt(), y = m.captured(2).toInt();
+                    x0 = qMin(x0, x); x1 = qMax(x1, x);
+                    y0 = qMin(y0, y); y1 = qMax(y1, y);
+                }
+                if (x1 > x0 && y1 > y0) {
+                    *w = x1 - x0;
+                    *h = y1 - y0;
+                }
+            };
+            QStringList notes;
+            auto cal = calRx.globalMatch(body);
+            while (cal.hasNext()) {
+                const QString block = cal.next().captured(0);
+                const QString zone = idRx.match(block).captured(1);
+                if (!zones.contains(zone))
+                    continue;
+                int w = 0, h = 0;
+                sizeOf(block, "MaxTargetSize", &w, &h);
+                if (w > 0 && h > 0) {
+                    if (h < 700)
+                        notes << tr("Zone %1 ignores targets taller than %2% of the picture.").arg(zone).arg(qRound(h / 10.0));
+                    if (w < 700)
+                        notes << tr("Zone %1 ignores targets wider than %2% of the picture.").arg(zone).arg(qRound(w / 10.0));
+                }
+                sizeOf(block, "MinTargetSize", &w, &h);
+                if (w > 0 && h > 0) {
+                    if (h > 50)
+                        notes << tr("Zone %1 ignores targets shorter than %2% of the picture.").arg(zone).arg(qRound(h / 10.0));
+                    if (w > 50)
+                        notes << tr("Zone %1 ignores targets narrower than %2% of the picture.").arg(zone).arg(qRound(w / 10.0));
+                }
+            }
+            if (!notes.isEmpty())
+                add(j, QStringLiteral("size%1").arg(index), tr("%1 target size limits").arg(tr(kSmartLabel[index])), QStringLiteral("warning"),
+                    notes.join(QLatin1Char(' ')) + QLatin1Char(' ')
+                        + tr("A person outside that size is never reported. Check the Max Target Size and Min Target Size boxes on the camera's rule page; "
+                             "a box is easily shrunk by accident while drawing a line or area."));
+        }
+        // A camera that does not offer these limits (HTTP 403 or 404) is fine: say nothing.
         stepSmart(j, index + 1);
     });
 }
