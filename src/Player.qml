@@ -495,6 +495,10 @@ FocusScope {
     }
 
     function updateSource() {
+        // Learn the recorder address first: the Offline check below needs it, and a tile that has not read its address yet
+        // would look online and ask the (unreachable) recorder a question that blocks the whole window for seconds.
+        if (root.visible && !root.isQuickPlayback)
+            parseUri(source);
         if (!root.visible || root.isQuickPlayback || root.recorderOffline) {
             autoReconnectTimer.stop();
             qmlAvPlayer1.source = "";
@@ -509,8 +513,6 @@ FocusScope {
         var newUrl = "";
         var newCameraId = "";
 
-        parseUri(source);
-
         if (root.isQuickPlayback) {
             newUrl = "";
             newCameraId = "";
@@ -523,7 +525,8 @@ FocusScope {
             var targetRtspPort = rtspPort || 554;
             directCameraIp = "";
             if (streamIndex > 2) {
-                var proxy = HikvisionManager.proxyCamera(recorderIp, httpPort || 80, username, password, channelId);
+                // The cached lookup remembers a failure for 30 seconds, so an unreachable recorder costs one wait, not one per tile.
+                var proxy = HikvisionManager.proxyCameraCached(recorderIp, httpPort || 80, username, password, channelId);
                 if (proxy && proxy.ip && proxy.ip !== recorderIp) {
                     targetIp = proxy.ip;
                     targetChannel = proxy.channel || 1;
