@@ -525,23 +525,26 @@ void HikvisionSetupCheck::finish(const JobPtr &j)
     // The pictures sent with line and area events: with the camera's "overlay rule frame and target frame" switch
     // off they are clean photos, which show less when an alarm is looked at later.
     if (m_events && !j->smartSet.isEmpty() && !j->camIp.isEmpty()) {
-        const QString label = tr("Event pictures");
+        const QString label = tr("Camera outlines the target in its pictures");
         QVariantMap pf = m_events->pictureFrames(j->camIp);
+        bool fromSaved = false;
         if (pf.value(QStringLiteral("state")).toString().isEmpty()) {
             // Nothing seen live since KVision started: judge the newest pictures already saved for this camera.
             pf = m_events->savedPictureFrames(j->camIp, j->configDir);
-            if (!pf.isEmpty())
-                pf.insert(QStringLiteral("time"), pf.value(QStringLiteral("time")).toString() + tr(", from a saved picture"));
+            fromSaved = !pf.isEmpty();
         }
         const QString state = pf.value(QStringLiteral("state")).toString();
+        const QString when = pf.value(QStringLiteral("time")).toString();
+        const QString basis = fromSaved ? tr("the saved picture from %1").arg(when) : tr("the picture received at %1").arg(when);
         if (state == QLatin1String("on"))
-            add(j, QStringLiteral("pictures"), label, QStringLiteral("ok"), tr("show the rule and target frames (seen at %1)").arg(pf.value(QStringLiteral("time")).toString()));
+            add(j, QStringLiteral("pictures"), label, QStringLiteral("ok"),
+                tr("Yes. The pictures this camera sends with a detection have a red outline round the person or vehicle (looked at: %1).").arg(basis));
         else if (state == QLatin1String("off"))
             add(j, QStringLiteral("pictures"), label, QStringLiteral("note"),
-                tr("The last picture (%1) was a clean photo with no frame on the target. On the camera's page, under Configuration > Event > Smart Event > Metadata (or the rule's settings), tick \"Overlay Rule Frame and Target Frame on Background Picture\".").arg(pf.value(QStringLiteral("time")).toString()));
+                tr("No. The camera sends its pictures without an outline (looked at: %1). KVision draws its own box and zone on them, so this only matters when the pictures are looked at somewhere else, such as the camera's own page or an email. To make the camera draw it: on the camera's page, under Configuration > Event > Smart Event > Metadata (or the rule's settings), tick \"Overlay Rule Frame and Target Frame on Background Picture\".").arg(basis));
         else
             add(j, QStringLiteral("pictures"), label, QStringLiteral("note"),
-                tr("Not known yet. No saved picture of a line crossing, intrusion or region event with a rule frame position was found for this camera. It is learned from the next such event KVision receives, then check again."));
+                tr("Not known yet. No picture of a line crossing, intrusion or region event that names where the target was has been seen from this camera. It is learned from the next one, then check again."));
     }
     int problems = 0;
     for (const QVariant &v : j->items)

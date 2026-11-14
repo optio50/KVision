@@ -9,10 +9,12 @@ All notable changes to this project will be documented in this file.
   `KVision 3.6.0 GIT.8134301 (x86_64) - logging, watching 24 camera(s)`, the journal's first line says the version, and
   `logs/EventLogger.status` has a `version` field. The commit in the version now follows each new commit, where it
   used to stay at the one from the last full configure.
-* **The setup check can judge event pictures straight after start-up.** The "Event pictures" row (do the pictures carry the
-  rule and target frames?) used to be learned only from a live event, so it read "Not known yet" after every restart. It now
-  also looks at the newest pictures already saved for the camera and says which one it used ("..., from a saved picture").
-  A camera whose events name no rectangle (a line crossing with only a line, for example) still reads "Not known yet".
+* **The setup check can judge event pictures straight after start-up, and says what it is asking.** The row is now called
+  "Camera outlines the target in its pictures" and answers "Yes." or "No." first, then says which picture it looked at. It
+  used to be learned only from a live event, so it read "Not known yet" after every restart; it now also looks at the newest
+  pictures already saved for the camera. A "No" explains that KVision draws its own box and zone, so it only matters when the
+  pictures are looked at elsewhere. A camera whose events name no rectangle (a line crossing with only a line, for example)
+  still reads "Not known yet".
 * **Dates are written as "13 Nov 2026".** The Changelog screen, the Download window (the date boxes, which now take
   typing such as "9 Nov 2026"), the Playback window, the Detection events list (no leading zero on the day now), the setup
   check results, the backup list, the recorder status window and every date in the documentation use one form: day,
