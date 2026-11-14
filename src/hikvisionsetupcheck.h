@@ -40,7 +40,7 @@ public:
                            bool throughRecorder, const QString &configDir);
 
     // The newest result for every camera checked since KVision started, sorted by name. Each result is a map with
-    // key, name, time, summary, problems, model, firmware and items (a list of maps with id, label, state, detail).
+    // key, name, time, summary, problems, warnings, model, firmware and items (a list of maps with id, label, state, detail).
     // state is "ok", "problem", "note" or "unknown".
     Q_INVOKABLE QVariantList results() const;
     Q_INVOKABLE QVariantMap resultFor(const QString &key) const;

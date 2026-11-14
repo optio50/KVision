@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
+* **The setup check no longer shows red for a camera that works.** A camera is red only when it cannot report detection (it
+  is unreachable, the login is refused, or nothing is set up to report). When at least one kind of detection works and a single
+  feature has a fault (motion with no zone drawn, for example), the card is yellow, says "Working, 1 thing(s) to look at", and
+  the row says "The camera's other detection still works." Faults that stop everything stay red.
 * **The background logger shows its version.** `systemctl --user status kvision-events` now has a `Status:` line such as
   `KVision 3.6.0 GIT.8134301 (x86_64) - logging, watching 24 camera(s)`, the journal's first line says the version, and
   `logs/EventLogger.status` has a `version` field. The commit in the version now follows each new commit, where it

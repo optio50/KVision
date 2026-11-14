@@ -60,11 +60,11 @@ Window {
     }
 
     function stateColor(state) {
-        return state === "ok" ? "#2ecc71" : (state === "problem" ? "#ff5a36" : (state === "note" ? "#e0a040" : (state === "off" ? "#667788" : "#8899aa")));
+        return state === "ok" ? "#2ecc71" : (state === "problem" ? "#ff5a36" : (state === "note" || state === "warning" ? "#e0a040" : (state === "off" ? "#667788" : "#8899aa")));
     }
 
     function stateMark(state) {
-        return state === "ok" ? "\u2713" : (state === "problem" ? "\u2717" : (state === "note" ? "!" : (state === "off" ? "\u2013" : "?")));
+        return state === "ok" ? "\u2713" : (state === "problem" ? "\u2717" : (state === "note" || state === "warning" ? "!" : (state === "off" ? "\u2013" : "?")));
     }
 
     onVisibleChanged: {

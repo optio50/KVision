@@ -493,7 +493,7 @@ void HikvisionSetupCheck::stepTriggers(const JobPtr &j, int index)
         if (j->recMissing.isEmpty() && !j->recOk.isEmpty())
             add(j, QStringLiteral("center"), tr("Notify Surveillance Center"), QStringLiteral("ok"), j->recOk.join(QStringLiteral(", ")));
         else if (!j->recMissing.isEmpty())
-            add(j, QStringLiteral("center"), tr("Notify Surveillance Center"), QStringLiteral("problem"),
+            add(j, QStringLiteral("center"), tr("Notify Surveillance Center"), j->recOk.isEmpty() ? QStringLiteral("problem") : QStringLiteral("warning"),
                 tr("Not switched on for: %1. In the recorder's event settings tick \"Notify Surveillance Center\" for this camera.")
                     .arg(j->recMissing.join(QStringLiteral(", "))));
         finish(j);
@@ -546,10 +546,31 @@ void HikvisionSetupCheck::finish(const JobPtr &j)
             add(j, QStringLiteral("pictures"), label, QStringLiteral("note"),
                 tr("Not known yet. No picture of a line crossing, intrusion or region event that names where the target was has been seen from this camera. It is learned from the next one, then check again."));
     }
-    int problems = 0;
-    for (const QVariant &v : j->items)
-        if (v.toMap().value(QStringLiteral("state")).toString() == QLatin1String("problem"))
+    // Red is for a camera that cannot report detection. When something else on the camera does report (a rule that is
+    // on with a line or area, or motion with a zone), a problem with one single feature is a warning, shown in yellow:
+    // the camera works, and the row says what is missing.
+    bool reports = !j->nvrSet.isEmpty();
+    for (const QVariant &v : j->items) {
+        const QVariantMap m = v.toMap();
+        const QString id = m.value(QStringLiteral("id")).toString();
+        if (m.value(QStringLiteral("state")).toString() == QLatin1String("ok") && (id == QLatin1String("motion") || id.startsWith(QLatin1String("smart"))))
+            reports = true;
+    }
+    int problems = 0, warnings = 0;
+    for (QVariant &v : j->items) {
+        QVariantMap m = v.toMap();
+        if (m.value(QStringLiteral("state")).toString() != QLatin1String("problem"))
+            continue;
+        const QString id = m.value(QStringLiteral("id")).toString();
+        if (reports && (id == QLatin1String("motion") || id.startsWith(QLatin1String("smart")))) {
+            m.insert(QStringLiteral("state"), QStringLiteral("warning"));
+            m.insert(QStringLiteral("detail"), m.value(QStringLiteral("detail")).toString() + tr(" The camera's other detection still works."));
+            v = m;
+            ++warnings;
+        } else {
             ++problems;
+        }
+    }
     QVariantMap r;
     r.insert(QStringLiteral("key"), j->key);
     r.insert(QStringLiteral("name"), j->name);
@@ -559,7 +580,9 @@ void HikvisionSetupCheck::finish(const JobPtr &j)
     r.insert(QStringLiteral("camIp"), j->camIp);     // where the camera's own web page is, for the button on the card
     r.insert(QStringLiteral("camPort"), j->camPort);
     r.insert(QStringLiteral("problems"), problems);
-    r.insert(QStringLiteral("summary"), problems == 0 ? tr("Set up for detection") : tr("%n thing(s) to fix", nullptr, problems));
+    r.insert(QStringLiteral("warnings"), warnings);
+    r.insert(QStringLiteral("summary"), problems > 0 ? tr("%n thing(s) to fix", nullptr, problems)
+                                         : (warnings > 0 ? tr("Working, %n thing(s) to look at", nullptr, warnings) : tr("Set up for detection")));
     r.insert(QStringLiteral("items"), j->items);
     m_results.insert(j->key, r);
 
