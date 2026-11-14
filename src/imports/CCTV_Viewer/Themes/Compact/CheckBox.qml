@@ -38,6 +38,7 @@ import QtQuick 2.11
 import QtQuick.Templates 2.15 as T
 import QtQuick.Controls 2.15
 import QtQuick.Controls.impl 2.15
+import QtQuick.Layouts 1.11
 import CCTV_Viewer.Themes 1.0
 
 T.CheckBox {
@@ -52,6 +53,9 @@ T.CheckBox {
     padding: 4
     spacing: Compact.spacing
     hoverEnabled: true
+
+    // A long label may shrink and wrap when a layout is narrower than the words, instead of pushing the layout wider.
+    Layout.minimumWidth: 0
 
     // keep in sync with CheckDelegate.qml (shared CheckIndicator.qml was removed for performance reasons)
     indicator: Rectangle {
@@ -91,13 +95,40 @@ T.CheckBox {
         }
     }
 
-    contentItem: SelectableLabel {
-        leftPadding: control.indicator && !control.mirrored ? control.indicator.width + control.spacing : 0
-        rightPadding: control.indicator && control.mirrored ? control.indicator.width + control.spacing : 0
+    // The words sit in a plain item that reports the width they need on one line, so the checkbox can size itself
+    // from that without waiting on the label, which in turn is told the width it has and wraps inside it.
+    contentItem: Item {
+        implicitWidth: (control.indicator && !control.mirrored ? control.indicator.width + control.spacing : 0)
+                       + (control.indicator && control.mirrored ? control.indicator.width + control.spacing : 0)
+                       // A little extra, because the text field needs slightly more than the bare width of its words,
+                       // and with exactly the bare width the last letter drops onto a second line.
+                       + Math.ceil(oneLine.width) + 8
+        implicitHeight: words.implicitHeight
 
-        text: control.text
-        font: control.font
-        textColor: "#ffffff"
-        opacity: control.enabled ? 1.0 : 0.5
+        TextMetrics {
+            id: oneLine
+            font: control.font
+            text: control.text
+        }
+
+        SelectableLabel {
+            id: words
+            // Starts after the tick box and covers only the words, so a click on the tick box itself is not taken.
+            x: control.indicator && !control.mirrored ? control.indicator.width + control.spacing : 0
+            width: parent.width - x - (control.indicator && control.mirrored ? control.indicator.width + control.spacing : 0)
+            // The label takes the mouse so its words can be selected, so a click on it (not a drag) is passed on here.
+            forwardClicks: true
+            onClicked: {
+                if (control.enabled) {
+                    control.toggle()
+                    control.toggled()
+                    control.clicked()
+                }
+            }
+            text: control.text
+            font: control.font
+            textColor: "#ffffff"
+            opacity: control.enabled ? 1.0 : 0.5
+        }
     }
 }

@@ -1,53 +1,113 @@
 import QtQuick 2.11
+import QtQuick.Controls 2.4
 
-// Draws like an ordinary label, but the words can be dragged over and copied with Ctrl+C.
-// A plain click is handed back to whatever is underneath, so a checkbox still toggles when its
-// label is clicked. Only a drag, which selects the words, is kept.
+// Looks like an ordinary label, but the words can be selected with the mouse (a drag, across as many
+// lines as you like), and copied with Ctrl+C or with a right-click menu (Copy, Select all).
+//
+// Selecting is done by the mouse area below, not by the text field, so a plain click with no drag can still
+// be handed on: with forwardClicks set it is sent out as clicked(), which a checkbox uses to toggle itself.
 TextEdit {
     id: label
 
-    // Fill exactly the width it is given, so the words wrap at the edge of the box instead of running
-    // past it. A text field otherwise sizes itself to its text and spills out of the section.
-    width: parent ? parent.width : implicitWidth
-
-    // The text colour. Set straight on the text field, so it shows instead of the default black.
+    // The colour of the words.
     property color textColor: "#ffffff"
     color: textColor
 
-    // Keep the words inside the box they are given, so a long line never spills past its edge.
-    clip: true
+    // Set by a control that wraps the label (a checkbox) to get a click that was not a drag.
+    property bool forwardClicks: false
+    signal clicked()
 
     readOnly: true
-    // So a note can be switched over from Text without changing its lines.
-    property var wrapMode: TextEdit.WordWrap
-    selectByMouse: true
+    wrapMode: TextEdit.Wrap
+    selectByMouse: false
+    activeFocusOnPress: false
     selectByKeyboard: true
     persistentSelection: true
-    activeFocusOnPress: false
     renderType: Text.QtRendering
     selectedTextColor: "#121214"
     selectionColor: "#00f5d4"
 
+    Keys.onPressed: {
+        if (event.matches(StandardKey.Copy)) {
+            if (label.selectedText !== "")
+                label.copy()
+            event.accepted = true
+        } else if (event.matches(StandardKey.SelectAll)) {
+            label.selectAll()
+            event.accepted = true
+        }
+    }
+
+    // One highlighted passage at a time: leaving the label (except for its own menu) clears it.
+    onActiveFocusChanged: {
+        if (!activeFocus && !copyMenu.visible)
+            label.deselect()
+    }
+
+    Menu {
+        id: copyMenu
+        objectName: "copyMenu"
+        onClosed: label.forceActiveFocus()
+
+        MenuItem {
+            text: qsTr("Copy")
+            enabled: label.selectedText !== ""
+            onTriggered: label.copy()
+        }
+        MenuItem {
+            text: qsTr("Select all")
+            onTriggered: label.selectAll()
+        }
+    }
+
     MouseArea {
+        id: area
         anchors.fill: parent
+        anchors.leftMargin: label.leftPadding
+        anchors.rightMargin: label.rightPadding
         acceptedButtons: Qt.LeftButton | Qt.RightButton
-        cursorShape: parent.selectionStart !== parent.selectionEnd ? Qt.IBeamCursor : Qt.ArrowCursor
-        propagateComposedEvents: true
+        cursorShape: Qt.IBeamCursor
+
+        property int anchorPosition: 0
         property real pressX: 0
         property real pressY: 0
+        property bool dragged: false
+
+        function positionAtPoint(x, y) {
+            return label.positionAt(x + label.leftPadding, y)
+        }
+
         onPressed: {
+            label.forceActiveFocus()
             if (mouse.button === Qt.RightButton) {
-                mouse.accepted = false
+                copyMenu.popup(area, mouse.x, mouse.y)
                 return
             }
             pressX = mouse.x
             pressY = mouse.y
-            mouse.accepted = false
+            dragged = false
+            anchorPosition = positionAtPoint(mouse.x, mouse.y)
+            label.deselect()
+            label.cursorPosition = anchorPosition
         }
+
         onPositionChanged: {
-            // The pointer has moved, so this is a drag to select, not a click. Keep it.
-            if (Math.abs(mouse.x - pressX) > 3 || Math.abs(mouse.y - pressY) > 3)
-                mouse.accepted = true
+            if (!(mouse.buttons & Qt.LeftButton))
+                return
+            if (!dragged && Math.abs(mouse.x - pressX) < 4 && Math.abs(mouse.y - pressY) < 4)
+                return
+            dragged = true
+            label.select(anchorPosition, positionAtPoint(mouse.x, mouse.y))
+        }
+
+        onReleased: {
+            if (mouse.button === Qt.LeftButton && !dragged && label.forwardClicks)
+                label.clicked()
+        }
+
+        onDoubleClicked: {
+            if (mouse.button === Qt.LeftButton && !label.forwardClicks)
+                label.selectWord()
         }
     }
 }
