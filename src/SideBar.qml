@@ -2509,7 +2509,7 @@ FocusScope {
                         }
 
                         GroupBox {
-                            title: qsTr("Motion that names no target")
+                            title: qsTr("Plain motion (no person, vehicle or animal named)")
                             Layout.fillWidth: true
 
                             background: Rectangle {
@@ -2530,7 +2530,7 @@ FocusScope {
                                 spacing: 8
 
                                 SelectableLabel {
-                                    text: qsTr("Motion that names no target")
+                                    text: qsTr("What to do with plain motion reports")
                                     textColor: "#8898a6"
                                     font.pixelSize: 11
                                     wrapMode: TextEdit.Wrap
@@ -2538,7 +2538,7 @@ FocusScope {
                                 }
 
                                 SelectableLabel {
-                                    text: qsTr("Some cameras report plain motion: something moved, but not what (their motion detection is not a smart event, so it cannot tell a person from a car). These two choices decide what KVision does with it. The first needs the log switched on above.")
+                                    text: qsTr("Some cameras (a panoramic camera, for example) can only say that something moved, not what it was. They cannot tell a person from a car, so there is no person, vehicle or animal in the report. KVision ignores these reports unless you tick one of the boxes below.")
                                     textColor: "#6f7f8c"
                                     font.pixelSize: 10
                                     wrapMode: TextEdit.Wrap
@@ -2546,20 +2546,20 @@ FocusScope {
                                 }
 
                                 CheckBox {
-                                    text: qsTr("Write it to the detection log (one line per movement)")
+                                    text: qsTr("Write plain motion to the detection log (no picture)")
                                     checked: generalSettings.logUnlabelledMotion
                                     onToggled: generalSettings.logUnlabelledMotion = checked
                                 }
 
                                 CheckBox {
-                                    text: qsTr("Show a MOTION frame for it")
+                                    text: qsTr("Show a MOTION frame on the camera when plain motion is reported")
                                     enabled: generalSettings.showTargetIndicator
                                     checked: generalSettings.frameUnlabelledMotion
                                     onToggled: generalSettings.frameUnlabelledMotion = checked
                                 }
 
                                 SelectableLabel {
-                                    text: qsTr("The detection log keeps every report, whatever is switched off here.")
+                                    text: qsTr("A camera repeats a plain motion report about once a second while something moves, so the log gets one line when the movement starts and the next only after 10 seconds without motion. Reports that name a person, vehicle or animal are always logged, whatever is ticked here. The MOTION frame also needs the frame option at the top of this page.")
                                     textColor: "#6f7f8c"
                                     font.pixelSize: 10
                                     wrapMode: TextEdit.Wrap
