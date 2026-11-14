@@ -1045,10 +1045,12 @@ FocusScope {
                         // State of the per-camera detection indicator, read when the menu opens.
                         property bool targetOn: false
                         property bool targetAvailable: false
+                        property bool fitOn: false
                         onAboutToShow: {
                             var p = playerPool.activePlayersMap[model.index];
                             targetAvailable = !!p && p.isHikvision && !p.isQuickPlayback;
                             targetOn = !!p && p.targetEnabledHere();
+                            fitOn = !!p && p.forceFitHere();
                         }
                         
                         topPadding: 5
@@ -1435,6 +1437,48 @@ FocusScope {
                                 var player = playerPool.activePlayersMap[model.index];
                                 if (player) {
                                     player.openCameraWebUi();
+                                }
+                            }
+                        }
+
+                        MenuItem {
+                            id: forceFitMenuItem
+                            text: (contextMenu.fitOn ? "\u2713 " : "    ") + qsTr("Force Fit")
+                            visible: model.url !== ""
+                            enabled: visible
+                            height: visible ? implicitHeight : 0
+                            leftPadding: 12
+
+                            contentItem: Text {
+                                text: forceFitMenuItem.text
+                                font { pixelSize: 11; bold: true }
+                                color: forceFitMenuItem.enabled ? (forceFitMenuItem.hovered ? "#00f5d4" : "#eeeeee") : "#555555"
+                                horizontalAlignment: Text.AlignLeft
+                                verticalAlignment: Text.AlignVCenter
+                            }
+                            background: Rectangle {
+                                implicitWidth: 150
+                                implicitHeight: 32
+                                color: forceFitMenuItem.hovered ? "#2a3540" : "transparent"
+                                border.color: forceFitMenuItem.hovered ? "#00f5d4" : "transparent"
+                                border.width: 1
+                                radius: 4
+                            }
+
+                            ToolTip.visible: hovered
+                            ToolTip.delay: 600
+                            ToolTip.text: qsTr("Stretch this camera's picture to fill the whole tile, so a 4:3 camera has no black bars (the picture is slightly stretched). Only this camera is changed, not the layout.")
+
+                            onHoveredChanged: {
+                                if (hovered) {
+                                    streamSubMenu.close();
+                                }
+                            }
+
+                            onTriggered: {
+                                var player = playerPool.activePlayersMap[model.index];
+                                if (player) {
+                                    player.toggleForceFitHere();
                                 }
                             }
                         }

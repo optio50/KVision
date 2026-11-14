@@ -53,7 +53,50 @@ FocusScope {
         return Qt.size(16, 9);
     }
 
+    // Force Fit (right-click menu): this camera's picture is stretched to fill the whole tile, whatever its shape, so a
+    // 4:3 camera in a 16:9 tile has no black bars (the picture is slightly stretched). Kept per camera in the settings, not in
+    // the layout, so the layout itself is not touched and every tile of that camera follows.
+    function fitKey() {
+        if (root.isHikvision)
+            return root.recorderIp + "#" + root.channelId;
+        return String(root.source).replace(/\/\/[^@\/]*@/, "//"); // the address without a login
+    }
+    function forceFitList() {
+        if (typeof generalSettings === "undefined")
+            return [];
+        try {
+            var l = JSON.parse(generalSettings.forceFitCameras || "[]");
+            return Array.isArray(l) ? l : [];
+        } catch (e) {
+            return [];
+        }
+    }
+    readonly property bool forceFit: {
+        var dep = (typeof generalSettings !== "undefined") ? generalSettings.forceFitCameras : "";
+        var k = root.fitKey();
+        return k !== "" && root.forceFitList().indexOf(k) >= 0;
+    }
+    function forceFitHere() {
+        return root.forceFit;
+    }
+    function toggleForceFitHere() {
+        if (typeof generalSettings === "undefined")
+            return;
+        var k = root.fitKey();
+        if (k === "")
+            return;
+        var l = root.forceFitList().slice();
+        var i = l.indexOf(k);
+        if (i >= 0)
+            l.splice(i, 1);
+        else
+            l.push(k);
+        generalSettings.forceFitCameras = JSON.stringify(l);
+    }
+
     function fittedVideoRect() {
+        if (root.forceFit)
+            return Qt.rect(0, 0, videoContainer.width, videoContainer.height);
         var frame = videoFrameSize();
         var frameRatio = frame.width / Math.max(1, frame.height);
         // TEMP: keep every stream at its native ratio so layout aspect can be compared.

@@ -300,6 +300,9 @@ ApplicationWindow {
         onLogUnlabelledMotionChanged: rootWindow.applyDetectionFilters()
         onFrameUnlabelledMotionChanged: rootWindow.applyDetectionFilters()
         property string targetOffCameras: "[]" // JSON list of camera addresses with the indicator switched off
+        // JSON list of cameras whose picture is stretched to fill the whole tile (right-click, Force Fit), whatever the tile's shape.
+        // A camera behind a recorder is "recorderIp#channel"; any other source is its address without the login.
+        property string forceFitCameras: "[]"
         property string targetNvrOnCameras: "[]" // JSON list of "recorderIp#channel" entries switched on for cameras behind a recorder
         onTargetNvrOnCamerasChanged: rootWindow.noteNvrList()
         property string talkMicrophone: ""
@@ -637,6 +640,10 @@ ApplicationWindow {
             var diskTargetOff = String(Context.readSetting("", "targetOffCameras", "[]"));
             if (generalSettings.targetOffCameras !== diskTargetOff) {
                 generalSettings.targetOffCameras = diskTargetOff;
+            }
+            var diskForceFit = String(Context.readSetting("", "forceFitCameras", "[]"));
+            if (generalSettings.forceFitCameras !== diskForceFit) {
+                generalSettings.forceFitCameras = diskForceFit;
             }
             var diskShowTarget = Context.readSetting("", "showTargetIndicator", false);
             if (generalSettings.showTargetIndicator !== diskShowTarget) {
@@ -2301,6 +2308,7 @@ ApplicationWindow {
         Context.writeSetting("", "logUnlabelledMotion", generalSettings.logUnlabelledMotion);
         Context.writeSetting("", "frameUnlabelledMotion", generalSettings.frameUnlabelledMotion);
         Context.writeSetting("", "targetOffCameras", generalSettings.targetOffCameras);
+        Context.writeSetting("", "forceFitCameras", generalSettings.forceFitCameras);
         Context.writeSetting("", "targetNvrOnCameras", generalSettings.targetNvrOnCameras);
         Context.writeSetting("", "talkMicrophone", generalSettings.talkMicrophone);
         Context.writeSetting("", "talkGain", generalSettings.talkGain);

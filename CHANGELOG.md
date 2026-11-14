@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+* **Force Fit, in a tile's right-click menu.** Stretches that camera's picture to fill the whole tile, so a camera that is
+  naturally 4:3 has no black bars in a 16:9 tile (the picture is slightly stretched). It is kept per camera in the settings
+  (`forceFitCameras`), not in the layout, so the layout is not changed and every tile of that camera follows it.
+
+### Fixed
+* **Slow start with a network unplugged.** A tile did not know its recorder's address until after it checked whether the
+  recorder was set Offline, so the first check always passed and the tile asked the unreachable recorder for the camera's
+  address, which froze the window for 4 seconds per tile. A tile now reads its address first, and uses the lookup that
+  remembers a failure for 30 seconds.
+
+### Added
 * **The setup check warns about target size limits.** Each smart-event zone on a camera has a "Max Target Size" and a "Min Target
   Size" box on the camera's rule page, kept in the camera apart from the zone. A Max box shrunk by accident while drawing makes
   the camera ignore every person bigger than it, and nothing says so. For line crossing, intrusion, region entrance and region
