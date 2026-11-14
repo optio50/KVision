@@ -146,6 +146,19 @@ RuleLinesAnswer ruleLinesOne(const HikvisionBackup::Cam &cam, int mode)
         a.message = why;
         return a;
     }
+    // Some cameras (panoramic and dual-lens ones, for example) answer a read but list the setting as "notSupport" in their
+    // capabilities and refuse any change. They have no such switch, so say that instead of trying to change it.
+    {
+        QByteArray capBody;
+        const int capCode = curlGet(QStringLiteral("http://%1:%2/ISAPI/Streaming/channels/1/smartOverlap/capabilities?format=json")
+                                        .arg(cam.ip).arg(cam.httpPort), cam.user, cam.pass, 8, QString(), &capBody);
+        if (capCode == 403 || capCode == 404 || capCode == 501
+            || (capCode == 200 && !QJsonDocument::fromJson(capBody).object().contains(QStringLiteral("SmartOverlapCap")))) {
+            a.state = QStringLiteral("unavailable");
+            a.message = QStringLiteral("this camera has no switch for rule lines on the stream");
+            return a;
+        }
+    }
     const bool nowOn = so.value(QStringLiteral("enabled")).toBool();
     auto stateText = [](bool on) { return on ? QStringLiteral("on") : QStringLiteral("off"); };
     if (mode == 0) {

@@ -14,7 +14,8 @@ All notable changes to this project will be documented in this file.
   never the recorder's, and a refused login is not tried again. Recorders set Offline are not listed.
   "Check all", "Turn on all" and "Turn off all" do the same for every camera in the list, one after the other, after a
   confirmation. Cameras that cannot take the switch are skipped and counted, and a login that one camera refused is not sent to
-  another camera. (A recorder itself has no such switch over the network; its own screen menu button is not reachable.)
+  another camera. A camera that answers a read but lists the setting as "notSupport" in its capabilities (the panoramic
+  cameras) is counted as having no switch, not as a failure. (A recorder itself has no such switch over the network; its own screen menu button is not reachable.)
 
 ### Changed
 * **A recorder can be set "Offline" when its network is not connected.** The "Mute" box in the recorder monitoring window is now
