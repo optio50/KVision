@@ -120,30 +120,17 @@ add_compile_definitions(QT_DISABLE_DEPRECATED_BEFORE=0x050F00)
 
 set(QT_LINK_DEPENDENCIES Core Quick Multimedia Network Widgets)
 
-if (ANDROID)
-    list(APPEND QT_LINK_DEPENDENCIES Svg)
-
-    set(ANDROID_EXTRA_LIBS
-        "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/lib/libavformat.so"
-        "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/lib/libavcodec.so"
-        "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/lib/libavutil.so"
-        "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/lib/libswscale.so"
-        "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/lib/libswresample.so"
-        "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/lib/libavdevice.so"
-        "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/lib/libavfilter.so"
-        )
-else()
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(LIBAV REQUIRED
-        libavformat
-        libavcodec
-        libavutil
-        libswscale
-        libswresample
-        libavdevice
-    )
-    include_directories(${LIBAV_INCLUDE_DIRS})
-endif()
+# FFmpeg comes from the system packages installed by install.sh.
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBAV REQUIRED
+    libavformat
+    libavcodec
+    libavutil
+    libswscale
+    libswresample
+    libavdevice
+)
+include_directories(${LIBAV_INCLUDE_DIRS})
 
 find_package(QT NAMES Qt5 COMPONENTS ${QT_LINK_DEPENDENCIES} QuickCompiler LinguistTools REQUIRED)
 find_package(Qt5 5.12 COMPONENTS ${QT_LINK_DEPENDENCIES} QuickCompiler LinguistTools REQUIRED)
@@ -222,14 +209,7 @@ set(QML_IMPORT_PATH "${CMAKE_SOURCE_DIR}/src/imports" CACHE STRING "Additional i
 
 add_subdirectory(src/qmlav)
 
-if (ANDROID)
-    add_library(kvision SHARED ${PROJ_FILES} ${QMLAV_FILES})
-
-    target_include_directories(kvision PRIVATE "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/include")
-    target_link_directories(kvision PRIVATE "${CMAKE_SOURCE_DIR}/src/qmlav/3rd/FFmpeg/ffbuild/${ANDROID_ABI}/lib")
-else()
-    add_executable(kvision ${PROJ_FILES} ${QMLAV_FILES})
-endif()
+add_executable(kvision ${PROJ_FILES} ${QMLAV_FILES})
 
 target_include_directories(kvision PRIVATE ${QMLAV_INCLUDE})
 
