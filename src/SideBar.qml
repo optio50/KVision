@@ -2968,6 +2968,36 @@ FocusScope {
                                     wrapMode: Text.Wrap
                                 }
 
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    Text {
+                                        text: qsTr("System Stats temperature")
+                                        color: "white"
+                                        font.pixelSize: 13
+                                    }
+
+                                    ComboBox {
+                                        id: statsTempUnitBox
+                                        Layout.preferredWidth: 150
+                                        Layout.preferredHeight: 30
+                                        model: [qsTr("Celsius (C)"), qsTr("Fahrenheit (F)")]
+                                        onActivated: generalSettings.statsTemperatureUnit = index === 1 ? "F" : "C"
+                                        Component.onCompleted: currentIndex = generalSettings.statsTemperatureUnit === "F" ? 1 : 0
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: qsTr("The temperature graph on the System Stats panel. Celsius is the default.")
+                                    color: "#8898a6"
+                                    font.pixelSize: 11
+                                    wrapMode: Text.Wrap
+                                }
+
                                 Button {
                                     text: qsTr("Overlay text from MQTT...")
                                     ToolTip.visible: hovered

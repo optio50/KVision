@@ -339,6 +339,9 @@ ApplicationWindow {
         // by every KVision process when it starts, changed from the panel.
         property int statsHistoryMinutes: 15
         onStatsHistoryMinutesChanged: SystemStats.historyMinutes = statsHistoryMinutes
+        // System Stats temperature graph. "C" or "F". Samples stay in Celsius;
+        // only the panel's numbers and scale change.
+        property string statsTemperatureUnit: "C"
     }
 
     Settings {
@@ -3002,6 +3005,197 @@ ApplicationWindow {
         property var cpuHistory: []
         property var gpuHistory: []
         property var netHistory: []
+        property var tempCpuHistory: []
+        property var tempGpuHistory: []
+        property var tempDiskHistory: []
+
+        readonly property string cpuColor: "#3ddc97"
+        readonly property string gpuColor: "#4c9aff"
+        readonly property string netColor: "#f0b429"
+        readonly property string tempCpuColor: "#ff6b4a"
+        readonly property string tempGpuColor: "#c084fc"
+        readonly property string tempDiskColor: "#3ec6ff"
+
+        function chartY(value, lo, hi, h) {
+            var span = hi - lo;
+            if (span < 0.001)
+                span = 1;
+            var t = (value - lo) / span;
+            if (t < 0)
+                t = 0;
+            if (t > 1)
+                t = 1;
+            return h - t * h;
+        }
+
+        function paintGrid(ctx, w, h) {
+            ctx.clearRect(0, 0, w, h);
+            ctx.strokeStyle = "rgba(176, 196, 210, 0.5)";
+            ctx.lineWidth = 0.8;
+            ctx.strokeRect(0, 0, w, h);
+            ctx.beginPath();
+            ctx.strokeStyle = "rgba(176, 196, 210, 0.16)";
+            var hStep = h / 4;
+            for (var y = hStep; y < h; y += hStep) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+            }
+            var colWidth = w / 6;
+            for (var col = 1; col < 6; ++col) {
+                var xv = col * colWidth;
+                ctx.moveTo(xv, 0);
+                ctx.lineTo(xv, h);
+            }
+            ctx.stroke();
+        }
+
+        // values below 0 are gaps (a temperature sensor was missing that second).
+        function paintSeries(ctx, w, h, values, lo, hi, color, doFill) {
+            if (!values || values.length < 2 || w < 2 || h < 2)
+                return;
+            var step = w / (360 - 1);
+            var startX = w - (values.length - 1) * step;
+            var usable = false;
+            for (var n = 0; n < values.length; n++) {
+                if (values[n] >= 0) {
+                    usable = true;
+                    break;
+                }
+            }
+            if (!usable)
+                return;
+
+            if (doFill) {
+                ctx.beginPath();
+                ctx.moveTo(startX, h);
+                for (var i = 0; i < values.length; i++) {
+                    var sample = values[i] < 0 ? lo : values[i];
+                    var yv = statsPanel.chartY(sample, lo, hi, h);
+                    ctx.lineTo(startX + i * step, Math.max(1, Math.min(h - 1, yv)));
+                }
+                ctx.lineTo(startX + (values.length - 1) * step, h);
+                ctx.closePath();
+                ctx.globalAlpha = 0.2;
+                ctx.fillStyle = color;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+
+            ctx.beginPath();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 1.6;
+            ctx.lineJoin = "round";
+            ctx.lineCap = "round";
+            var drawing = false;
+            for (var j = 0; j < values.length; j++) {
+                if (values[j] < 0) {
+                    drawing = false;
+                    continue;
+                }
+                var x = startX + j * step;
+                var yLine = statsPanel.chartY(values[j], lo, hi, h);
+                yLine = Math.max(1, Math.min(h - 1, yLine));
+                if (!drawing) {
+                    ctx.moveTo(x, yLine);
+                    drawing = true;
+                } else {
+                    ctx.lineTo(x, yLine);
+                }
+            }
+            ctx.stroke();
+        }
+
+        function netScaleHi() {
+            var maxVal = 4;
+            var hist = statsPanel.netHistory;
+            if (!hist)
+                return maxVal;
+            for (var i = 0; i < hist.length; i++) {
+                if (hist[i] > maxVal)
+                    maxVal = hist[i];
+            }
+            return maxVal;
+        }
+
+        function fahrenheit() {
+            return generalSettings.statsTemperatureUnit === "F";
+        }
+
+        // History stays in Celsius. The panel converts when it draws.
+        function displayTemp(celsius) {
+            if (celsius < 0)
+                return celsius;
+            return statsPanel.fahrenheit() ? (celsius * 9 / 5 + 32) : celsius;
+        }
+
+        function displaySeries(values) {
+            if (!values || !statsPanel.fahrenheit())
+                return values;
+            var out = [];
+            for (var i = 0; i < values.length; i++)
+                out.push(values[i] < 0 ? -1 : values[i] * 9 / 5 + 32);
+            return out;
+        }
+
+        function formatTemp(celsius, unit) {
+            if (celsius < 0)
+                return "";
+            if (unit === "F")
+                return (celsius * 9 / 5 + 32).toFixed(0) + "\u00B0F";
+            return celsius.toFixed(0) + "\u00B0C";
+        }
+
+        // 30°C (86°F) at the bottom, at least 105°C (221°F) at the top, so a hot
+        // package sits near the top and a cool drive stays low. The scale grows
+        // past that if a sample would be clipped.
+        function tempScaleLo() {
+            return statsPanel.fahrenheit() ? 86 : 30;
+        }
+
+        function tempScaleHi() {
+            var hi = statsPanel.fahrenheit() ? 221 : 105;
+            var series = [statsPanel.tempCpuHistory, statsPanel.tempGpuHistory, statsPanel.tempDiskHistory];
+            for (var s = 0; s < series.length; s++) {
+                var hist = series[s];
+                if (!hist)
+                    continue;
+                for (var i = 0; i < hist.length; i++) {
+                    if (hist[i] < 0)
+                        continue;
+                    var shown = statsPanel.displayTemp(hist[i]);
+                    if (shown > hi)
+                        hi = shown;
+                }
+            }
+            return hi;
+        }
+
+        function paintTempGuide(ctx, w, h) {
+            var lo = statsPanel.tempScaleLo();
+            var hi = statsPanel.tempScaleHi();
+            if (hi <= lo)
+                return;
+            // The same place on the scale either way: 90°C, which is 194°F.
+            var guide = statsPanel.fahrenheit() ? 194 : 90;
+            var y = statsPanel.chartY(guide, lo, hi, h);
+            ctx.beginPath();
+            ctx.strokeStyle = "rgba(255, 107, 74, 0.35)";
+            ctx.lineWidth = 1;
+            ctx.moveTo(0, y);
+            ctx.lineTo(w, y);
+            ctx.stroke();
+            ctx.fillStyle = "rgba(255, 107, 74, 0.75)";
+            ctx.font = "10px sans-serif";
+            ctx.fillText(statsPanel.fahrenheit() ? "194\u00B0" : "90\u00B0", 4, Math.max(10, y - 3));
+        }
+
+        function pushSample(series, value) {
+            var next = series.slice();
+            next.push(value);
+            if (next.length > 360)
+                next.shift();
+            return next;
+        }
 
         // Fills the charts from the history SystemStats collected while the
         // panel was closed, so it opens with the whole window instead of from
@@ -3010,9 +3204,12 @@ ApplicationWindow {
             statsPanel.cpuHistory = SystemStats.historySnapshot("cpu", 360);
             statsPanel.gpuHistory = SystemStats.historySnapshot("gpu", 360);
             statsPanel.netHistory = SystemStats.historySnapshot("net", 360);
-            cpuCanvas.requestPaint();
-            gpuCanvas.requestPaint();
+            statsPanel.tempCpuHistory = SystemStats.historySnapshot("tempCpu", 360);
+            statsPanel.tempGpuHistory = SystemStats.historySnapshot("tempGpu", 360);
+            statsPanel.tempDiskHistory = SystemStats.historySnapshot("tempDisk", 360);
+            usageCanvas.requestPaint();
             netCanvas.requestPaint();
+            tempCanvas.requestPaint();
         }
 
         // The rolling buffer lives in SystemStats, so the QML arrays can be
@@ -3021,6 +3218,9 @@ ApplicationWindow {
             statsPanel.cpuHistory = [];
             statsPanel.gpuHistory = [];
             statsPanel.netHistory = [];
+            statsPanel.tempCpuHistory = [];
+            statsPanel.tempGpuHistory = [];
+            statsPanel.tempDiskHistory = [];
         }
 
         Component.onCompleted: {
@@ -3045,28 +3245,16 @@ ApplicationWindow {
                 if (!statsPanel.visible)
                     return; // the history is kept in SystemStats while the panel is closed
 
-                var cpu = SystemStats.cpuUsage;
-                var gpu = SystemStats.gpuUsage;
-                var net = SystemStats.netUsage;
+                statsPanel.cpuHistory = statsPanel.pushSample(statsPanel.cpuHistory, SystemStats.cpuUsage);
+                statsPanel.gpuHistory = statsPanel.pushSample(statsPanel.gpuHistory, SystemStats.gpuUsage);
+                statsPanel.netHistory = statsPanel.pushSample(statsPanel.netHistory, SystemStats.netUsage);
+                statsPanel.tempCpuHistory = statsPanel.pushSample(statsPanel.tempCpuHistory, SystemStats.cpuTemperature);
+                statsPanel.tempGpuHistory = statsPanel.pushSample(statsPanel.tempGpuHistory, SystemStats.gpuTemperature);
+                statsPanel.tempDiskHistory = statsPanel.pushSample(statsPanel.tempDiskHistory, SystemStats.diskTemperature);
 
-                var newCpu = statsPanel.cpuHistory.slice();
-                newCpu.push(cpu);
-                if (newCpu.length > 360) newCpu.shift();
-                statsPanel.cpuHistory = newCpu;
-
-                var newGpu = statsPanel.gpuHistory.slice();
-                newGpu.push(gpu);
-                if (newGpu.length > 360) newGpu.shift();
-                statsPanel.gpuHistory = newGpu;
-
-                var newNet = statsPanel.netHistory.slice();
-                newNet.push(net);
-                if (newNet.length > 360) newNet.shift();
-                statsPanel.netHistory = newNet;
-
-                cpuCanvas.requestPaint();
-                gpuCanvas.requestPaint();
+                usageCanvas.requestPaint();
                 netCanvas.requestPaint();
+                tempCanvas.requestPaint();
             }
 
             // A new window length (chosen with the small button in the title
@@ -3079,8 +3267,8 @@ ApplicationWindow {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 15
-            spacing: 8
+            anchors.margins: 12
+            spacing: 6
 
             RowLayout {
                 Layout.fillWidth: true
@@ -3179,14 +3367,14 @@ ApplicationWindow {
 
                 Text {
                     text: qsTr("LNG_00206") + SystemStats.ramUsage.toFixed(1) + " MB"
-                    color: "#00ff66"
+                    color: "#c8d2da"
                     font.pixelSize: 11
                     font.bold: true
                 }
 
                 Text {
                     text: qsTr("LNG_00205") + SystemStats.vramUsage.toFixed(1) + " MB"
-                    color: "#00ff66"
+                    color: "#c8d2da"
                     font.pixelSize: 11
                     font.bold: true
                 }
@@ -3208,173 +3396,138 @@ ApplicationWindow {
                 font.pixelSize: 11
             }
 
-            Text {
-                text: qsTr("LNG_00204") + SystemStats.cpuUsage.toFixed(1) + "%" + (SystemStats.busiestCoreUsage > 0 ? qsTr(" · busiest core") + " " + SystemStats.busiestCoreUsage + "%" : "")
-                color: "#00ff66"
-                font.pixelSize: 11
-                font.bold: true
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                Text {
+                    text: qsTr("LNG_00204") + SystemStats.cpuUsage.toFixed(1) + "%"
+                    color: statsPanel.cpuColor
+                    font.pixelSize: 11
+                    font.bold: true
+                }
+                Text {
+                    text: qsTr("LNG_00203") + SystemStats.gpuUsage.toFixed(1) + "%"
+                    color: statsPanel.gpuColor
+                    font.pixelSize: 11
+                    font.bold: true
+                }
+                Text {
+                    visible: SystemStats.busiestCoreUsage > 0
+                    text: qsTr("· busiest core") + " " + SystemStats.busiestCoreUsage + "%"
+                    color: "#8ea0ae"
+                    font.pixelSize: 11
+                }
+                Text {
+                    visible: SystemStats.gpuDecodeUsage > 0.05
+                    text: qsTr("· decode") + " " + SystemStats.gpuDecodeUsage.toFixed(0) + "%"
+                    color: "#9ecbff"
+                    font.pixelSize: 11
+                }
             }
 
             Canvas {
-                id: cpuCanvas
+                id: usageCanvas
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.preferredHeight: 28
+                Layout.preferredHeight: 32
                 onWidthChanged: requestPaint()
                 onHeightChanged: requestPaint()
 
                 onPaint: {
                     var ctx = getContext("2d");
-                    ctx.clearRect(0, 0, width, height);
+                    statsPanel.paintGrid(ctx, width, height);
+                    statsPanel.paintSeries(ctx, width, height, statsPanel.cpuHistory, 0, 100, statsPanel.cpuColor, true);
+                    statsPanel.paintSeries(ctx, width, height, statsPanel.gpuHistory, 0, 100, statsPanel.gpuColor, false);
+                }
+            }
 
-                    // Draw bright and thin background border
-                    ctx.strokeStyle = "rgba(0, 255, 102, 0.7)";
-                    ctx.lineWidth = 0.8;
-                    ctx.strokeRect(0, 0, width, height);
+            Item {
+                Layout.fillWidth: true
+                implicitHeight: tempLabels.implicitHeight
 
-                    // Draw faint gridlines
-                    ctx.beginPath();
-                    ctx.strokeStyle = "rgba(0, 255, 102, 0.15)";
-                    ctx.lineWidth = 0.8;
-                    // Horizontal gridlines
-                    var hStep = height / 4;
-                    for (var y = hStep; y < height; y += hStep) {
-                        ctx.moveTo(0, y);
-                        ctx.lineTo(width, y);
+                RowLayout {
+                    id: tempLabels
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    spacing: 12
+
+                    Text {
+                        id: tempCpuText
+                        visible: SystemStats.cpuTemperature >= 0
+                        text: SystemStats.cpuTemperatureLabel + " " + statsPanel.formatTemp(SystemStats.cpuTemperature, generalSettings.statsTemperatureUnit)
+                        color: statsPanel.tempCpuColor
+                        font.pixelSize: 11
+                        font.bold: true
                     }
-                    // Vertical gridlines every 1 minute (60 seconds / 60 points)
-                    var colWidth = width / 6;
-                    for (var col = 1; col < 6; ++col) {
-                        var xv = col * colWidth;
-                        ctx.moveTo(xv, 0);
-                        ctx.lineTo(xv, height);
+                    Text {
+                        id: tempGpuText
+                        visible: SystemStats.gpuTemperature >= 0
+                        text: SystemStats.gpuTemperatureLabel + " " + statsPanel.formatTemp(SystemStats.gpuTemperature, generalSettings.statsTemperatureUnit)
+                        color: statsPanel.tempGpuColor
+                        font.pixelSize: 11
+                        font.bold: true
                     }
-                    ctx.stroke();
+                    Text {
+                        id: tempDiskText
+                        visible: SystemStats.diskTemperature >= 0
+                        text: SystemStats.diskTemperatureLabel + " " + statsPanel.formatTemp(SystemStats.diskTemperature, generalSettings.statsTemperatureUnit)
+                        color: statsPanel.tempDiskColor
+                        font.pixelSize: 11
+                        font.bold: true
+                    }
+                    Text {
+                        visible: !tempCpuText.visible && !tempGpuText.visible && !tempDiskText.visible
+                        text: qsTr("Temperature unavailable")
+                        color: "#8ea0ae"
+                        font.pixelSize: 11
+                    }
+                }
 
-                    // Draw CPU line & fill
-                    if (statsPanel.cpuHistory && statsPanel.cpuHistory.length > 1) {
-                        var step = width / (360 - 1);
-                        var startX = width - (statsPanel.cpuHistory.length - 1) * step;
-
-                        // 1. Draw gradient area under the curve
-                        ctx.beginPath();
-                        ctx.moveTo(startX, height);
-                        for (var i = 0; i < statsPanel.cpuHistory.length; i++) {
-                            var x = startX + i * step;
-                            var yVal = height - (statsPanel.cpuHistory[i] / 100.0) * height;
-                            yVal = Math.max(1, Math.min(height - 1, yVal));
-                            ctx.lineTo(x, yVal);
-                        }
-                        ctx.lineTo(width, height);
-                        ctx.closePath();
-                        
-                        var gradient = ctx.createLinearGradient(0, 0, 0, height);
-                        gradient.addColorStop(0, "rgba(0, 255, 102, 0.35)");
-                        gradient.addColorStop(1, "rgba(0, 255, 102, 0.03)");
-                        ctx.fillStyle = gradient;
-                        ctx.fill();
-
-                        // 2. Stroke graph line on top
-                        ctx.beginPath();
-                        ctx.strokeStyle = "#00ff66";
-                        ctx.lineWidth = 1.8; // thicker line for visibility
-                        ctx.moveTo(startX, height - (statsPanel.cpuHistory[0] / 100.0) * height);
-                        for (var i = 1; i < statsPanel.cpuHistory.length; i++) {
-                            var x = startX + i * step;
-                            var yVal = height - (statsPanel.cpuHistory[i] / 100.0) * height;
-                            yVal = Math.max(1, Math.min(height - 1, yVal));
-                            ctx.lineTo(x, yVal);
-                        }
-                        ctx.stroke();
+                MouseArea {
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                    ToolTip.delay: Compact.toolTipDelay
+                    ToolTip.timeout: Compact.toolTipTimeout
+                    ToolTip.visible: containsMouse && tempSensorTip.length > 0
+                    ToolTip.text: tempSensorTip
+                    property string tempSensorTip: {
+                        var parts = [];
+                        if (SystemStats.cpuTemperature >= 0 && SystemStats.cpuTemperatureDetail.length)
+                            parts.push(SystemStats.cpuTemperatureDetail);
+                        if (SystemStats.gpuTemperature >= 0 && SystemStats.gpuTemperatureDetail.length)
+                            parts.push(SystemStats.gpuTemperatureDetail);
+                        if (SystemStats.diskTemperature >= 0 && SystemStats.diskTemperatureDetail.length)
+                            parts.push(SystemStats.diskTemperatureDetail);
+                        return parts.join("\n");
                     }
                 }
             }
 
-            Text {
-                text: qsTr("LNG_00203") + SystemStats.gpuUsage.toFixed(1) + "%" + (SystemStats.gpuDecodeUsage > 0.05 ? qsTr(" · decode") + " " + SystemStats.gpuDecodeUsage.toFixed(0) + "%" : "")
-                color: "#00ff66"
-                font.pixelSize: 11
-                font.bold: true
-            }
-
             Canvas {
-                id: gpuCanvas
+                id: tempCanvas
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.preferredHeight: 28
+                Layout.preferredHeight: 32
                 onWidthChanged: requestPaint()
                 onHeightChanged: requestPaint()
 
                 onPaint: {
                     var ctx = getContext("2d");
-                    ctx.clearRect(0, 0, width, height);
-
-                    // Draw bright and thin background border
-                    ctx.strokeStyle = "rgba(0, 255, 102, 0.7)";
-                    ctx.lineWidth = 0.8;
-                    ctx.strokeRect(0, 0, width, height);
-
-                    // Draw faint gridlines
-                    ctx.beginPath();
-                    ctx.strokeStyle = "rgba(0, 255, 102, 0.15)";
-                    ctx.lineWidth = 0.8;
-                    // Horizontal gridlines
-                    var hStep = height / 4;
-                    for (var y = hStep; y < height; y += hStep) {
-                        ctx.moveTo(0, y);
-                        ctx.lineTo(width, y);
-                    }
-                    // Vertical gridlines every 1 minute (60 seconds / 60 points)
-                    var colWidth = width / 6;
-                    for (var col = 1; col < 6; ++col) {
-                        var xv = col * colWidth;
-                        ctx.moveTo(xv, 0);
-                        ctx.lineTo(xv, height);
-                    }
-                    ctx.stroke();
-
-                    // Draw GPU line & fill
-                    if (statsPanel.gpuHistory && statsPanel.gpuHistory.length > 1) {
-                        var step = width / (360 - 1);
-                        var startX = width - (statsPanel.gpuHistory.length - 1) * step;
-
-                        // 1. Draw gradient area under the curve
-                        ctx.beginPath();
-                        ctx.moveTo(startX, height);
-                        for (var i = 0; i < statsPanel.gpuHistory.length; i++) {
-                            var x = startX + i * step;
-                            var yVal = height - (statsPanel.gpuHistory[i] / 100.0) * height;
-                            yVal = Math.max(1, Math.min(height - 1, yVal));
-                            ctx.lineTo(x, yVal);
-                        }
-                        ctx.lineTo(width, height);
-                        ctx.closePath();
-                        
-                        var gradient = ctx.createLinearGradient(0, 0, 0, height);
-                        gradient.addColorStop(0, "rgba(0, 255, 102, 0.35)");
-                        gradient.addColorStop(1, "rgba(0, 255, 102, 0.03)");
-                        ctx.fillStyle = gradient;
-                        ctx.fill();
-
-                        // 2. Stroke graph line on top
-                        ctx.beginPath();
-                        ctx.strokeStyle = "#00ff66";
-                        ctx.lineWidth = 1.8; // thicker line for visibility
-                        ctx.moveTo(startX, height - (statsPanel.gpuHistory[0] / 100.0) * height);
-                        for (var i = 1; i < statsPanel.gpuHistory.length; i++) {
-                            var x = startX + i * step;
-                            var yVal = height - (statsPanel.gpuHistory[i] / 100.0) * height;
-                            yVal = Math.max(1, Math.min(height - 1, yVal));
-                            ctx.lineTo(x, yVal);
-                        }
-                        ctx.stroke();
-                    }
+                    var lo = statsPanel.tempScaleLo();
+                    var hi = statsPanel.tempScaleHi();
+                    statsPanel.paintGrid(ctx, width, height);
+                    statsPanel.paintTempGuide(ctx, width, height);
+                    statsPanel.paintSeries(ctx, width, height, statsPanel.displaySeries(statsPanel.tempDiskHistory), lo, hi, statsPanel.tempDiskColor, false);
+                    statsPanel.paintSeries(ctx, width, height, statsPanel.displaySeries(statsPanel.tempGpuHistory), lo, hi, statsPanel.tempGpuColor, false);
+                    statsPanel.paintSeries(ctx, width, height, statsPanel.displaySeries(statsPanel.tempCpuHistory), lo, hi, statsPanel.tempCpuColor, false);
                 }
             }
 
             Text {
                 text: qsTr("LNG_00202") + (SystemStats.netUsage >= 1.0 ? SystemStats.netUsage.toFixed(1) + " Mbps" : (SystemStats.netUsage * 1000.0).toFixed(0) + " kbps")
-                color: "#00ff66"
+                color: statsPanel.netColor
                 font.pixelSize: 11
                 font.bold: true
             }
@@ -3383,85 +3536,22 @@ ApplicationWindow {
                 id: netCanvas
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.preferredHeight: 28
+                Layout.preferredHeight: 32
                 onWidthChanged: requestPaint()
                 onHeightChanged: requestPaint()
 
                 onPaint: {
                     var ctx = getContext("2d");
-                    ctx.clearRect(0, 0, width, height);
-
-                    // Draw bright and thin background border
-                    ctx.strokeStyle = "rgba(0, 255, 102, 0.7)";
-                    ctx.lineWidth = 0.8;
-                    ctx.strokeRect(0, 0, width, height);
-
-                    // Draw faint gridlines
-                    ctx.beginPath();
-                    ctx.strokeStyle = "rgba(0, 255, 102, 0.15)";
-                    ctx.lineWidth = 0.8;
-                    // Horizontal gridlines
-                    var hStep = height / 4;
-                    for (var y = hStep; y < height; y += hStep) {
-                        ctx.moveTo(0, y);
-                        ctx.lineTo(width, y);
-                    }
-                    // Vertical gridlines every 1 minute
-                    var colWidth = width / 6;
-                    for (var col = 1; col < 6; ++col) {
-                        var xv = col * colWidth;
-                        ctx.moveTo(xv, 0);
-                        ctx.lineTo(xv, height);
-                    }
-                    ctx.stroke();
-
-                    // Find max value in history to scale Y-axis
-                    var maxVal = 4.0; // minimum scale is 4.0 Mbps
-                    if (statsPanel.netHistory) {
-                        for (var i = 0; i < statsPanel.netHistory.length; i++) {
-                            if (statsPanel.netHistory[i] > maxVal) {
-                                maxVal = statsPanel.netHistory[i];
-                            }
-                        }
-                    }
-
-                    // Draw Network line & fill
-                    if (statsPanel.netHistory && statsPanel.netHistory.length > 1) {
-                        var step = width / (360 - 1);
-                        var startX = width - (statsPanel.netHistory.length - 1) * step;
-
-                        // 1. Draw gradient area under the curve
-                        ctx.beginPath();
-                        ctx.moveTo(startX, height);
-                        for (var i = 0; i < statsPanel.netHistory.length; i++) {
-                            var x = startX + i * step;
-                            var yVal = height - (statsPanel.netHistory[i] / maxVal) * height;
-                            yVal = Math.max(1, Math.min(height - 1, yVal));
-                            ctx.lineTo(x, yVal);
-                        }
-                        ctx.lineTo(width, height);
-                        ctx.closePath();
-                        
-                        var gradient = ctx.createLinearGradient(0, 0, 0, height);
-                        gradient.addColorStop(0, "rgba(0, 255, 102, 0.35)");
-                        gradient.addColorStop(1, "rgba(0, 255, 102, 0.03)");
-                        ctx.fillStyle = gradient;
-                        ctx.fill();
-
-                        // 2. Stroke graph line on top
-                        ctx.beginPath();
-                        ctx.strokeStyle = "#00ff66";
-                        ctx.lineWidth = 1.8; // thicker line for visibility
-                        ctx.moveTo(startX, height - (statsPanel.netHistory[0] / maxVal) * height);
-                        for (var i = 1; i < statsPanel.netHistory.length; i++) {
-                            var x = startX + i * step;
-                            var yVal = height - (statsPanel.netHistory[i] / maxVal) * height;
-                            yVal = Math.max(1, Math.min(height - 1, yVal));
-                            ctx.lineTo(x, yVal);
-                        }
-                        ctx.stroke();
-                    }
+                    statsPanel.paintGrid(ctx, width, height);
+                    statsPanel.paintSeries(ctx, width, height, statsPanel.netHistory, 0, statsPanel.netScaleHi(), statsPanel.netColor, true);
                 }
+            }
+        }
+
+        Connections {
+            target: generalSettings
+            function onStatsTemperatureUnitChanged() {
+                tempCanvas.requestPaint();
             }
         }
 

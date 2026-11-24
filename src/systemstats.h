@@ -27,6 +27,15 @@ struct StatsSample {
     int sdkStreams = 0;           // Hikvision SDK play sessions currently open
     double dropsPerSecond = 0.0;  // frames thrown away this tick because a decoder queue was full
     double errorsPerSecond = 0.0; // demux or decode failures this tick
+    double tempCpu = -1;          // °C; negative when that sensor is absent
+    double tempGpu = -1;
+    double tempDisk = -1;
+    QString tempCpuLabel;
+    QString tempGpuLabel;
+    QString tempDiskLabel;
+    QString tempCpuDetail;        // which chip and label were chosen, for the tooltip
+    QString tempGpuDetail;
+    QString tempDiskDetail;
 };
 Q_DECLARE_METATYPE(StatsSample)
 
@@ -51,6 +60,8 @@ private:
     void calculateCpuAndRam(const QVector<qint64> &pids, double &cpu, double &ram, int &busiestCorePct);
     void calculateGpuAndVram(const QVector<qint64> &pids, double &gpu, double &vram, double &dec);
     void calculateNetUsage(const QVector<qint64> &pids, double &net);
+    void fillTemperatures(StatsSample &sample);
+    void scanTemperatures();
 
     struct NvmlContext;
     NvmlContext *m_nvml = nullptr;
@@ -71,6 +82,15 @@ private:
     qint64 m_lastDropsTotal = 0;   // the drop and error counters only ever grow; the samples carry
     qint64 m_lastErrorsTotal = 0;  // only what appeared since the previous tick
 
+    // Chosen once from sysfs and kept until a read fails. Empty path means that
+    // kind (CPU, GPU, disk) has no sensor. See tempsensor.h for the ranking.
+    bool m_tempScanned = false;
+    bool m_tempCpuFound = false;
+    int m_tempMissTicks = 0;
+    QString m_tempPath[3];
+    QString m_tempShort[3];
+    QString m_tempDetail[3];
+
     std::atomic<bool> m_uiActive{false};
 };
 
@@ -90,6 +110,15 @@ class SystemStats : public QObject
     Q_PROPERTY(int sdkStreams READ sdkStreams NOTIFY statsChanged)
     Q_PROPERTY(qint64 decDropsTotal READ decDropsTotal NOTIFY statsChanged)
     Q_PROPERTY(qint64 decErrorsTotal READ decErrorsTotal NOTIFY statsChanged)
+    Q_PROPERTY(double cpuTemperature READ cpuTemperature NOTIFY statsChanged)
+    Q_PROPERTY(double gpuTemperature READ gpuTemperature NOTIFY statsChanged)
+    Q_PROPERTY(double diskTemperature READ diskTemperature NOTIFY statsChanged)
+    Q_PROPERTY(QString cpuTemperatureLabel READ cpuTemperatureLabel NOTIFY statsChanged)
+    Q_PROPERTY(QString gpuTemperatureLabel READ gpuTemperatureLabel NOTIFY statsChanged)
+    Q_PROPERTY(QString diskTemperatureLabel READ diskTemperatureLabel NOTIFY statsChanged)
+    Q_PROPERTY(QString cpuTemperatureDetail READ cpuTemperatureDetail NOTIFY statsChanged)
+    Q_PROPERTY(QString gpuTemperatureDetail READ gpuTemperatureDetail NOTIFY statsChanged)
+    Q_PROPERTY(QString diskTemperatureDetail READ diskTemperatureDetail NOTIFY statsChanged)
 
 public:
     explicit SystemStats(QObject *parent = nullptr);
@@ -114,6 +143,15 @@ public:
     int sdkStreams() const { return m_sdkStreams; }
     qint64 decDropsTotal() const { return m_decDropsTotal; }
     qint64 decErrorsTotal() const { return m_decErrorsTotal; }
+    double cpuTemperature() const { return m_cpuTemperature; }
+    double gpuTemperature() const { return m_gpuTemperature; }
+    double diskTemperature() const { return m_diskTemperature; }
+    QString cpuTemperatureLabel() const { return m_cpuTemperatureLabel; }
+    QString gpuTemperatureLabel() const { return m_gpuTemperatureLabel; }
+    QString diskTemperatureLabel() const { return m_diskTemperatureLabel; }
+    QString cpuTemperatureDetail() const { return m_cpuTemperatureDetail; }
+    QString gpuTemperatureDetail() const { return m_gpuTemperatureDetail; }
+    QString diskTemperatureDetail() const { return m_diskTemperatureDetail; }
 
     bool active() const;
     void setActive(bool active);
@@ -140,6 +178,15 @@ private:
     int m_sdkStreams = 0;
     qint64 m_decDropsTotal = 0;   // since KVision started, for the panel's counter; the ring keeps per-tick rates
     qint64 m_decErrorsTotal = 0;
+    double m_cpuTemperature = -1;
+    double m_gpuTemperature = -1;
+    double m_diskTemperature = -1;
+    QString m_cpuTemperatureLabel;
+    QString m_gpuTemperatureLabel;
+    QString m_diskTemperatureLabel;
+    QString m_cpuTemperatureDetail;
+    QString m_gpuTemperatureDetail;
+    QString m_diskTemperatureDetail;
     bool m_active = false;
 
     // The rolling window of collected samples (see StatsSample).

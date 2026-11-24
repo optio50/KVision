@@ -1,5 +1,6 @@
 #include "systemstats.h"
 #include "context.h"
+#include "tempsensor.h"
 #include "qmlav/src/qmlavdemuxer.h"
 #include <QDir>
 #include <QFile>
@@ -179,6 +180,7 @@ void StatsWorker::doWork()
     calculateCpuAndRam(pids, sample.cpu, sample.ram, sample.busiestCore);
     calculateGpuAndVram(pids, sample.gpu, sample.vram, sample.gpuDec);
     calculateNetUsage(pids, sample.net);
+    fillTemperatures(sample);
 
     // Streams open right now, and what the ever-growing counters gained this tick.
     sample.rtspStreams = g_rtspStreams.load(std::memory_order_relaxed);
@@ -250,6 +252,15 @@ void SystemStats::onWorkDone(const StatsSample &sample)
     m_busiestCoreUsage = sample.busiestCore;
     m_rtspStreams = sample.rtspStreams;
     m_sdkStreams = sample.sdkStreams;
+    m_cpuTemperature = sample.tempCpu;
+    m_gpuTemperature = sample.tempGpu;
+    m_diskTemperature = sample.tempDisk;
+    m_cpuTemperatureLabel = sample.tempCpuLabel;
+    m_gpuTemperatureLabel = sample.tempGpuLabel;
+    m_diskTemperatureLabel = sample.tempDiskLabel;
+    m_cpuTemperatureDetail = sample.tempCpuDetail;
+    m_gpuTemperatureDetail = sample.tempGpuDetail;
+    m_diskTemperatureDetail = sample.tempDiskDetail;
 
     // Since-start counters for the panel; the ring keeps the per-tick rates.
     m_decDropsTotal += qint64(sample.dropsPerSecond);
@@ -283,6 +294,9 @@ void SystemStats::setActive(bool active)
         m_busiestCoreUsage = 0;
         m_rtspStreams = 0;
         m_sdkStreams = 0;
+        m_cpuTemperature = -1;
+        m_gpuTemperature = -1;
+        m_diskTemperature = -1;
         emit statsChanged();
     }
     emit activeChanged();
@@ -312,6 +326,12 @@ static double sampleMetric(const StatsSample &s, const QString &metric)
         return s.dropsPerSecond;
     if (metric == QLatin1String("errors"))
         return s.errorsPerSecond;
+    if (metric == QLatin1String("tempCpu"))
+        return s.tempCpu;
+    if (metric == QLatin1String("tempGpu"))
+        return s.tempGpu;
+    if (metric == QLatin1String("tempDisk"))
+        return s.tempDisk;
     return 0.0;
 }
 
@@ -357,20 +377,178 @@ QVariantList SystemStats::historySnapshot(const QString &metric, int maxPoints) 
     // One averaged point per bin; bins are at least one sample wide.
     const int pts = qBound(1, maxPoints, total);
     const int start = (m_historyHead - total + size) % size;
+    // Temperature samples use a negative value as "no sensor". Those must not
+    // be averaged in with real degrees, or one missing tick pulls the line down.
+    const bool temperature = metric.startsWith(QLatin1String("temp"));
     for (int p = 0; p < pts; ++p) {
         const qint64 b0 = (qint64)p * total / pts;
         const qint64 b1 = (qint64)(p + 1) * total / pts;
         const int count = int(b1 - b0);
         if (count > 0) {
             double sum = 0.0;
-            for (qint64 i = b0; i < b1; ++i)
-                sum += sampleMetric(m_history[(start + int(i)) % size], metric);
-            out.append(sum / count);
+            int kept = 0;
+            for (qint64 i = b0; i < b1; ++i) {
+                const double v = sampleMetric(m_history[(start + int(i)) % size], metric);
+                if (temperature && v < 0)
+                    continue;
+                sum += v;
+                ++kept;
+            }
+            if (temperature && kept == 0)
+                out.append(-1.0);
+            else
+                out.append(kept > 0 ? sum / kept : 0.0);
         } else {
             out.append(sampleMetric(m_history[(start + int(b0)) % size], metric));
         }
     }
     return out;
+}
+
+namespace {
+
+QString readSysfsText(const QString &path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return QString();
+    return QString::fromUtf8(file.readAll()).trimmed();
+}
+
+// hwmon and thermal zones report millidegrees. A reading already in degrees
+// (below 1000) is accepted too. Anything outside a real machine range is absent.
+double readSysfsCelsius(const QString &path)
+{
+    const QString text = readSysfsText(path);
+    if (text.isEmpty())
+        return -1;
+    bool ok = false;
+    const double raw = text.toDouble(&ok);
+    if (!ok)
+        return -1;
+    const double celsius = (raw >= 1000.0 || raw <= -1000.0) ? raw / 1000.0 : raw;
+    if (celsius < -20.0 || celsius > 150.0)
+        return -1;
+    return celsius;
+}
+
+int tempIndexFromName(const QString &name)
+{
+    if (!name.startsWith(QLatin1String("temp")))
+        return 0;
+    int index = 0;
+    for (int i = 4; i < name.size() && name.at(i).isDigit(); ++i)
+        index = index * 10 + name.at(i).digitValue();
+    return index;
+}
+
+QVector<TempSeriesChoice> scanTempSeries()
+{
+    QVector<TempSensorReading> found;
+
+    const QDir hwmon(QStringLiteral("/sys/class/hwmon"));
+    const QStringList chips = hwmon.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &dirName : chips) {
+        const QString base = hwmon.filePath(dirName);
+        const QString chip = readSysfsText(base + QStringLiteral("/name"));
+        const QDir chipDir(base);
+        const QStringList inputs = chipDir.entryList(QStringList() << QStringLiteral("temp*_input"), QDir::Files);
+        for (const QString &inputName : inputs) {
+            TempSensorReading reading;
+            reading.path = base + QLatin1Char('/') + inputName;
+            reading.chip = chip;
+            QString labelName = inputName;
+            if (labelName.endsWith(QLatin1String("input"))) {
+                labelName.chop(5);
+                labelName += QLatin1String("label");
+            }
+            reading.label = readSysfsText(base + QLatin1Char('/') + labelName);
+            reading.index = tempIndexFromName(inputName);
+            reading.celsius = readSysfsCelsius(reading.path);
+            found.append(reading);
+        }
+    }
+
+    const QDir thermal(QStringLiteral("/sys/class/thermal"));
+    const QStringList zones = thermal.entryList(QStringList() << QStringLiteral("thermal_zone*"),
+                                                 QDir::Dirs | QDir::NoDotAndDotDot);
+    for (const QString &zoneName : zones) {
+        const QString base = thermal.filePath(zoneName);
+        const QString type = readSysfsText(base + QStringLiteral("/type"));
+        if (type.isEmpty())
+            continue;
+        TempSensorReading reading;
+        reading.path = base + QStringLiteral("/temp");
+        reading.chip = type;
+        reading.label = type;
+        reading.thermalZone = true;
+        reading.index = 1;
+        reading.celsius = readSysfsCelsius(reading.path);
+        found.append(reading);
+    }
+
+    return chooseTempSeries(found);
+}
+
+} // namespace
+
+void StatsWorker::scanTemperatures()
+{
+    const QVector<TempSeriesChoice> chosen = scanTempSeries();
+    for (int i = 0; i < 3; ++i) {
+        m_tempPath[i].clear();
+        m_tempShort[i].clear();
+        m_tempDetail[i].clear();
+    }
+    m_tempCpuFound = false;
+    for (const TempSeriesChoice &choice : chosen) {
+        const int slot = static_cast<int>(choice.kind);
+        if (slot < 0 || slot > 2)
+            continue;
+        m_tempPath[slot] = choice.path;
+        m_tempShort[slot] = choice.shortName;
+        m_tempDetail[slot] = choice.detail;
+        if (choice.kind == TempSeriesKind::Cpu)
+            m_tempCpuFound = true;
+    }
+}
+
+void StatsWorker::fillTemperatures(StatsSample &sample)
+{
+    sample.tempCpu = -1;
+    sample.tempGpu = -1;
+    sample.tempDisk = -1;
+
+    // Walk sysfs only until a choice sticks. A failed read scans again. While
+    // no CPU sensor exists, look once a minute in case the hwmon module was late.
+    if (!m_tempScanned || (!m_tempCpuFound && m_tempMissTicks >= 60)) {
+        scanTemperatures();
+        m_tempScanned = true;
+    }
+
+    bool failed = false;
+    double *const dest[3] = {&sample.tempCpu, &sample.tempGpu, &sample.tempDisk};
+    QString *const labels[3] = {&sample.tempCpuLabel, &sample.tempGpuLabel, &sample.tempDiskLabel};
+    QString *const details[3] = {&sample.tempCpuDetail, &sample.tempGpuDetail, &sample.tempDiskDetail};
+    for (int i = 0; i < 3; ++i) {
+        if (m_tempPath[i].isEmpty())
+            continue;
+        const double celsius = readSysfsCelsius(m_tempPath[i]);
+        if (celsius < 1.0) {
+            failed = true;
+            continue;
+        }
+        *dest[i] = celsius;
+        *labels[i] = m_tempShort[i];
+        *details[i] = m_tempDetail[i];
+    }
+
+    if (failed)
+        m_tempScanned = false;
+    if (sample.tempCpu < 0)
+        ++m_tempMissTicks;
+    else
+        m_tempMissTicks = 0;
 }
 
 QVector<qint64> StatsWorker::getProgramPids()

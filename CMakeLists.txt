@@ -315,6 +315,7 @@ if(NOT ANDROID)
             src/recordersecrets.cpp
             src/tests/recordersecrets_tests.cpp
             src/tests/playback_tests.cpp
+            src/tests/tempsensor_tests.cpp
             src/rtspaudiocompat.cpp src/rtspaudiocompat.h
             src/tests/rtspaudiocompat_tests.cpp
         )
