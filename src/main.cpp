@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <climits>
 #include <cstdlib>
+#include <cstring>
 #include <cstdarg>
 #include <QStandardPaths>
 #include <QDateTime>
@@ -38,6 +39,7 @@ extern "C" {
 #include "hikvisionptzaim.h"
 #include "nvrstatusmanager.h"
 #include "hikvisionplayer.h"
+#include "rtspaudiocompat.h"
 
 #if QT_VERSION < QT_VERSION_CHECK(5, 14, 0)
 template<typename T>
@@ -108,6 +110,10 @@ void initFileLogging() {
 void custom_ffmpeg_log_callback(void* ptr, int level, const char* fmt, va_list vl)
 {
     Q_UNUSED(ptr);
+    // A recorder announced AAC with a payload id that does not match its fmtp line.
+    // Ask once, including when diagnostic logs are off. The callback may be off the window thread.
+    if (fmt && std::strstr(fmt, "Error parsing AU headers") != nullptr)
+        RtspAudioCompat::noteAuHeaderError();
     bool diagnosticLogsEnabled = Context::enableLogs() || (g_logFile != nullptr);
     if (!diagnosticLogsEnabled || level > AV_LOG_WARNING) {
         return;
@@ -252,6 +258,11 @@ void registerQmlTypes()
                                              []([[maybe_unused]] QQmlEngine *engine,
                                                 [[maybe_unused]] QJSEngine *scriptEngine) -> QObject * {
         return new HikvisionISAPI();
+    });
+    qmlRegisterSingletonType<RtspAudioCompat>("CCTV_Viewer.Hikvision", 1, 0, "RtspAudioCompat",
+                                              []([[maybe_unused]] QQmlEngine *engine,
+                                                 [[maybe_unused]] QJSEngine *scriptEngine) -> QObject * {
+        return new RtspAudioCompat();
     });
 
     qmlRegisterType<QmlAVPlayer>("CCTV_Viewer.Multimedia", 1, 0, "QmlAVPlayer");

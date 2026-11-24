@@ -3152,6 +3152,24 @@ FocusScope {
                                     Layout.fillWidth: true
                                 }
 
+                                Text {
+                                    text: qsTr("Repair Hikvision live audio")
+                                    color: "#c5d0d8"
+                                    font.pixelSize: 12
+                                    Layout.fillWidth: true
+                                    wrapMode: Text.Wrap
+                                }
+
+                                Button {
+                                    text: qsTr("Choose cameras...")
+                                    Layout.fillWidth: true
+                                    hoverEnabled: true
+                                    ToolTip.visible: hovered
+                                    ToolTip.delay: 600
+                                    ToolTip.text: qsTr("Tick a camera whose live sound was dropped. Only ticked cameras are repaired on this computer. Every other camera stays as it is.")
+                                    onClicked: rootWindow.openAacRepairWindow()
+                                }
+
                                 CheckBox {
                                     text: qsTr("LNG_00267")
                                     checked: viewportSettings.noUnmuteWhenFullScreen

@@ -106,7 +106,7 @@ Dialog {
             Button {
                 id: cancelBtn
                 text: rootDialog.cancelButtonText
-                Layout.preferredWidth: 80
+                Layout.preferredWidth: Math.max(80, cancelBtn.contentItem.implicitWidth + 28)
                 Layout.preferredHeight: 30
 
                 contentItem: Text {
@@ -127,7 +127,7 @@ Dialog {
             Button {
                 id: confirmBtn
                 text: rootDialog.confirmButtonText
-                Layout.preferredWidth: 80
+                Layout.preferredWidth: Math.max(80, confirmBtn.contentItem.implicitWidth + 28)
                 Layout.preferredHeight: 30
 
                 contentItem: Text {

@@ -60,6 +60,7 @@
         <file>src/CameraBitrateWindow.qml</file>
         <file>src/DetectionFramesWindow.qml</file>
         <file>src/VcaOverlayWindow.qml</file>
+        <file>src/AacRepairWindow.qml</file>
         <file>src/StreamSourceWindow.qml</file>
         <file>src/OverlayTextWindow.qml</file>
         <file>src/LayoutBackupButton.qml</file>

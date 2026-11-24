@@ -4,6 +4,9 @@
 #include <QDateTime>
 #include <QHash>
 #include <QMutex>
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+#include <QRecursiveMutex>
+#endif
 #include <QPair>
 #include <QRectF>
 #include <QSet>
@@ -266,7 +269,11 @@ private:
     QThread *m_thread = nullptr;
     EventParseWorker *m_worker = nullptr;
     std::atomic<bool> m_stopping{false};
+#if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
+    mutable QRecursiveMutex m_mu; // connection fields the worker copies, and the filter settings
+#else
     mutable QMutex m_mu{QMutex::Recursive}; // connection fields the worker copies, and the filter settings
+#endif
     mutable QMutex m_logMu;       // Detection.log, Frames.log and OtherEvents.log
     mutable QMutex m_pictureMu;   // m_pictures
     QHash<QString, Conn> m_parse; // worker thread only: the half-read report and its picture

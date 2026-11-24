@@ -564,11 +564,26 @@ FocusScope {
         fileName: Context.config.fileName
         category: "Hikvision"
         property bool useRealStreams: true
-        
+
         onUseRealStreamsChanged: {
             updateSource();
         }
     }
+
+    // True when this tile's camera is ticked in Settings > Audio > Choose cameras.
+    readonly property bool aacRepairHere: {
+        if (typeof generalSettings === "undefined" || root.recorderIp === "")
+            return false;
+        try {
+            var l = JSON.parse(generalSettings.repairAacCameras || "[]");
+            return Array.isArray(l) && l.indexOf(root.nvrKey()) >= 0;
+        } catch (e) {
+            return false;
+        }
+    }
+    // True only while this tile's live Hikvision URL is going through the local relay.
+    property bool aacRepairLive: false
+    onAacRepairHereChanged: updateSource()
 
     function hikvisionStreamId(host, channel, index, streamHttpPort) {
         var wanted = Math.max(1, index);
@@ -646,6 +661,7 @@ FocusScope {
         if (root.visible && !root.liveSuspended && !root.isQuickPlayback)
             parseUri(source);
         if (!root.visible || root.liveSuspended || root.isQuickPlayback || root.recorderOffline) {
+            aacRepairLive = false;
             // Only the archive pause keeps the last picture. Hiding a tile, or a recorder
             // that is offline, still clears to black.
             if (root.liveSuspended) {
@@ -663,6 +679,7 @@ FocusScope {
             return;
         }
 
+        aacRepairLive = false;
         var newUrl = "";
         var newCameraId = "";
 
@@ -694,6 +711,10 @@ FocusScope {
                 creds = encodeURIComponent(username) + (password ? (":" + encodeURIComponent(password)) : "") + "@";
             }
             newUrl = "rtsp://" + creds + targetIp + ":" + targetRtspPort + "/Streaming/Channels/" + streamId;
+            if (root.aacRepairHere) {
+                newUrl = RtspAudioCompat.streamUrl(newUrl);
+                aacRepairLive = true;
+            }
             newCameraId = targetIp + "_" + targetChannel + "_" + streamId;
             console.log("[Player] Selected stream " + streamIndex + " channel " + channelId);
         }
@@ -2256,6 +2277,8 @@ FocusScope {
                 if (root.rtspTransport === "tcp" || root.rtspTransport === "udp") {
                     avOpts["rtsp_transport"] = root.rtspTransport;
                 }
+                if (root.aacRepairLive)
+                    avOpts["rtsp_transport"] = "tcp";
                 return avOpts;
             }
 
@@ -2305,6 +2328,8 @@ FocusScope {
                 if (root.rtspTransport === "tcp" || root.rtspTransport === "udp") {
                     avOpts2["rtsp_transport"] = root.rtspTransport;
                 }
+                if (root.aacRepairLive)
+                    avOpts2["rtsp_transport"] = "tcp";
                 return avOpts2;
             }
 

@@ -311,6 +311,9 @@ ApplicationWindow {
         // Right-click > VCA > Show VCA Line Rules: KVision draws the rule lines from the same smart data.
         // JSON list of "recorderIp#channel". The camera's own stream switch is left alone.
         property string vcaRuleLinesOnCameras: "[]"
+        // Settings > Audio > Choose cameras: live Hikvision tiles whose AAC description is repaired
+        // on this computer. JSON list of "recorderIp#channel". Empty leaves every stream direct.
+        property string repairAacCameras: "[]"
         // Camera Tools > Video stream: the picture a camera's tiles use, remembered per camera.
         // JSON {"ip#channel": 1 | 2 | 3} for Main, Sub and Third. A camera with no entry stays on
         // whatever each layout already has (Auto, until a layout says otherwise).
@@ -510,7 +513,7 @@ ApplicationWindow {
 
         var focus = rootWindow.activeFocusItem;
         if (focus && (focus instanceof TextInput || focus instanceof TextEdit)) return;
-        if (quitConfirmDialog.visible || nvrStatusDialog.visible) return;
+        if (quitConfirmDialog.visible || nvrStatusDialog.visible || aacRepairDialog.visible) return;
         if (sidebarWindow.visible || toolsWindow.visible || instructionsWindow.visible) return;
         if (rootWindow.isPlaybackWindowOpen) return;
         if (layoutWheelDebounce.running) {
@@ -2929,6 +2932,44 @@ ApplicationWindow {
             rootWindow.closeAccepted = true;
             rootWindow.hide();
             Qt.quit();
+        }
+    }
+
+    Connections {
+        target: RtspAudioCompat
+        onOfferPendingChanged: {
+            if (RtspAudioCompat.offerPending && !aacRepairDialog.visible)
+                aacRepairDialog.open();
+        }
+    }
+
+    function openAacRepairWindow() {
+        var w = aacRepairComponent.createObject(rootWindow);
+        if (w)
+            w.show();
+    }
+
+    Component {
+        id: aacRepairComponent
+        AacRepairWindow {}
+    }
+
+    ConfirmDialog {
+        id: aacRepairDialog
+        title: qsTr("Live audio was dropped")
+        width: 460
+        message: qsTr("A recorder described its live audio in a way the player cannot use, so the sound was dropped. Choose the cameras that should have sound and are silent. Only those cameras are repaired on this computer. Every other camera stays as it is. The same list is under Settings, Audio.")
+        confirmButtonText: qsTr("Choose cameras")
+        cancelButtonText: qsTr("Not now")
+        isDanger: false
+        onAccepted: {
+            RtspAudioCompat.dismissOffer();
+            rootWindow.openAacRepairWindow();
+        }
+        onRejected: RtspAudioCompat.dismissOffer()
+        Component.onCompleted: {
+            if (RtspAudioCompat.offerPending)
+                open();
         }
     }
 
