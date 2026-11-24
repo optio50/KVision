@@ -1256,16 +1256,49 @@ FocusScope {
                 root.updateSource();
         }
     }
-    onUseRecorderEventsChanged: {
-        // The source setting changed: close the old connection and open the one the setting now asks for.
+
+    // A dragged camera keeps the player that was already on the tile. The detection subscription
+    // belongs to that player, so it has to be pointed at the camera that just arrived. The address
+    // and the channel are written one after the other; one deferred pass restarts the watch after both.
+    property bool targetRetargetQueued: false
+
+    function restartTargetWatch() {
+        if (root.targetRetargetQueued)
+            return;
+        root.targetRetargetQueued = true;
         if (root.targetWatching) {
-            HikvisionEvents.unwatch(root.watchedIp);
+            var oldIp = root.watchedIp;
             root.targetWatching = false;
+            root.watchedIp = "";
+            root.lensChannel = 0;
+            root.targetCam = null;
+            root.targetCamFor = "";
             root.targetType = "";
             root.targetSource = "";
-            root.targetCam = null;
+            root.trackingFlag = false;
+            root.followLogged = false;
+            root.siblingType = "";
+            root.siblingAt = 0;
+            root.returnSlew = false;
+            root.ptzMovedAt = 0;
+            root.parkedAt = 0;
+            root.lastTargetReport = 0;
+            root.lastSmartAt = 0;
+            console.debug("[Target] tile " + root.index + " camera changed, stopped watching " + oldIp);
+            if (oldIp !== "")
+                HikvisionEvents.unwatch(oldIp);
         }
+        Qt.callLater(root.applyTargetWatch);
+    }
+
+    function applyTargetWatch() {
+        root.targetRetargetQueued = false;
         root.updateTargetWatch();
+    }
+
+    onUseRecorderEventsChanged: {
+        // The source setting changed: close the old connection and open the one the setting now asks for.
+        root.restartTargetWatch();
     }
 
     Connections {
@@ -1551,8 +1584,20 @@ FocusScope {
         HikvisionTalk.start(root.talkKey, t.ip, t.port, root.username, root.password, mic, gain, boost);
     }
 
-    onRecorderIpChanged: { talkTarget = null; talkTargetFor = ""; }
-    onChannelIdChanged: { talkTarget = null; talkTargetFor = ""; }
+    onRecorderIpChanged: {
+        talkTarget = null;
+        talkTargetFor = "";
+        // A tile that is not watching yet is started by Component.onCompleted. Restarting here
+        // would subscribe twice on the first read of the address.
+        if (root.targetWatching)
+            root.restartTargetWatch();
+    }
+    onChannelIdChanged: {
+        talkTarget = null;
+        talkTargetFor = "";
+        if (root.targetWatching)
+            root.restartTargetWatch();
+    }
 
     function stopTalk() {
         if (root.talkActiveHere)
