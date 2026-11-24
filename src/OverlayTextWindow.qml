@@ -414,7 +414,18 @@ Window {
                 Text { text: qsTr("Topic"); color: "#eeeeee"; font.pixelSize: 12 }
                 TextField { id: topicField; Layout.fillWidth: true; selectByMouse: true; placeholderText: "home/outside/temperature" }
 
-                Text { text: qsTr("Name of the number"); color: "#eeeeee"; font.pixelSize: 12 }
+                Text {
+                    text: qsTr("Name of the number")
+                    color: "#eeeeee"
+                    font.pixelSize: 12
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        ToolTip.visible: containsMouse
+                        ToolTip.delay: 600
+                        ToolTip.text: fieldField.ToolTip.text
+                    }
+                }
                 TextField {
                     id: fieldField
                     Layout.fillWidth: true
@@ -422,7 +433,7 @@ Window {
                     placeholderText: "value"
                     ToolTip.visible: hovered
                     ToolTip.delay: 600
-                    ToolTip.text: qsTr("Some brokers send the reading inside JSON, for example {\"value\": 1.5}. Type the name of the number in it (here: value). If the message is only a number, such as 1.5, leave this empty. The reading must be in degrees Celsius.")
+                    ToolTip.text: qsTr("This is the name of the temperature inside the MQTT message. It is not a label on the camera. If the message is only a number, such as 21.5, leave this empty. If the message is JSON, type the name of the field that holds the number. For {\"value\": 21.5} the name is value. For {\"sensor\": {\"temp\": 21.5}} the name is sensor.temp. The number must already be in Celsius. The Celsius / Fahrenheit choice only changes how it is written on the camera.")
                 }
 
                 Text { text: qsTr("Camera"); color: "#eeeeee"; font.pixelSize: 12 }
