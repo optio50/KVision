@@ -1,6 +1,7 @@
 #include "eventalert.h"
 #include "loginguard.h"
 #include "stallwatch.h"
+#include "hikvisionvca.h"
 #include "vcaparse.h"
 
 #include <gtest/gtest.h>
@@ -455,4 +456,15 @@ TEST(VcaParse, AlarmIds)
     legacy[27] = 0x01;
     EXPECT_EQ(readVcaAlarm(legacy, 40).layout, VcaAlarmIds::None);
     EXPECT_EQ(readVcaAlarm(legacy, 20).layout, VcaAlarmIds::None);
+}
+
+TEST(VcaClock, FollowsACameraClockThatRestarts)
+{
+    EXPECT_EQ(vcaRebasedVideoPts(-1, 1000), 1000);          // the first frame latches the base
+    EXPECT_EQ(vcaRebasedVideoPts(1000, -1), 1000);          // a frame with no PTS leaves the base
+    EXPECT_EQ(vcaRebasedVideoPts(5000000, 8000000), 5000000); // a later frame keeps the original base
+    EXPECT_EQ(vcaRebasedVideoPts(5000000, 5000000 - 90 * 1000), 5000000); // one second behind is still the same clock
+    const qint64 restarted = 5000000 - 90 * 1000 - 1;
+    EXPECT_EQ(vcaRebasedVideoPts(5000000, restarted), restarted); // a step behind the latched base starts again
+    EXPECT_EQ(vcaRebasedVideoPts((qint64(1) << 33) - 1000, 5000), 5000); // the 33-bit clock wrapped
 }

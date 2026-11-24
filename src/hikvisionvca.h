@@ -11,6 +11,19 @@
 
 class QPainter;
 
+// A video PTS more than a second behind the latched base is a new timeline: the camera restarted its
+// 90 kHz clock (a time step, or the 33-bit value wrapped). Target time is measured from that base, so a
+// stamp behind it is negative and the live overlay would ignore every later box.
+inline qint64 vcaRebasedVideoPts(qint64 basePts, qint64 videoPts)
+{
+    constexpr qint64 kRestartTicks = 90 * 1000; // one second at 90 kHz
+    if (videoPts < 0)
+        return basePts;
+    if (basePts < 0 || videoPts + kRestartTicks < basePts)
+        return videoPts;
+    return basePts;
+}
+
 // The smart (VCA) data a Hikvision camera sends next to its video, in recordings and in an SDK live
 // stream alike: the rule lines and zones, every tracked target's box, and an alarm event when a rule
 // fires (named by rule and target). Fed raw MPEG-PS bytes; decoded with PlayCtrl's own parsers.

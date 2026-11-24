@@ -179,8 +179,15 @@ void HikVcaDecoder::feed(const unsigned char *data, int size)
         if ((id == 0xE0 || id == 0xBD) && pesLen >= 8) {
             const qint64 pts = psPts(buf + pos);
             if (id == 0xE0) {
-                if (m_videoBasePts < 0 && pts >= 0)
-                    m_videoBasePts = pts;
+                const qint64 base = vcaRebasedVideoPts(m_videoBasePts, pts);
+                if (base != m_videoBasePts) {
+                    // Reports already stored were measured from the old base.
+                    if (m_videoBasePts >= 0) {
+                        m_samples.clear();
+                        m_alarms.clear();
+                    }
+                    m_videoBasePts = base;
+                }
             } else {
                 const int hl = buf[pos + 8];
                 const int payload = pesLen - 3 - hl;
