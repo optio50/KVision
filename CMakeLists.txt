@@ -184,6 +184,7 @@ set(PROJ_FILES
     src/vcaparse.cpp src/vcaparse.h
     src/recordersecrets.cpp src/recordersecrets.h
     src/hikvisionprobe.cpp src/hikvisionprobe.h
+    src/rtspaudiocompat.cpp src/rtspaudiocompat.h
     src/hikvisionptzaim.cpp src/hikvisionptzaim.h
     src/camerastatustext.h
     src/hikvisionplayer.cpp src/hikvisionplayer.h
@@ -314,11 +315,14 @@ if(NOT ANDROID)
             src/recordersecrets.cpp
             src/tests/recordersecrets_tests.cpp
             src/tests/playback_tests.cpp
+            src/rtspaudiocompat.cpp
+            src/rtspaudiocompat.h
+            src/tests/rtspaudiocompat_tests.cpp
         )
         target_compile_definitions(kvision_tests PRIVATE
             KVISION_PLAYCTRL_SO="${CMAKE_SOURCE_DIR}/src/hikvision_sdk/lib/libPlayCtrl.so")
         target_include_directories(kvision_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
-        target_link_libraries(kvision_tests PRIVATE GTest::GTest GTest::Main Qt${QT_VERSION_MAJOR}::Core)
+        target_link_libraries(kvision_tests PRIVATE GTest::GTest GTest::Main Qt${QT_VERSION_MAJOR}::Core Qt${QT_VERSION_MAJOR}::Network)
         add_test(NAME kvision_tests COMMAND kvision_tests)
     endif()
 endif()

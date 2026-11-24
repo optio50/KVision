@@ -35,6 +35,7 @@ extern "C" {
 #include "viewportslayoutscollectionmodel.h"
 #include "hikvisionmanager.h"
 #include "hikvisionprobe.h"
+#include "rtspaudiocompat.h"
 #include "hikvisionptzaim.h"
 #include "nvrstatusmanager.h"
 #include "hikvisionplayer.h"
@@ -237,6 +238,8 @@ void registerQmlTypes()
                                                  [[maybe_unused]] QJSEngine *scriptEngine) -> QObject * {
         return new RecorderSecrets();
     });
+    qmlRegisterSingletonType<RtspAudioCompat>("CCTV_Viewer.Hikvision", 1, 0, "RtspAudioCompat",
+        [](QQmlEngine *, QJSEngine *) -> QObject * { return new RtspAudioCompat(); });
     qmlRegisterSingletonType<Clipboard>("CCTV_Viewer.Utils", 1, 0, "Clipboard",
                                                 []([[maybe_unused]] QQmlEngine *engine,
                                                    [[maybe_unused]] QJSEngine *scriptEngine) -> QObject * {

@@ -564,6 +564,7 @@ FocusScope {
         fileName: Context.config.fileName
         category: "Hikvision"
         property bool useRealStreams: true
+        property bool repairAacSdp: false
         
         onUseRealStreamsChanged: {
             updateSource();
@@ -694,6 +695,8 @@ FocusScope {
                 creds = encodeURIComponent(username) + (password ? (":" + encodeURIComponent(password)) : "") + "@";
             }
             newUrl = "rtsp://" + creds + targetIp + ":" + targetRtspPort + "/Streaming/Channels/" + streamId;
+            if (hikPlayerSettings.repairAacSdp)
+                newUrl = RtspAudioCompat.streamUrl(newUrl);
             newCameraId = targetIp + "_" + targetChannel + "_" + streamId;
             console.log("[Player] Selected stream " + streamIndex + " channel " + channelId);
         }
@@ -2256,6 +2259,8 @@ FocusScope {
                 if (root.rtspTransport === "tcp" || root.rtspTransport === "udp") {
                     avOpts["rtsp_transport"] = root.rtspTransport;
                 }
+                if (root.isHikvision && hikPlayerSettings.repairAacSdp)
+                    avOpts["rtsp_transport"] = "tcp";
                 return avOpts;
             }
 
@@ -2305,6 +2310,8 @@ FocusScope {
                 if (root.rtspTransport === "tcp" || root.rtspTransport === "udp") {
                     avOpts2["rtsp_transport"] = root.rtspTransport;
                 }
+                if (root.isHikvision && hikPlayerSettings.repairAacSdp)
+                    avOpts2["rtsp_transport"] = "tcp";
                 return avOpts2;
             }
 
