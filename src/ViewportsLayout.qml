@@ -1447,17 +1447,13 @@ FocusScope {
                                 // Suppress drag-multiselect while a camera drag-to-swap is in progress
                                 return;
                             }
-                            if (!containsMouse) {
-                                var selectionIndex2 = viewport.indexAt(mouseX, mouseY);
-
-                                if (selectionIndex2 >= 0) {
-                                    d.selectionIndex2 = selectionIndex2;
-                                }
-                            } else {
-                                if (!(d.keyModifiers & Qt.ShiftModifier)) {
-                                    d.selectionReset();
-                                }
-                            }
+                            // A finished selection has to stay while the pointer moves off the tiles
+                            // toward Merge. Only a left-button drag past the cell edge grows it.
+                            if (containsMouse || !(pressedButtons & Qt.LeftButton))
+                                return;
+                            var under = viewport.indexAt(mouseX, mouseY);
+                            if (under >= 0)
+                                d.selectionIndex2 = under;
                         }
                     }
 
