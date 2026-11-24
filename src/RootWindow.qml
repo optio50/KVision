@@ -268,7 +268,7 @@ ApplicationWindow {
         property bool enableRemoveCamera: true
         property bool enableChangeViewportSettings: true
         property bool enableStreamSelection: true
-        property bool lockGridSize: true
+        property bool lockGridSize: false
         property string snapshotPath: ""
         property string videoPath: ""
         property bool disableAudio: false
@@ -667,7 +667,7 @@ ApplicationWindow {
             if (generalSettings.enableRemoveCamera !== diskEnableRemoveCamera) {
                 generalSettings.enableRemoveCamera = diskEnableRemoveCamera;
             }
-            var diskLockGridSize = Context.readSetting("", "lockGridSize", true);
+            var diskLockGridSize = Context.readSetting("", "lockGridSize", false);
             if (generalSettings.lockGridSize !== diskLockGridSize) {
                 generalSettings.lockGridSize = diskLockGridSize;
             }

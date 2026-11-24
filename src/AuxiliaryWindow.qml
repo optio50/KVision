@@ -491,7 +491,7 @@ Window {
 
                     Switch {
                         id: lockGridSwitch
-                        checked: generalSettings ? generalSettings.lockGridSize : true
+                        checked: generalSettings ? generalSettings.lockGridSize : false
                         text: qsTr("LNG_00010")
 
                         Layout.preferredHeight: 28
