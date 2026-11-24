@@ -93,6 +93,11 @@ ColumnLayout {
         CameraSettingsWindow {}
     }
 
+    Component {
+        id: cameraAddressComponent
+        CameraAddressWindow {}
+    }
+
     Component.onCompleted: {
         buildUnstickCameraModel();
         HikvisionBackup.loadCameras(rootWindow.hikvisionRecordersJson || "[]", Context.config.fileName);
@@ -439,6 +444,67 @@ ColumnLayout {
                 font.pixelSize: 9
                 wrapMode: Text.Wrap
                 Layout.fillWidth: true
+            }
+        }
+    }
+
+    // ── Camera addresses: each camera's own IP, and whether it is standalone or on an NVR ──
+    Frame {
+        Layout.fillWidth: true
+        background: Rectangle {
+            color: "#1c242c"
+            radius: 6
+            border.color: "#2a3540"
+            border.width: 1
+        }
+
+        ColumnLayout {
+            width: parent.width
+            spacing: 8
+
+            Text {
+                text: qsTr("Camera addresses")
+                color: "white"
+                font.pixelSize: 13
+                font.bold: true
+                Layout.fillWidth: true
+            }
+
+            Text {
+                text: qsTr("Every saved camera, its own address, and whether it is standalone or connected through an NVR.")
+                color: "#8898a6"
+                font.pixelSize: 11
+                wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            Button {
+                id: cameraAddressBtn
+                text: qsTr("Camera addresses...")
+                Layout.alignment: Qt.AlignLeft
+                contentItem: Text {
+                    text: cameraAddressBtn.text
+                    color: "white"
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    leftPadding: 10
+                    rightPadding: 10
+                }
+                background: Rectangle {
+                    color: cameraAddressBtn.pressed ? "#303a46" : (cameraAddressBtn.hovered ? "#3a4550" : "#2a3540")
+                    border.color: "#00f5d4"
+                    radius: 4
+                }
+                onClicked: {
+                    var w = cameraAddressComponent.createObject(rootWindow);
+                    if (w)
+                        w.show();
+                }
+                ToolTip.delay: Compact.toolTipDelay
+                ToolTip.timeout: Compact.toolTipTimeout
+                ToolTip.visible: cameraAddressBtn.hovered
+                ToolTip.text: qsTr("List every camera's address. Standalone cameras are reached directly. NVR cameras show the address the recorder reports for that channel.")
             }
         }
     }

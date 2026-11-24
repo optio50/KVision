@@ -51,6 +51,7 @@
         <file>images/github.svg</file>
         <file>src/NvrSettingsPanel.qml</file>
         <file>src/CameraToolsPanel.qml</file>
+        <file>src/CameraAddressWindow.qml</file>
         <file>src/NvrCamerasWindow.qml</file>
         <file>src/DetectionLogWindow.qml</file>
         <file>src/TickListPopup.qml</file>
