@@ -2938,11 +2938,53 @@ ApplicationWindow {
         }
     }
 
+    function droppedAudioCameraLabel() {
+        var host = RtspAudioCompat.droppedHost || "";
+        var channel = RtspAudioCompat.droppedChannel || 0;
+        if (host.length === 0)
+            return "";
+        var list = [];
+        try { list = JSON.parse(rootWindow.hikvisionRecordersJson || "[]"); } catch (e) {}
+        var rec = null;
+        for (var i = 0; i < list.length; ++i) {
+            if (String(list[i].ip || "").split(":")[0] === host) {
+                rec = list[i];
+                break;
+            }
+        }
+        var place = channel > 0 ? (host + ", channel " + channel) : host;
+        if (!rec)
+            return place;
+        var recName = String(rec.name || "").trim();
+        var cams = rec.cameras || [];
+        if (cams.length <= 1)
+            return recName.length > 0 ? (recName + " (" + host + ")") : place;
+        var camName = "";
+        for (var c = 0; c < cams.length; ++c) {
+            if (parseInt(cams[c].channelId) === channel) {
+                camName = String(cams[c].customName || cams[c].name || "").trim();
+                break;
+            }
+        }
+        var head = camName.length > 0 ? camName : (recName.length > 0 ? recName : host);
+        return channel > 0 ? (head + " (" + host + ", channel " + channel + ")") : (head + " (" + host + ")");
+    }
+
+    function droppedAudioMessage() {
+        var who = rootWindow.droppedAudioCameraLabel();
+        var tail = " Choose the cameras that should have sound and are silent. Only those cameras are repaired on this computer. Every other camera stays as it is. The same list is under Settings, Audio.";
+        if (who.length > 0)
+            return "Live audio from " + who + " was dropped. That camera described its audio in a way the player cannot use." + tail;
+        return "A recorder described its live audio in a way the player cannot use, so the sound was dropped." + tail;
+    }
+
     Connections {
         target: RtspAudioCompat
         onOfferPendingChanged: {
-            if (RtspAudioCompat.offerPending && !aacRepairDialog.visible)
+            if (RtspAudioCompat.offerPending && !aacRepairDialog.visible) {
+                aacRepairDialog.message = rootWindow.droppedAudioMessage();
                 aacRepairDialog.open();
+            }
         }
     }
 
@@ -2960,8 +3002,8 @@ ApplicationWindow {
     ConfirmDialog {
         id: aacRepairDialog
         title: qsTr("Live audio was dropped")
-        width: 460
-        message: qsTr("A recorder described its live audio in a way the player cannot use, so the sound was dropped. Choose the cameras that should have sound and are silent. Only those cameras are repaired on this computer. Every other camera stays as it is. The same list is under Settings, Audio.")
+        width: 520
+        message: rootWindow.droppedAudioMessage()
         confirmButtonText: qsTr("Choose cameras")
         cancelButtonText: qsTr("Not now")
         isDanger: false
@@ -2971,8 +3013,10 @@ ApplicationWindow {
         }
         onRejected: RtspAudioCompat.dismissOffer()
         Component.onCompleted: {
-            if (RtspAudioCompat.offerPending)
+            if (RtspAudioCompat.offerPending) {
+                message = rootWindow.droppedAudioMessage();
                 open();
+            }
         }
     }
 

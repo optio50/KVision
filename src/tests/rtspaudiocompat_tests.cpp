@@ -11,6 +11,33 @@ const QByteArray kParameters =
     "indexlength=3;indexdeltalength=3;config=1408\r\n";
 }
 
+TEST(RtspAudioCompat, NamesTheCameraWithoutKeepingThePassword)
+{
+    QString host;
+    int channel = -1;
+    RtspAudioCompat::parseDroppedStream(
+        QStringLiteral("rtsp://admin:secret@192.168.20.185:554/Streaming/Channels/102"),
+        &host, &channel);
+    EXPECT_EQ(host, QStringLiteral("192.168.20.185"));
+    EXPECT_EQ(channel, 1);
+    EXPECT_FALSE(host.contains(QStringLiteral("secret")));
+    EXPECT_FALSE(host.contains(QStringLiteral("admin")));
+
+    RtspAudioCompat::parseDroppedStream(
+        QStringLiteral("rtsp://10.0.0.8:554/Streaming/Channels/1402"),
+        &host, &channel);
+    EXPECT_EQ(host, QStringLiteral("10.0.0.8"));
+    EXPECT_EQ(channel, 14);
+
+    host = QStringLiteral("keep");
+    channel = 4;
+    RtspAudioCompat::parseDroppedStream(
+        QStringLiteral("rtsp://user:pw@127.0.0.1:43100/Streaming/Channels/101"),
+        &host, &channel);
+    EXPECT_TRUE(host.isEmpty());
+    EXPECT_EQ(channel, 0);
+}
+
 TEST(RtspAudioCompat, RepairsRecorderAacPayloadMismatchWithoutChangingParameters)
 {
     const QByteArray broken = kAudio + "a=fmtp:97" + kParameters;

@@ -23,6 +23,7 @@
 
 extern "C" {
 #include <libavutil/log.h>
+#include <libavformat/avformat.h>
 }
 
 #include "qmlavplayer.h"
@@ -107,13 +108,23 @@ void initFileLogging() {
     }
 }
 
+const char *formatContextUrl(void *ptr)
+{
+    if (!ptr)
+        return nullptr;
+    const AVClass *cls = *static_cast<const AVClass *const *>(ptr);
+    if (!cls || !cls->class_name || std::strcmp(cls->class_name, "AVFormatContext") != 0)
+        return nullptr;
+    return static_cast<AVFormatContext *>(ptr)->url;
+}
+
 void custom_ffmpeg_log_callback(void* ptr, int level, const char* fmt, va_list vl)
 {
-    Q_UNUSED(ptr);
     // A recorder announced AAC with a payload id that does not match its fmtp line.
     // Ask once, including when diagnostic logs are off. The callback may be off the window thread.
+    // The demuxer context carries the camera address. The password in that address is not kept.
     if (fmt && std::strstr(fmt, "Error parsing AU headers") != nullptr)
-        RtspAudioCompat::noteAuHeaderError();
+        RtspAudioCompat::noteAuHeaderError(formatContextUrl(ptr));
     bool diagnosticLogsEnabled = Context::enableLogs() || (g_logFile != nullptr);
     if (!diagnosticLogsEnabled || level > AV_LOG_WARNING) {
         return;

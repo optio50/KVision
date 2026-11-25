@@ -6,17 +6,23 @@
 #include <QRegularExpression>
 #include <QTimer>
 #include <QCoreApplication>
+#include <QUrl>
 #include <atomic>
 
 RtspAudioCompat *RtspAudioCompat::s_instance = nullptr;
 bool RtspAudioCompat::s_pendingOffer = false;
+QString RtspAudioCompat::s_pendingHost;
+int RtspAudioCompat::s_pendingChannel = 0;
 
 RtspAudioCompat::RtspAudioCompat(QObject *parent)
     : QObject(parent)
 {
     s_instance = this;
-    if (s_pendingOffer)
+    if (s_pendingOffer) {
+        m_droppedHost = s_pendingHost;
+        m_droppedChannel = s_pendingChannel;
         setOfferPending(true);
+    }
 }
 
 RtspAudioCompat::~RtspAudioCompat()
@@ -38,22 +44,63 @@ void RtspAudioCompat::dismissOffer()
     setOfferPending(false);
 }
 
-void RtspAudioCompat::noteAuHeaderError()
+void RtspAudioCompat::applyDrop(const QString &host, int channel)
+{
+    m_droppedHost = host;
+    m_droppedChannel = channel;
+    emit droppedCameraChanged();
+    setOfferPending(true);
+}
+
+void RtspAudioCompat::parseDroppedStream(const QString &url, QString *host, int *channel)
+{
+    if (host)
+        host->clear();
+    if (channel)
+        *channel = 0;
+    const QUrl parsed(url);
+    if (parsed.scheme() != QLatin1String("rtsp") && parsed.scheme() != QLatin1String("rtsps"))
+        return;
+    const QString where = parsed.host();
+    if (where.isEmpty() || where == QLatin1String("127.0.0.1")
+            || where == QLatin1String("localhost") || where == QLatin1String("::1"))
+        return;
+    int found = 0;
+    const QRegularExpression channelRe(QStringLiteral("/Channels/(\\d+)"));
+    const auto match = channelRe.match(parsed.path());
+    if (match.hasMatch()) {
+        const int streamId = match.captured(1).toInt();
+        found = streamId >= 100 ? streamId / 100 : streamId;
+    }
+    if (host)
+        *host = where;
+    if (channel)
+        *channel = found;
+}
+
+void RtspAudioCompat::noteAuHeaderError(const char *streamUrl)
 {
     static std::atomic<bool> seen{false};
     if (seen.exchange(true))
         return;
+    QString host;
+    int channel = 0;
+    // Copy the host and channel now. The demuxer address is only valid during this callback,
+    // and it can contain the camera password.
+    parseDroppedStream(streamUrl ? QString::fromUtf8(streamUrl) : QString(), &host, &channel);
     QCoreApplication *app = QCoreApplication::instance();
     if (!app) {
         seen.store(false);
         return;
     }
-    QMetaObject::invokeMethod(app, []() {
+    QMetaObject::invokeMethod(app, [host, channel]() {
         if (!s_instance) {
             s_pendingOffer = true;
+            s_pendingHost = host;
+            s_pendingChannel = channel;
             return;
         }
-        s_instance->setOfferPending(true);
+        s_instance->applyDrop(host, channel);
     }, Qt::QueuedConnection);
 }
 
