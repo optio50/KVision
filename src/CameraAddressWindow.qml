@@ -8,6 +8,7 @@ import CCTV_Viewer.Utils 1.0
 
 // Read-only list of every saved camera's own address, and whether KVision reaches it
 // directly or through an NVR. An NVR channel's address is the one the recorder reports.
+// Rows are ordered by that address. A missing address stays at the bottom until it arrives.
 Window {
     id: win
 
@@ -35,6 +36,44 @@ Window {
 
     function genericName(name) {
         return /^camera( \d+)?$/i.test((name || "").trim()) || /^ip\s*camera( \d+)?$/i.test((name || "").trim());
+    }
+
+    // Four numeric octets, or null when the row has no address yet.
+    function addressKey(ip) {
+        var parts = String(ip || "").trim().split(".");
+        if (parts.length !== 4)
+            return null;
+        var nums = [];
+        for (var i = 0; i < 4; ++i) {
+            if (!/^\d{1,3}$/.test(parts[i]))
+                return null;
+            var n = parseInt(parts[i], 10);
+            if (n > 255)
+                return null;
+            nums.push(n);
+        }
+        return nums;
+    }
+
+    function compareByAddress(a, b) {
+        var ak = win.addressKey(a && a.ip);
+        var bk = win.addressKey(b && b.ip);
+        if (!ak || !bk) {
+            if (ak !== bk)
+                return ak ? -1 : 1;
+            var blank = Utils.compareText(a && a.name, b && b.name);
+            if (blank !== 0)
+                return blank;
+            return (parseInt(a && a.channel) || 0) - (parseInt(b && b.channel) || 0);
+        }
+        for (var i = 0; i < 4; ++i) {
+            if (ak[i] !== bk[i])
+                return ak[i] - bk[i];
+        }
+        var ch = (parseInt(a && a.channel) || 0) - (parseInt(b && b.channel) || 0);
+        if (ch !== 0)
+            return ch;
+        return Utils.compareText(a && a.name, b && b.name);
     }
 
     function reload() {
@@ -94,7 +133,7 @@ Window {
                 });
             }
         }
-        rows.sort(Utils.compareCameraChoice);
+        rows.sort(win.compareByAddress);
         win.rows = rows;
     }
 
