@@ -555,15 +555,24 @@ FocusScope {
         property int focusIndex: -1
         property int activeFocusIndex: -1
         property int pressAndHoldIndex: -1
-        property int selectionIndex1: focusIndex
-        property int selectionIndex2
-        property bool multiselect: selectionIndex2 != selectionIndex1
+        // The two corners of the selection. They stay put when focus leaves the grid
+        // (the Merge button) and when a camera is dragged to another tile.
+        property int selectionIndex1: -1
+        property int selectionIndex2: -1
+        property bool selectionActive: false
+        property bool selectionRefreshHold: false
+        property int selLeft: 0
+        property int selTop: 0
+        property int selRight: 0
+        property int selBottom: 0
+        property bool multiselect: selectionActive && ((selRight - selLeft) > 1 || (selBottom - selTop) > 1)
         property int keyModifiers: 0
         property int dragSourceIndex: -1
         property int dragTargetIndex: -1
         property real dragStartX: 0
         property real dragStartY: 0
         property bool isDragging: false
+        property bool dragSelects: false
         property string swapInProgressKey: ""
 
         function swapViewportItems(sourceIndex, targetIndex) {
@@ -615,7 +624,8 @@ FocusScope {
         }
 
         onLayoutRatioChanged: selectionReset()
-        onSelectionIndex1Changed: selectionReset()
+        onSelectionIndex1Changed: if (!selectionRefreshHold) refreshSelection()
+        onSelectionIndex2Changed: if (!selectionRefreshHold) refreshSelection()
 
         function columnFromIndex(index) {
             return index % root.size.width;
@@ -629,75 +639,129 @@ FocusScope {
             return row * root.size.width + column;
         }
 
-        function selectionTop() {
-            var top1 = rowFromIndex(selectionIndex1);
-            var top2 = rowFromIndex(selectionIndex2);
-
-            return Math.min(top1, top2);
+        // A covered slot stores the negative step back to the tile that hides it.
+        function anchorIndex(index) {
+            if (!root.model || index < 0 || index >= root.model.count)
+                return -1;
+            var item = root.model.get(index);
+            if (!item)
+                return -1;
+            if (item.visible === ViewportsLayoutItem.Visible)
+                return index;
+            var col = columnFromIndex(index) + item.columnSpan;
+            var row = rowFromIndex(index) + item.rowSpan;
+            if (col < 0 || row < 0 || col >= root.size.width || row >= root.size.height)
+                return -1;
+            var resolved = indexFromAddress(col, row);
+            var anchor = root.model.get(resolved);
+            if (!anchor || anchor.visible !== ViewportsLayoutItem.Visible)
+                return -1;
+            return resolved;
         }
 
-        function selectionRight() {
-            var item1 = root.get(selectionIndex1);
-            var item2 = root.get(selectionIndex2);
-            var right1 = columnFromIndex(selectionIndex1);
-            var right2 = columnFromIndex(selectionIndex2);
-
-            if (item1 !== undefined) {
-                right1 += root.get(selectionIndex1).columnSpan;
+        // The block the highlight and the Merge button share. It starts as the rectangle
+        // between the two corners, then grows to take in any joined tile it touches.
+        function refreshSelection() {
+            var left = 0;
+            var top = 0;
+            var right = 0;
+            var bottom = 0;
+            var active = false;
+            if (root.model && root.size && root.size.width >= 1 && root.size.height >= 1) {
+                var a = anchorIndex(selectionIndex1);
+                var b = anchorIndex(selectionIndex2);
+                if (a >= 0 && b >= 0) {
+                    left = Math.min(columnFromIndex(a), columnFromIndex(b));
+                    right = Math.max(columnFromIndex(a), columnFromIndex(b)) + 1;
+                    top = Math.min(rowFromIndex(a), rowFromIndex(b));
+                    bottom = Math.max(rowFromIndex(a), rowFromIndex(b)) + 1;
+                    var guard = root.size.width * root.size.height;
+                    var grew = true;
+                    while (grew && guard-- > 0) {
+                        grew = false;
+                        for (var i = 0; i < root.model.count; ++i) {
+                            var tile = root.model.get(i);
+                            if (!tile || tile.visible !== ViewportsLayoutItem.Visible)
+                                continue;
+                            var spanW = Math.max(tile.columnSpan, 1);
+                            var spanH = Math.max(tile.rowSpan, 1);
+                            if (spanW === 1 && spanH === 1)
+                                continue;
+                            var c = columnFromIndex(i);
+                            var r = rowFromIndex(i);
+                            if ((c + spanW) <= left || c >= right || (r + spanH) <= top || r >= bottom)
+                                continue;
+                            if (c < left) { left = c; grew = true; }
+                            if (c + spanW > right) { right = c + spanW; grew = true; }
+                            if (r < top) { top = r; grew = true; }
+                            if (r + spanH > bottom) { bottom = r + spanH; grew = true; }
+                        }
+                    }
+                    active = true;
+                }
             }
-            if (item2 !== undefined) {
-                right2 += root.get(selectionIndex2).columnSpan;
-            }
-
-            return Math.max(right1, right2);
+            selLeft = left;
+            selTop = top;
+            selRight = right;
+            selBottom = bottom;
+            selectionActive = active;
         }
 
-        function selectionBottom() {
-            var item1 = root.get(selectionIndex1);
-            var item2 = root.get(selectionIndex2);
-            var bottom1 = rowFromIndex(selectionIndex1);
-            var bottom2 = rowFromIndex(selectionIndex2);
-
-            if (item1 !== undefined) {
-                bottom1 += root.get(selectionIndex1).rowSpan;
-            }
-            if (item2 !== undefined) {
-                bottom2 += root.get(selectionIndex2).rowSpan;
-            }
-
-            return Math.max(bottom1, bottom2);
-        }
-
-        function selectionLeft() {
-            var left1 = columnFromIndex(selectionIndex1);
-            var left2 = columnFromIndex(selectionIndex2);
-
-            return Math.min(left1, left2);
-        }
-
-        function selectionWidth() {
-            return selectionRight() - selectionLeft();
-        }
-
-        function selectionHeight() {
-            return selectionBottom() - selectionTop();
-        }
+        function selectionTop() { return selTop; }
+        function selectionRight() { return selRight; }
+        function selectionBottom() { return selBottom; }
+        function selectionLeft() { return selLeft; }
+        function selectionWidth() { return selectionActive ? selRight - selLeft : 0; }
+        function selectionHeight() { return selectionActive ? selBottom - selTop : 0; }
 
         function selectionContains(index) {
+            if (!selectionActive)
+                return false;
+            var item = root.model.get(index);
+            if (!item || item.visible !== ViewportsLayoutItem.Visible)
+                return false;
             var column = columnFromIndex(index);
             var row = rowFromIndex(index);
+            var spanW = Math.max(item.columnSpan, 1);
+            var spanH = Math.max(item.rowSpan, 1);
+            return column < selRight && (column + spanW) > selLeft
+                    && row < selBottom && (row + spanH) > selTop;
+        }
 
-            if (get(index) !== undefined && get(index).visible &&
-                    column >= selectionLeft() && column < selectionRight() &&
-                    row >= selectionTop() && row < selectionBottom()) {
-                return true;
-            }
+        function setSelectionAnchor(index) {
+            if (index < 0)
+                return;
+            selectionRefreshHold = true;
+            if (selectionIndex1 !== index)
+                selectionIndex1 = index;
+            if (selectionIndex2 !== index)
+                selectionIndex2 = index;
+            selectionRefreshHold = false;
+            refreshSelection();
+        }
 
-            return false;
+        function extendSelection(index) {
+            if (index < 0)
+                return;
+            selectionRefreshHold = true;
+            if (selectionIndex1 < 0)
+                selectionIndex1 = index;
+            if (selectionIndex2 !== index)
+                selectionIndex2 = index;
+            selectionRefreshHold = false;
+            refreshSelection();
         }
 
         function selectionReset() {
-            selectionIndex2 = selectionIndex1;
+            selectionRefreshHold = true;
+            if (selectionIndex1 < 0) {
+                if (selectionIndex2 !== -1)
+                    selectionIndex2 = -1;
+            } else if (selectionIndex2 !== selectionIndex1) {
+                selectionIndex2 = selectionIndex1;
+            }
+            selectionRefreshHold = false;
+            refreshSelection();
         }
     }
 
@@ -950,14 +1014,21 @@ FocusScope {
                         }
 
                         function keyNavigationHandler(keyNavigationCallback) {
-                            if (!fullScreen) {
-                                if (d.activeFocusIndex >= 0 && d.keyModifiers & Qt.ShiftModifier) {
-                                    d.selectionIndex2 = keyNavigationCallback(d.selectionIndex2);
-                                } else {
-                                    var nextCell = root.get(keyNavigationCallback(model.index));
-                                    if (nextCell)
-                                        nextCell.forceActiveFocus();
-                                }
+                            if (fullScreen)
+                                return;
+                            // The arrow event itself carries Shift. The layout's modifier flag does not:
+                            // this tile handles the key first.
+                            if (event.modifiers & Qt.ShiftModifier) {
+                                var from = d.anchorIndex(d.selectionIndex2);
+                                if (from < 0)
+                                    from = model.index;
+                                d.extendSelection(keyNavigationCallback(from));
+                            } else {
+                                var nextIndex = keyNavigationCallback(model.index);
+                                var nextCell = root.get(nextIndex);
+                                if (nextCell)
+                                    nextCell.forceActiveFocus();
+                                d.setSelectionAnchor(nextIndex);
                             }
                         }
 
@@ -1289,17 +1360,22 @@ FocusScope {
                             // This picture covers the layout. A drag on it must not swap in another camera.
                             if (viewport.fullScreen) {
                                 d.dragSourceIndex = -1;
+                                d.dragSelects = false;
                                 d.isDragging = false;
                                 viewport.forceActiveFocus();
                                 return;
                             }
-                            // Left button: record potential drag start in root coordinates
+                            // Left button: record potential drag start in root coordinates.
+                            // Shift or Ctrl chooses tiles. A plain drag swaps cameras and leaves the selection.
                             var pt = viewportMouseArea.mapToItem(root, mouse.x, mouse.y);
                             d.dragSourceIndex = model.index;
                             d.dragStartX = pt.x;
                             d.dragStartY = pt.y;
                             d.isDragging = false;
                             d.dragTargetIndex = -1;
+                            d.dragSelects = (mouse.modifiers & (Qt.ShiftModifier | Qt.ControlModifier)) !== 0;
+                            if (d.dragSelects)
+                                d.extendSelection(model.index);
                         }
                         onPositionChanged: {
                             if (panning) {
@@ -1312,6 +1388,13 @@ FocusScope {
                             }
                             if (viewport.fullScreen)
                                 return;
+                            if (d.dragSelects && d.dragSourceIndex >= 0) {
+                                var selectPt = viewportMouseArea.mapToItem(root, mouse.x, mouse.y);
+                                var under = root.indexAt(selectPt.x, selectPt.y);
+                                if (under >= 0)
+                                    d.extendSelection(under);
+                                return;
+                            }
                             if (d.dragSourceIndex >= 0 && !d.isDragging) {
                                 var pt = viewportMouseArea.mapToItem(root, mouse.x, mouse.y);
                                 var dx = Math.abs(pt.x - d.dragStartX);
@@ -1330,7 +1413,10 @@ FocusScope {
                             var pt = viewportMouseArea.mapToItem(root, mouse.x, mouse.y);
                             var targetIndex = root.indexAt(pt.x, pt.y);
 
-                            if (d.dragSourceIndex >= 0 && targetIndex >= 0 && targetIndex !== d.dragSourceIndex) {
+                            if (d.dragSelects && d.dragSourceIndex >= 0) {
+                                if (targetIndex >= 0)
+                                    d.extendSelection(targetIndex);
+                            } else if (d.dragSourceIndex >= 0 && targetIndex >= 0 && targetIndex !== d.dragSourceIndex) {
                                 var dx = Math.abs(pt.x - d.dragStartX);
                                 var dy = Math.abs(pt.y - d.dragStartY);
                                 if ((dx > 15 || dy > 15) && generalSettings.allowSwappingViewports) {
@@ -1345,18 +1431,17 @@ FocusScope {
                                         d.swapViewportItems(sourceIndex, clickTargetIndex);
                                     }
                                     root.pendingSwapSourceIndex = -1;
+                                } else if (mouse.modifiers & (Qt.ShiftModifier | Qt.ControlModifier)) {
+                                    d.extendSelection(clickTargetIndex);
                                 } else {
-                                    if (d.activeFocusIndex >= 0 && d.keyModifiers & Qt.ShiftModifier) {
-                                        d.selectionIndex2 = clickTargetIndex;
-                                    } else {
-                                        viewport.forceActiveFocus();
-                                        d.selectionReset();
-                                    }
+                                    viewport.forceActiveFocus();
+                                    d.setSelectionAnchor(clickTargetIndex);
                                 }
                             }
                             d.dragSourceIndex = -1;
                             d.dragTargetIndex = -1;
                             d.isDragging = false;
+                            d.dragSelects = false;
                         }
                         onPressAndHold: d2.setCurrentIndex("pressAndHoldIndex", true)
                         onDoubleClicked: {
@@ -1364,9 +1449,6 @@ FocusScope {
                             d.selectionReset();
                         }
 
-                        onMouseXChanged: mouseMoveHandler()
-                        onMouseYChanged: mouseMoveHandler()
-                        
                         // Handle mousewheel zoom when in fullscreen (requires CTRL modifier)
                         onWheel: {
                             // A maximized camera's wheel moves to the next camera. Only a tile that is
@@ -1440,20 +1522,6 @@ FocusScope {
                                     }
                                 });
                             }
-                        }
-
-                        function mouseMoveHandler() {
-                            if (d.isDragging) {
-                                // Suppress drag-multiselect while a camera drag-to-swap is in progress
-                                return;
-                            }
-                            // A finished selection has to stay while the pointer moves off the tiles
-                            // toward Merge. Only a left-button drag past the cell edge grows it.
-                            if (containsMouse || !(pressedButtons & Qt.LeftButton))
-                                return;
-                            var under = viewport.indexAt(mouseX, mouseY);
-                            if (under >= 0)
-                                d.selectionIndex2 = under;
                         }
                     }
 
@@ -2829,30 +2897,51 @@ FocusScope {
     }
 
     function mergeCells(testMode) {
-        var topLeftIndex = d.indexFromAddress(d.selectionLeft(), d.selectionTop());
-        if (topLeftIndex < 0 || topLeftIndex >= model.count) {
+        if (!d.selectionActive)
             return false;
-        }
+        var left = d.selectionLeft();
+        var top = d.selectionTop();
+        var w = d.selectionWidth();
+        var h = d.selectionHeight();
+        if (w <= 0 || h <= 0 || (w >= root.size.width && h >= root.size.height))
+            return false;
+        var topLeftIndex = d.indexFromAddress(left, top);
+        if (topLeftIndex < 0 || topLeftIndex >= model.count)
+            return false;
         var topLeftElement = model.get(topLeftIndex);
-
-        if (d.selectionWidth() <= 0 || d.selectionHeight() <= 0 ||
-            (d.selectionWidth() >= root.size.width && d.selectionHeight() >= root.size.height)) {
+        if (!topLeftElement || topLeftElement.visible !== ViewportsLayoutItem.Visible)
             return false;
-        }
 
-        if (!testMode) {
-            if (topLeftElement.columnSpan > 1 || topLeftElement.rowSpan > 1) {
-                topLeftElement.columnSpan = 1;
-                topLeftElement.rowSpan = 1;
-            } else {
-                topLeftElement.columnSpan = d.selectionWidth();
-                topLeftElement.rowSpan = d.selectionHeight();
+        // The block is one tile already: a plain cell does nothing, a joined tile splits.
+        var oneTile = topLeftElement.columnSpan === w && topLeftElement.rowSpan === h;
+        if (oneTile && w === 1 && h === 1)
+            return false;
+        if (testMode)
+            return true;
+
+        if (oneTile) {
+            topLeftElement.columnSpan = 1;
+            topLeftElement.rowSpan = 1;
+        } else {
+            // Drop joins inside the block first. A leftover join makes normalize reject the new one.
+            for (var r = top; r < top + h; ++r) {
+                for (var c = left; c < left + w; ++c) {
+                    var idx = d.indexFromAddress(c, r);
+                    var it = model.get(idx);
+                    if (!it || it.visible !== ViewportsLayoutItem.Visible)
+                        continue;
+                    it.columnSpan = 1;
+                    it.rowSpan = 1;
+                }
             }
-
-            d.selectionReset();
-            model.normalize();
+            topLeftElement = model.get(topLeftIndex);
+            if (topLeftElement) {
+                topLeftElement.columnSpan = w;
+                topLeftElement.rowSpan = h;
+            }
         }
-
+        model.normalize();
+        d.refreshSelection();
         return true;
     }
 
