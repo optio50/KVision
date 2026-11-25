@@ -15,8 +15,9 @@ class QNetworkAddressEntry;
 // LAN discovery of Hikvision devices with the SADP "Probe" protocol
 // (UDP port 37020). A Probe is multicast on every active IPv4 interface, and
 // also sent to each address of a small subnet, because some recorders answer
-// only a packet addressed to them. The ProbeMatch replies are parsed.
-// No credentials are involved.
+// only a packet addressed to them. The socket listens on 37020 as well: some
+// cameras answer only there, not back to a random source port. The ProbeMatch
+// replies are parsed. No credentials are involved.
 class HikvisionProbe : public QObject
 {
     Q_OBJECT

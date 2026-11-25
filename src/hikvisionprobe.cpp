@@ -10,6 +10,8 @@
 #include <QDebug>
 #include <QtGlobal>
 
+#include <sys/socket.h>
+
 namespace {
 const char kMulticastGroup[] = "239.255.255.250";
 const quint16 kProbePort = 37020;
@@ -87,13 +89,27 @@ void HikvisionProbe::addChannel(const QNetworkInterface &iface, const QNetworkAd
 {
     const QHostAddress addr = entry.ip();
     auto *socket = new QUdpSocket(this);
-    // Ephemeral port bound to this interface's address: the replies are unicast back to it.
-    if (!socket->bind(addr, 0, QAbstractSocket::DontShareAddress)) {
-        qWarning() << "[Probe] bind failed on" << iface.name() << addr.toString() << socket->errorString();
+    // 37020 is where a camera that ignores the source port sends its answer
+    // (the dual-lens and the panoramic camera on this network do that). The
+    // others answer back to the sender, so sending from 37020 hears both.
+    // Share the port so Hikvision's own tool can listen at the same time.
+    const auto share = QAbstractSocket::ShareAddress | QAbstractSocket::ReuseAddressHint;
+    if (!socket->bind(addr, kProbePort, share)) {
+        qWarning() << "[Probe] port" << kProbePort << "busy on" << iface.name() << addr.toString()
+                   << socket->errorString() << "- listening on a free port";
         delete socket;
-        ++m_failed;
-        return;
+        socket = new QUdpSocket(this);
+        if (!socket->bind(addr, 0, QAbstractSocket::DontShareAddress)) {
+            qWarning() << "[Probe] bind failed on" << iface.name() << addr.toString() << socket->errorString();
+            delete socket;
+            ++m_failed;
+            return;
+        }
     }
+    // The directed walk is a few hundred packets. A small send buffer drops
+    // some of them before they leave, and those cameras are never asked.
+    const int sendBytes = 1024 * 1024;
+    ::setsockopt(static_cast<int>(socket->socketDescriptor()), SOL_SOCKET, SO_SNDBUF, &sendBytes, sizeof(sendBytes));
     socket->setMulticastInterface(iface);
     socket->setSocketOption(QAbstractSocket::MulticastTtlOption, 2);
     // Membership makes the adapter transmit the multicast. Without it, the
