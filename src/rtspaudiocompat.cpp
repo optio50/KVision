@@ -7,6 +7,8 @@
 #include <QTimer>
 #include <QCoreApplication>
 #include <QUrl>
+#include <QDateTime>
+#include <QMutex>
 #include <atomic>
 
 RtspAudioCompat *RtspAudioCompat::s_instance = nullptr;
@@ -78,19 +80,51 @@ void RtspAudioCompat::parseDroppedStream(const QString &url, QString *host, int 
         *channel = found;
 }
 
+bool RtspAudioCompat::sustainedAudioDrop(AudioDropBurst *burst, qint64 nowMs)
+{
+    const qint64 quietMs = 750;
+    const qint64 spanMs = 1000;
+    const int need = 12;
+    if (!burst)
+        return false;
+    if (burst->count == 0 || nowMs - burst->lastMs > quietMs) {
+        burst->count = 1;
+        burst->startMs = nowMs;
+        burst->lastMs = nowMs;
+        return false;
+    }
+    ++burst->count;
+    burst->lastMs = nowMs;
+    return burst->count >= need && nowMs - burst->startMs >= spanMs;
+}
+
 void RtspAudioCompat::noteAuHeaderError(const char *streamUrl)
 {
-    static std::atomic<bool> seen{false};
-    if (seen.exchange(true))
+    static std::atomic<bool> offered{false};
+    if (offered.load())
         return;
     QString host;
     int channel = 0;
     // Copy the host and channel now. The demuxer address is only valid during this callback,
     // and it can contain the camera password.
     parseDroppedStream(streamUrl ? QString::fromUtf8(streamUrl) : QString(), &host, &channel);
+    if (host.isEmpty())
+        return;
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const QString key = host + QLatin1Char('#') + QString::number(channel);
+    {
+        static QMutex guard;
+        static QHash<QString, AudioDropBurst> bursts;
+        QMutexLocker lock(&guard);
+        if (offered.load())
+            return;
+        if (!sustainedAudioDrop(&bursts[key], now))
+            return;
+        offered.store(true);
+    }
     QCoreApplication *app = QCoreApplication::instance();
     if (!app) {
-        seen.store(false);
+        offered.store(false);
         return;
     }
     QMetaObject::invokeMethod(app, [host, channel]() {

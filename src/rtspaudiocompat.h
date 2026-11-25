@@ -21,6 +21,14 @@ public:
     // Host and Hikvision channel from an RTSP URL. The user and password are not kept.
     // A loopback relay address yields an empty host, because that is this computer, not the camera.
     static void parseDroppedStream(const QString &url, QString *host, int *channel);
+    // One damaged audio packet is not a broken camera. The same camera has to keep failing
+    // across a full second before the repair is offered.
+    struct AudioDropBurst {
+        qint64 startMs = 0;
+        qint64 lastMs = 0;
+        int count = 0;
+    };
+    static bool sustainedAudioDrop(AudioDropBurst *burst, qint64 nowMs);
     // FFmpeg may report this from a decoder thread. The offer itself is posted to the window thread.
     // streamUrl is the demuxer's address and may contain credentials; only the host and channel are kept.
     static void noteAuHeaderError(const char *streamUrl);

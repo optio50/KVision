@@ -121,7 +121,8 @@ const char *formatContextUrl(void *ptr)
 void custom_ffmpeg_log_callback(void* ptr, int level, const char* fmt, va_list vl)
 {
     // A recorder announced AAC with a payload id that does not match its fmtp line.
-    // Ask once, including when diagnostic logs are off. The callback may be off the window thread.
+    // One bad packet is ignored. A camera that keeps failing is offered the repair once.
+    // The callback may be off the window thread.
     // The demuxer context carries the camera address. The password in that address is not kept.
     if (fmt && std::strstr(fmt, "Error parsing AU headers") != nullptr)
         RtspAudioCompat::noteAuHeaderError(formatContextUrl(ptr));

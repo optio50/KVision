@@ -38,6 +38,29 @@ TEST(RtspAudioCompat, NamesTheCameraWithoutKeepingThePassword)
     EXPECT_EQ(channel, 0);
 }
 
+TEST(RtspAudioCompat, IgnoresOneBadAudioPacket)
+{
+    RtspAudioCompat::AudioDropBurst burst;
+    EXPECT_FALSE(RtspAudioCompat::sustainedAudioDrop(&burst, 0));
+    for (int i = 1; i < 30; ++i)
+        EXPECT_FALSE(RtspAudioCompat::sustainedAudioDrop(&burst, 0));
+}
+
+TEST(RtspAudioCompat, OffersRepairOnlyAfterAudioKeepsFailing)
+{
+    RtspAudioCompat::AudioDropBurst burst;
+    bool offered = false;
+    for (qint64 t = 0; t <= 1000; t += 50)
+        offered = RtspAudioCompat::sustainedAudioDrop(&burst, t) || offered;
+    EXPECT_TRUE(offered);
+
+    RtspAudioCompat::AudioDropBurst other;
+    for (int i = 0; i < 6; ++i)
+        EXPECT_FALSE(RtspAudioCompat::sustainedAudioDrop(&other, i * 100));
+    EXPECT_FALSE(RtspAudioCompat::sustainedAudioDrop(&other, 2000));
+    EXPECT_FALSE(RtspAudioCompat::sustainedAudioDrop(&other, 2100));
+}
+
 TEST(RtspAudioCompat, RepairsRecorderAacPayloadMismatchWithoutChangingParameters)
 {
     const QByteArray broken = kAudio + "a=fmtp:97" + kParameters;
