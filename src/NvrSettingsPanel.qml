@@ -33,6 +33,14 @@ ColumnLayout {
     property var scanResults: []
     property string scanNote: ""
 
+    // The password actually sent for the add that is in progress. The form and the
+    // session box can change before discovery returns, and the recorder must keep
+    // the password that was used to log in. This value is not written to settings.
+    property string pendingAddPassword: ""
+
+    // Ticked, and a session password has been typed. An empty box leaves the form password in use.
+    readonly property bool usingSessionPassword: useRecorderPasswordBox.checked && sessionPassField.text.length > 0
+
     function isRecorderAdded(ip) {
         for (var i = 0; i < recorders.length; ++i) {
             if (recorders[i] && recorders[i].ip === ip)
@@ -77,7 +85,10 @@ ColumnLayout {
         if (nameField.text.trim().length === 0)
             nameField.text = dev.name;
         rootPanel.statusMessage = "";
-        passField.forceActiveFocus();
+        if (rootPanel.usingSessionPassword)
+            nameField.forceActiveFocus();
+        else
+            passField.forceActiveFocus();
     }
 
     Connections {
@@ -177,6 +188,8 @@ ColumnLayout {
         function onDiscoveryFinished(ip, cameras, success, errorMsg) {
             if (!rootPanel.isDiscovering) return;
             rootPanel.isDiscovering = false;
+            var savedPass = rootPanel.pendingAddPassword;
+            rootPanel.pendingAddPassword = "";
 
             if (!success) {
                 rootPanel.statusColor = "#ff3333";
@@ -197,7 +210,7 @@ ColumnLayout {
                 httpPort: httpP,
                 rtspPort: rtspP,
                 username: userField.text.trim(),
-                password: passField.text,
+                password: savedPass,
                 cameras: cameras,
                 rtspTransport: rtspTransport
             };
@@ -451,6 +464,7 @@ ColumnLayout {
                     implicitWidth: 148
                     implicitHeight: 30
                     focusPolicy: Qt.NoFocus
+                    Layout.alignment: Qt.AlignBottom
                     onClicked: rootPanel.openStreamDialog(-1)
 
                     contentItem: Text {
@@ -491,15 +505,69 @@ ColumnLayout {
                                ? (scanBtn.pressed ? "#404040" : (scanBtn.hovered ? "#505050" : "#303030"))
                                : (scanBtn.pressed ? "#d66600" : (scanBtn.hovered ? "#ff8c00" : "#ff7a00"))
                     }
+
+                    Layout.alignment: Qt.AlignBottom
                 }
 
                 Text {
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
+                    Layout.alignment: Qt.AlignBottom
                     text: rootPanel.scanNote
                     visible: text.length > 0 && !HikvisionProbe.scanning
                     color: "#ff7a00"
                     font.pixelSize: 10
                     wrapMode: Text.WordWrap
+                }
+
+                // Held only in this panel, which lives for the whole run. Not a Settings value.
+                ColumnLayout {
+                    spacing: 2
+                    Layout.alignment: Qt.AlignBottom
+                    Layout.preferredWidth: 340
+                    Layout.minimumWidth: 0
+
+                    RowLayout {
+                        spacing: 8
+                        Layout.fillWidth: true
+
+                        Text {
+                            text: "Recorder Password"
+                            color: "#8898a6"
+                            font.pixelSize: 10
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+
+                        CheckBox {
+                            id: useRecorderPasswordBox
+                            text: "Use Recorder Password"
+                            checked: true
+                            font.pixelSize: 10
+                            padding: 0
+                            spacing: 4
+                            Layout.alignment: Qt.AlignVCenter
+
+                            ToolTip.delay: Compact.toolTipDelay
+                            ToolTip.timeout: 8000
+                            ToolTip.visible: hovered
+                            ToolTip.text: "Log in to each recorder you add with the password below. Cleared when KVision closes."
+                        }
+                    }
+
+                    TextField {
+                        id: sessionPassField
+                        placeholderText: "••••••••"
+                        echoMode: TextInput.Password
+                        selectByMouse: true
+                        Layout.fillWidth: true
+                        implicitHeight: 30
+                        color: "white"
+                        background: Rectangle {
+                            color: "#0f151b"
+                            radius: 4
+                            border.color: sessionPassField.activeFocus ? "#ff7a00" : "#2a3540"
+                        }
+                    }
                 }
             }
 
@@ -760,8 +828,9 @@ ColumnLayout {
 
                     TextField {
                         id: passField
-                        placeholderText: "••••••••"
+                        placeholderText: rootPanel.usingSessionPassword ? "Using recorder password" : "••••••••"
                         echoMode: TextInput.Password
+                        enabled: !rootPanel.usingSessionPassword
                         selectByMouse: true
                         Layout.fillWidth: true
                         color: "white"
@@ -908,7 +977,8 @@ ColumnLayout {
                     }
 
                     onClicked: {
-                        if (ipField.text === "" || passField.text === "") {
+                        var pass = rootPanel.usingSessionPassword ? sessionPassField.text : passField.text;
+                        if (ipField.text === "" || pass === "") {
                             rootPanel.statusColor = "#ff3333";
                             rootPanel.statusMessage = qsTr("LNG_00089");
                             return;
@@ -918,10 +988,10 @@ ColumnLayout {
                         var sdkP = parseInt(portField.text) || 8000;
                         var httpP = parseInt(httpPortField.text) || 80;
                         var user = userField.text.trim();
-                        var pass = passField.text;
 
                         rootPanel.statusColor = "#00f5d4"; // Cyan glowing text for loading
                         rootPanel.statusMessage = qsTr("LNG_00088");
+                        rootPanel.pendingAddPassword = pass;
                         rootPanel.isDiscovering = true;
 
                         // Log in and fetch camera channels from NVR asynchronously
