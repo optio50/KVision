@@ -565,7 +565,10 @@ FocusScope {
         property int selTop: 0
         property int selRight: 0
         property int selBottom: 0
-        property bool multiselect: selectionActive && ((selRight - selLeft) > 1 || (selBottom - selTop) > 1)
+        // How many real tiles the block covers. A joined tile is still one tile, so selecting
+        // it keeps the green border. Blue is only for a block of two or more tiles.
+        property int selectionTiles: 0
+        property bool multiselect: selectionTiles > 1
         property int keyModifiers: 0
         property int dragSourceIndex: -1
         property int dragTargetIndex: -1
@@ -700,10 +703,25 @@ FocusScope {
                     active = true;
                 }
             }
+            var tiles = 0;
+            if (active) {
+                for (var n = 0; n < root.model.count; ++n) {
+                    var cell = root.model.get(n);
+                    if (!cell || cell.visible !== ViewportsLayoutItem.Visible)
+                        continue;
+                    var cc = columnFromIndex(n);
+                    var rr = rowFromIndex(n);
+                    var sw = Math.max(cell.columnSpan, 1);
+                    var sh = Math.max(cell.rowSpan, 1);
+                    if (cc < right && (cc + sw) > left && rr < bottom && (rr + sh) > top)
+                        tiles++;
+                }
+            }
             selLeft = left;
             selTop = top;
             selRight = right;
             selBottom = bottom;
+            selectionTiles = tiles;
             selectionActive = active;
         }
 
