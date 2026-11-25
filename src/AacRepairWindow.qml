@@ -4,6 +4,7 @@ import QtQuick.Layouts 1.11
 import QtQuick.Controls 2.4
 import CCTV_Viewer.Core 1.0
 import CCTV_Viewer.Utils 1.0
+import CCTV_Viewer.Hikvision 1.0
 
 // Tick the cameras whose live Hikvision audio should go through the local AAC repair.
 // An empty list leaves every picture on the direct path.
@@ -19,6 +20,8 @@ Window {
     flags: Qt.Window | Qt.WindowStaysOnTopHint
 
     property var rows: []
+    property bool showingSummary: false
+    property var summary: []
     readonly property int colW: 120
 
     function parseList(text) {
@@ -68,7 +71,8 @@ Window {
             if (ip === "")
                 continue;
             var cams = rec.cameras || [];
-            var item = { name: rec.name || ip, ip: ip, cams: cams };
+            var item = { name: rec.name || ip, ip: ip, cams: cams, username: rec.username || "",
+                         password: rec.password || "", rtspPort: rec.rtspPort || 554 };
             if (cams.length > 2)
                 nvrs.push(item);
             else if (cams.length === 2)
@@ -89,11 +93,13 @@ Window {
                 for (var lens = 0; lens < lenses.length; ++lens) {
                     var lc = win.channelOf(lenses[lens], lens + 1);
                     out.push({ kind: "lens", key: dev.ip + "#" + lc, group: dev.ip,
-                               label: win.camLabel(lenses[lens], qsTr("Lens %1").arg(lens + 1)) });
+                               label: win.camLabel(lenses[lens], qsTr("Lens %1").arg(lens + 1)),
+                               url: win.liveSubUrl(dev, lc) });
                 }
             } else {
                 var ch = win.channelOf(dev.cams[0], 1);
-                out.push({ kind: "camera", key: dev.ip + "#" + ch, group: dev.ip, label: dev.name });
+                out.push({ kind: "camera", key: dev.ip + "#" + ch, group: dev.ip, label: dev.name,
+                           url: win.liveSubUrl(dev, ch) });
             }
         }
         for (var n = 0; n < nvrs.length; ++n) {
@@ -103,7 +109,8 @@ Window {
             for (var j = 0; j < channels.length; ++j) {
                 var nc = win.channelOf(channels[j], j + 1);
                 out.push({ kind: "channel", key: nvr.ip + "#" + nc, group: nvr.ip,
-                           label: qsTr("Ch. %1  %2").arg(nc).arg(win.camLabel(channels[j], qsTr("Camera %1").arg(nc))) });
+                           label: qsTr("Ch. %1  %2").arg(nc).arg(win.camLabel(channels[j], qsTr("Camera %1").arg(nc))),
+                           url: win.liveSubUrl(nvr, nc) });
             }
         }
         win.rows = out;
@@ -121,6 +128,89 @@ Window {
         generalSettings.repairAacCameras = JSON.stringify(l);
     }
 
+    function liveSubUrl(dev, channel) {
+        var creds = "";
+        if (dev.username)
+            creds = encodeURIComponent(dev.username) + (dev.password ? (":" + encodeURIComponent(dev.password)) : "") + "@";
+        return "rtsp://" + creds + dev.ip + ":" + (dev.rtspPort || 554) + "/Streaming/Channels/" + (channel * 100 + 2);
+    }
+
+    function rank(state) {
+        if (state === "problem") return 0;
+        if (state === "error") return 1;
+        if (state === "ok") return 2;
+        return 3;
+    }
+
+    function startCheck() {
+        var jobs = [];
+        for (var i = 0; i < win.rows.length; ++i) {
+            var row = win.rows[i];
+            if (!row.key || !row.url)
+                continue;
+            jobs.push({ key: row.key, name: row.label, url: row.url });
+        }
+        win.summary = [];
+        win.showingSummary = false;
+        RtspAudioCompat.startAudioCheck(jobs);
+    }
+
+    function addResult(row) {
+        if (row.needsRepair)
+            win.setOne(row.key, true);
+        var list = win.summary.slice();
+        var at = list.length;
+        var name = (row.name || "").toLowerCase();
+        for (var i = 0; i < list.length; ++i) {
+            var ahead = win.rank(row.state) < win.rank(list[i].state);
+            var same = win.rank(row.state) === win.rank(list[i].state)
+                    && name < (list[i].name || "").toLowerCase();
+            if (ahead || same) {
+                at = i;
+                break;
+            }
+        }
+        list.splice(at, 0, row);
+        win.summary = list;
+    }
+
+    function summaryCount(state) {
+        var n = 0;
+        for (var i = 0; i < win.summary.length; ++i) {
+            if (win.summary[i].state === state)
+                n++;
+        }
+        return n;
+    }
+
+    function summaryLine() {
+        var parts = [];
+        var repair = win.summaryCount("problem");
+        var fine = win.summaryCount("ok");
+        var silent = win.summaryCount("off");
+        var missed = win.summaryCount("error");
+        parts.push(qsTr("%1 need repair").arg(repair));
+        parts.push(qsTr("%1 are fine").arg(fine));
+        if (silent > 0)
+            parts.push(qsTr("%1 have no audio").arg(silent));
+        if (missed > 0)
+            parts.push(qsTr("%1 could not be read").arg(missed));
+        return parts.join(", ");
+    }
+
+    function resultText(row) {
+        if (row.state === "problem") return qsTr("needs repair");
+        if (row.state === "ok") return qsTr("ok");
+        if (row.state === "error") return qsTr("could not read");
+        return qsTr("no audio");
+    }
+
+    function resultColor(state) {
+        if (state === "problem") return "#f2574f";
+        if (state === "ok") return "#3dbb78";
+        return "#8899aa";
+    }
+
     function clearAll() {
         if (win.parseList(generalSettings.repairAacCameras).length === 0)
             return;
@@ -133,7 +223,14 @@ Window {
     }
 
     onClosing: {
+        RtspAudioCompat.cancelAudioCheck();
         win.destroy();
+    }
+
+    Connections {
+        target: RtspAudioCompat
+        onAudioChecked: win.addResult(row)
+        onAudioCheckFinished: win.showingSummary = true
     }
 
     ColumnLayout {
@@ -154,9 +251,37 @@ Window {
             spacing: 8
             Button {
                 text: qsTr("Clear")
+                enabled: !RtspAudioCompat.audioCheckRunning && !win.showingSummary
                 onClicked: win.clearAll()
             }
+            Button {
+                text: RtspAudioCompat.audioCheckRunning
+                      ? qsTr("Checking %1 of %2").arg(RtspAudioCompat.audioCheckDone).arg(RtspAudioCompat.audioCheckTotal)
+                      : qsTr("Find broken audio")
+                enabled: !RtspAudioCompat.audioCheckRunning
+                hoverEnabled: true
+                ToolTip.visible: hovered
+                ToolTip.delay: 500
+                ToolTip.timeout: 8000
+                ToolTip.text: qsTr("Read each camera's live audio description and tick the ones this repair can rewrite. A correct description, and a camera with no audio, stay unticked.")
+                onClicked: win.startCheck()
+            }
+            Button {
+                visible: win.showingSummary
+                text: qsTr("Back to the list")
+                onClicked: win.showingSummary = false
+            }
             Item { Layout.fillWidth: true }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            visible: win.showingSummary
+            text: win.summaryLine()
+            color: "#eeeeee"
+            font.pixelSize: 13
+            font.bold: true
+            wrapMode: Text.Wrap
         }
 
         Row {
@@ -176,9 +301,70 @@ Window {
         }
 
         ListView {
+            id: summaryView
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            visible: win.showingSummary
+            clip: true
+            model: win.summary
+            spacing: 4
+            ScrollBar.vertical: ScrollBar {}
+
+            delegate: Rectangle {
+                width: summaryView.width
+                height: 28
+                radius: 4
+                color: "#141b22"
+                border.width: 1
+                border.color: modelData.state === "problem" ? "#7a2a26" : (modelData.state === "ok" ? "#1f5a38" : "#2a3540")
+
+                Row {
+                    anchors.fill: parent
+                    anchors.leftMargin: 8
+                    anchors.rightMargin: 8
+                    spacing: 8
+                    Rectangle {
+                        width: 10
+                        height: 10
+                        radius: 5
+                        anchors.verticalCenter: parent.verticalCenter
+                        color: win.resultColor(modelData.state)
+                    }
+                    Text {
+                        width: parent.width - 210
+                        height: parent.height
+                        text: modelData.name
+                        color: "#eeeeee"
+                        font.pixelSize: 13
+                        verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                    }
+                    Text {
+                        width: 70
+                        height: parent.height
+                        text: modelData.hasAudio ? (modelData.codec || qsTr("audio")) : ""
+                        color: win.resultColor(modelData.state)
+                        font.pixelSize: 12
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    Text {
+                        width: 110
+                        height: parent.height
+                        text: win.resultText(modelData)
+                        color: win.resultColor(modelData.state)
+                        font.pixelSize: 12
+                        font.bold: modelData.state === "problem"
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                }
+            }
+        }
+
+        ListView {
             id: view
             Layout.fillWidth: true
             Layout.fillHeight: true
+            visible: !win.showingSummary
             clip: true
             model: win.rows
             ScrollBar.vertical: ScrollBar {}

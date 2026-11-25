@@ -447,7 +447,7 @@ This page has six sections, chosen with the buttons along its top: **Detection**
 
 **Settings > Audio**:
 * **Disable audio entirely**: KVision does not open the audio track. No tile has sound, and the dropped-audio message cannot appear. Muting a tile only turns that tile's speaker off, so the message can still appear while tiles are muted.
-* **Repair Hikvision live audio**: **Choose cameras...** lists the cameras. Tick a camera whose live sound was dropped. Only a ticked camera is repaired, and only on this computer. Every other camera stays as it is. The cameras and their recordings are not changed.
+* **Repair Hikvision live audio**: **Choose cameras...** lists the cameras. Tick a camera whose live sound was dropped. **Find broken audio** reads each camera's live audio description and ticks only a broken AAC line. A correct description, and a camera with no audio, stay unticked. The result lists the encoding and marks a broken line in red. Only a ticked camera is repaired, and only on this computer. Every other camera stays as it is. The cameras and their recordings are not changed.
 * If a camera's live audio keeps failing, KVision shows **Live audio was dropped** once during that run and names the camera. One brief failure does not raise it. **Choose cameras** opens the same list. **Not now** leaves the list unchanged.
 * **Maximizing camera to full screen does not unmute**: unticked by default, so maximizing a camera turns its sound on. Tick it to leave the tile muted.
 * **Turn off the Talk button (two-way audio)** hides the microphone button on the tiles. **Talk microphone** chooses which microphone that button uses.

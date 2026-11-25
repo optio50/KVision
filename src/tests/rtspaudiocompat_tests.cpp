@@ -94,6 +94,42 @@ TEST(RtspAudioCompat, LeavesValidOrAmbiguousAudioUntouched)
     EXPECT_EQ(RtspAudioCompat::repairSdp(multiple), multiple);
 }
 
+TEST(RtspAudioCompat, NamesTheAudioAndMarksOnlyAMismatchedAacLine)
+{
+    const QByteArray broken = kAudio + "a=fmtp:97" + kParameters;
+    const RtspAudioCompat::AudioReport bad = RtspAudioCompat::inspectAudio(broken);
+    EXPECT_TRUE(bad.hasAudio);
+    EXPECT_TRUE(bad.needsRepair);
+    EXPECT_EQ(bad.codec, QStringLiteral("AAC"));
+
+    const QByteArray valid = kAudio + "a=fmtp:104" + kParameters;
+    const RtspAudioCompat::AudioReport good = RtspAudioCompat::inspectAudio(valid);
+    EXPECT_TRUE(good.hasAudio);
+    EXPECT_FALSE(good.needsRepair);
+    EXPECT_EQ(good.codec, QStringLiteral("AAC"));
+
+    const QByteArray g711 =
+        "m=audio 0 RTP/AVP 0\r\n"
+        "a=rtpmap:0 PCMU/8000\r\n";
+    const RtspAudioCompat::AudioReport law = RtspAudioCompat::inspectAudio(g711);
+    EXPECT_TRUE(law.hasAudio);
+    EXPECT_FALSE(law.needsRepair);
+    EXPECT_EQ(law.codec, QStringLiteral("G.711"));
+
+    const QByteArray lower =
+        "m=audio 0 RTP/AVP 104\r\n"
+        "a=rtpmap:104 mpeg4-generic/16000/1\r\n"
+        "a=fmtp:104 mode=AAC-hbr;SizeLength=13;\r\n";
+    const RtspAudioCompat::AudioReport doorbell = RtspAudioCompat::inspectAudio(lower);
+    EXPECT_TRUE(doorbell.hasAudio);
+    EXPECT_FALSE(doorbell.needsRepair);
+    EXPECT_EQ(doorbell.codec, QStringLiteral("AAC"));
+
+    const RtspAudioCompat::AudioReport none = RtspAudioCompat::inspectAudio("m=video 0 RTP/AVP 96\r\n");
+    EXPECT_FALSE(none.hasAudio);
+    EXPECT_FALSE(none.needsRepair);
+}
+
 TEST(RtspAudioCompat, DoesNotInventParametersOrRewriteOtherCodecs)
 {
     EXPECT_EQ(RtspAudioCompat::repairSdp(kAudio), kAudio);
