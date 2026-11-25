@@ -4,7 +4,7 @@
 
 **Support KVision:** if you find it useful, you can support its development by [donating with PayPal](https://paypal.me/optio50).
 
-This manual describes KVision 3.7. The Changelog tab in the options window lists what changed in each release.
+This manual describes KVision 3.9. The Changelog tab in the options window lists what changed in each release.
 
 ---
 
@@ -40,6 +40,7 @@ This section describes the meaning of all graphical icons and buttons used in th
 * {ICON:archive} **Archive**: Opens the playback recordings archive window (timeline and calendar).
 * {ICON:instructions} **Instructions**: Opens this user manual and technical assistance window.
 * {ICON:stats} **Stats**: Toggles the sliding system statistics panel (CPU, RAM, GPU, Net).
+* **Recorder status**: Green when the last recorder check was clean, red when a recorder reported a problem. Opens the NVR Status window. Shown while recorder monitoring is on and at least one recorder is saved.
 * {ICON:lock} **Grid Lock**: Disables grid division adjustments to protect your active layout.
 * {ICON:hamburger} **More Options**: Opens the sliding toolbox for advanced division sizes, ratios, and cell merging.
 
@@ -230,6 +231,7 @@ To configure the connection to a Hikvision recorder:
    * **Port**: The SDK network port (default is `8000`).
    * **Username**: User name (e.g., `admin`).
    * **Password**: Password to access the recorder.
+   * **Recorder Password.** To the right of **Scan network** and **Add Stream** there is a **Recorder Password** box, and beside its label a **Use Recorder Password** tick (on by default). With the tick on and a password typed, each recorder you add logs in with that password, and the Password field on the form says *Using recorder password*. The box is cleared when KVision closes and is not written to the settings. Each added recorder still keeps its own password, and that saved password is what KVision uses the next time it opens. Leave the box empty, or untick it, to type a password on the form for that one device.
 4. Click **Connect & Discover** (or **Save & Update**).
    **Add Stream.** Next to Scan network, **Add Stream** saves a camera that is only an `rtsp://`, `http://` or `https://` address. Type a name, paste the address, and an optional description, then Save. HTTP Live Streaming (HLS) `.m3u8` playlists are accepted and play through the existing FFmpeg player. The stream is stored with the recorders as a one-channel camera, so it stays after a restart and after Import / Export, and it shows in **Add camera** and **Replace camera**. A password in the address that contains `@`, `#` or `%` is kept. Edit and delete are the pencil and the trash can on its card. KVision does not log in to it and does not contact it at startup, so an address that is down does not stop the program from opening. PTZ, detection, playback and smart search stay on Hikvision cameras.
 5. Upon successful connection, the application will automatically detect all active cameras (channels) connected to the NVR/DVR and add them to the list.
@@ -303,7 +305,7 @@ In the bottom-right corner of each camera tile/viewport, a control panel with fi
 
 Layouts allow you to organize the arrangement of cameras on the screen. From the **Presets** tab (star icon) you can:
 * **Create New Presets**: Add your own layout with any configuration of columns and rows (e.g., 2x2, 3x3, 4x4).
-* **Assign Cameras**: Right-click an empty viewport and choose **Add camera**, then pick a recorder or expand it and pick a channel. On a filled viewport, **Replace camera** does the same. You can also focus a viewport and use the green **"+" (Add)** button in the NVR cameras window. Viewport positions can be swapped from the right-click menu (*„Zamień miejscami”* / *„Swap viewports”*) of the source viewport, then clicking the target viewport.
+* **Assign Cameras**: Right-click an empty viewport and choose **Add camera**, then pick a recorder or expand it and pick a channel. On a filled viewport, **Replace camera** does the same. You can also focus a viewport and use the green **"+" (Add)** button in the NVR cameras window. Viewport positions can be swapped from the right-click menu (**Swap viewports**) of the source viewport, then clicking the target viewport.
 
 ### Top Bar Buttons (Top Tool Bar)
 The top sliding toolbar provides a comprehensive set of navigation and application control buttons:
@@ -316,10 +318,11 @@ The top sliding toolbar provides a comprehensive set of navigation and applicati
 7. **ARCHIVE**: Opens an empty `PlaybackWindow` (recordings player) with active timeline and calendar, allowing manual stream and camera channel selections from any configured NVR via the sidebar list.
 8. **INSTRUCTIONS**: Opens this manual window (the yellow book button).
 9. **📊 STATS Switch**: Toggle switch to slide out the System Statistics monitoring panel from the left screen edge.
-10. **Grid Lock Switch (Padlock)**: Switch that, when turned ON (highlighted in bright orange), disables grid-resizing actions on the adjacent grid buttons, protecting your active camera layout from accidental changes.
-11. **Grid Size Selectors (from 1x1 to 6x6)**: A row of six buttons that lets you instantly define the row and column structure of your viewport (from a single camera 1x1 view up to 36 simultaneous camera feeds in a 6x6 layout). The currently active size highlights in bright orange.
-12. **More Options (Hamburger Menu with three lines)**: Button opening the sliding `Layout & Grid Tools` toolbox for advanced grid tuning, geometry adjustments, and debugging options (detailed below).
-13. **Preset/View Buttons**: Buttons on the right side of the toolbar for the layouts whose Toolbar tick is on. They follow the order of the Presets list. Clicking a button switches to that layout. The active view highlights in bright light-turquoise.
+10. **Recorder status**: A round button, green when the last check was clean (tooltip *NVR status: OK*) and red when a recorder reported a problem (tooltip *NVR errors detected!*). It is shown while recorder monitoring is on and at least one recorder is saved. Clicking it opens **NVR Status**. Each row shows the recorder, OK or ERROR, the time of the last check, and the problem. **Check now** runs the check again. The first check runs a few seconds after KVision opens, then about every five minutes. Live pictures use a separate connection, so a camera can stay on screen while this check fails. When a status read fails, KVision drops that login and tries once more. A camera with one or two channels that still fails stays off the red button. A recorder with more channels still turns it red. **Offline** on a row stops video, detection, logging and this check for that recorder's cameras until you untick it. What is checked is chosen under **Settings > NVR**.
+11. **Grid Lock Switch (Padlock)**: Switch that, when turned ON (highlighted in bright orange), disables grid-resizing actions on the adjacent grid buttons, protecting your active camera layout from accidental changes.
+12. **Grid Size Selectors (from 1x1 to 6x6)**: A row of six buttons that lets you instantly define the row and column structure of your viewport (from a single camera 1x1 view up to 36 simultaneous camera feeds in a 6x6 layout). The currently active size highlights in bright orange.
+13. **More Options (Hamburger Menu with three lines)**: Button opening the sliding `Layout & Grid Tools` toolbox for advanced grid tuning, geometry adjustments, and debugging options (detailed below).
+14. **Preset/View Buttons**: Buttons on the right side of the toolbar for the layouts whose Toolbar tick is on. They follow the order of the Presets list. Clicking a button switches to that layout. The active view highlights in bright light-turquoise.
 
 ### Advanced Grid Customization & Ratios (Layout & Grid Tools)
 Opening the Hamburger (More Options) menu brings up a specialized layout toolbox. To activate its controls:
@@ -427,7 +430,6 @@ This page has six sections, chosen with the buttons along its top: **Detection**
 * **Auto-collapse settings**: Customizes sliding animation timing for the top bar and statistics panel.
 * **Allow swapping viewports**: The checkbox *„Allow swapping viewport places”* enables you to rearrange camera positions on the grid on the fly (Right-click source tile -> Choose "Swap viewports" -> Left-click target tile).
 * **Right-click permissions**: Switches to lock/unlock interactive controls in the right-click context menu (Enable context menu, Allow swapping viewports, Enable 'Remove camera' option, Allow changing viewport settings, Enable stream Main/Sub quality selection).
-* **Auto Unmute**: Automatically unmutes the audio stream of the active viewport when entering Full Screen mode.
 * **Hide Cursor in Full Screen**: The checkbox *„Hide cursor in full screen mode”* automatically hides the mouse cursor after a brief inactivity period during fullscreen viewing to ensure an unobstructed view.
 * **Language selection**: Interface language. English is the only language shipped in this version, so the choice has no other effect.
 * **UI Preferences**: Hide/show viewport status labels or control badges (such as auto-hiding the control overlays in the bottom right corner of tiles unless hovering).
@@ -439,6 +441,16 @@ This page has six sections, chosen with the buttons along its top: **Detection**
     * `-flags low_delay` tells the decoder to output frames immediately, but can cause brief artifacts/smearing in streams that use B-frames under rapid movements.
   * **Override checkbox**: You can exclude specific viewports from global updates or dynamic defaults by ticking the option that leaves out global FFmpeg changes in the individual Viewport Settings dialog. Useful for troubleshooting stuttering cameras.
 
+**Settings > NVR** chooses what the recorder-status button looks for:
+* **Check Hikvision NVR error status**: turns the check and the toolbar button on. The button is hidden when this is off.
+* **Monitor offline status and login errors**, **Monitor CPU overload (>85%)**, **Monitor recorder hardware errors**, **Monitor hard disk faults/abnormalities**, **Monitor unformatted hard disks**, and **Monitor full hard disks (loop coverage disabled)**.
+
+**Settings > Audio**:
+* **Disable audio entirely**: KVision does not open the audio track. No tile has sound, and the dropped-audio message cannot appear. Muting a tile only turns that tile's speaker off, so the message can still appear while tiles are muted.
+* **Repair Hikvision live audio**: **Choose cameras...** lists the cameras. Tick a camera whose live sound was dropped. Only a ticked camera is repaired, and only on this computer. Every other camera stays as it is. The cameras and their recordings are not changed.
+* If a camera's live audio keeps failing, KVision shows **Live audio was dropped** once during that run and names the camera. One brief failure does not raise it. **Choose cameras** opens the same list. **Not now** leaves the list unchanged.
+* **Maximizing camera to full screen does not unmute**: unticked by default, so maximizing a camera turns its sound on. Tick it to leave the tile muted.
+* **Turn off the Talk button (two-way audio)** hides the microphone button on the tiles. **Talk microphone** chooses which microphone that button uses.
 
 ### 6. Import / Export tab
 Saves your recorders, layouts and settings to a configuration file (`.conf` / `.ini`) and loads one back. Snapshot and video paths are adapted to this computer on import. **Open configuration folder** opens the folder where KVision keeps its settings, logs and event pictures (`~/.config/KVision`).

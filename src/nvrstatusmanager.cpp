@@ -544,6 +544,9 @@ void NvrStatusWorker::run()
         QString password = recorder.value("password").toString();
         QString name = recorder.value("name").toString();
         if (name.isEmpty()) name = ip;
+        const int cameraCount = recorder.value(QStringLiteral("cameras")).toArray().size();
+        // One or two channels is a camera, including a two-lens camera. A larger list is a recorder.
+        const bool standaloneCamera = cameraCount > 0 && cameraCount <= 2;
 
         QVariantMap rec;
         rec["name"] = name;
@@ -570,12 +573,25 @@ void NvrStatusWorker::run()
         std::memset(&workState, 0, sizeof(NET_DVR_WORKSTATE_V30));
         bool gotWorkState = false;
         HikvisionManager::instance()->withSdkLock([&]() {
-            lUserID = HikvisionManager::instance()->getSession(ip, port, username, password);
-            if (lUserID >= 0) {
+            auto readWork = [&]() {
+                lUserID = HikvisionManager::instance()->getSession(ip, port, username, password);
+                gotWorkState = false;
+                workStateError = 0;
+                if (lUserID < 0)
+                    return;
+                std::memset(&workState, 0, sizeof(NET_DVR_WORKSTATE_V30));
                 gotWorkState = NET_DVR_GetDVRWorkState_V30(lUserID, &workState);
                 // Last error belongs to this call, and only while the SDK lock is still held.
                 if (!gotWorkState)
                     workStateError = NET_DVR_GetLastError();
+            };
+            readWork();
+            // A login opened while the network was still coming up stays cached, and Check now
+            // keeps using it. Drop that login and try once more. "Not supported" fails again.
+            if (lUserID >= 0 && !gotWorkState && workStateError != NET_DVR_NOSUPPORT) {
+                qWarning() << "[NvrStatus]" << ip << "status read failed, SDK error" << workStateError << ", trying a new login";
+                HikvisionManager::instance()->logout(ip);
+                readWork();
             }
         });
         if (lUserID < 0) {
@@ -600,9 +616,12 @@ void NvrStatusWorker::run()
         }
 
         if (!gotWorkState) {
-            // Error 23: the device logged in and has no recorder-status page. It is online.
-            // Disk, CPU, and hardware checks do not apply. Any other failure still alarms.
-            if (workStateError != NET_DVR_NOSUPPORT && checkOffline) {
+            // The login already succeeded, so the device is online. A one- or two-channel
+            // camera stays off the red button when this read fails. A larger recorder still alarms.
+            const bool cameraHasNoRecorderPage = workStateError == NET_DVR_NOSUPPORT || standaloneCamera;
+            if (cameraHasNoRecorderPage && workStateError != NET_DVR_NOSUPPORT)
+                qWarning() << "[NvrStatus]" << ip << "camera is online, status read failed, SDK error" << workStateError;
+            if (!cameraHasNoRecorderPage && checkOffline) {
                 qWarning() << "[NvrStatus]" << ip << "work state failed, SDK error" << workStateError;
                 QVariantMap err;
                 err["recorderName"] = name;
