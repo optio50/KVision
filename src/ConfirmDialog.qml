@@ -4,7 +4,9 @@ import QtQuick.Layouts 1.11
 
 Dialog {
     id: rootDialog
+    // Stay in front of the window, but do not tint or dim anything behind the dialog.
     modal: true
+    dim: false
     anchors.centerIn: parent
     width: 380
 
