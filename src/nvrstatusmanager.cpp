@@ -565,13 +565,18 @@ void NvrStatusWorker::run()
         // Hold the SDK lock across the work-state read too: getSession locks on
         // its own, and releasing it before GetDVRWorkState lets another login in between.
         LONG lUserID = -1;
+        DWORD workStateError = 0;
         NET_DVR_WORKSTATE_V30 workState;
         std::memset(&workState, 0, sizeof(NET_DVR_WORKSTATE_V30));
         bool gotWorkState = false;
         HikvisionManager::instance()->withSdkLock([&]() {
             lUserID = HikvisionManager::instance()->getSession(ip, port, username, password);
-            if (lUserID >= 0)
+            if (lUserID >= 0) {
                 gotWorkState = NET_DVR_GetDVRWorkState_V30(lUserID, &workState);
+                // Last error belongs to this call, and only while the SDK lock is still held.
+                if (!gotWorkState)
+                    workStateError = NET_DVR_GetLastError();
+            }
         });
         if (lUserID < 0) {
             if (checkOffline) {
@@ -595,7 +600,10 @@ void NvrStatusWorker::run()
         }
 
         if (!gotWorkState) {
-            if (checkOffline) {
+            // Error 23: the device logged in and has no recorder-status page. It is online.
+            // Disk, CPU, and hardware checks do not apply. Any other failure still alarms.
+            if (workStateError != NET_DVR_NOSUPPORT && checkOffline) {
+                qWarning() << "[NvrStatus]" << ip << "work state failed, SDK error" << workStateError;
                 QVariantMap err;
                 err["recorderName"] = name;
                 err["recorderIp"] = ip;
