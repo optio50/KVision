@@ -221,6 +221,16 @@ Window {
             if (items[start])
                 logWin.selectEntry(items[start].entryIndex);
             w.show();
+            // Cinnamon keeps the events window in front of a new always-on-top window unless this one
+            // asks to be raised after it is on screen. MATE already puts the new window in front.
+            w.raise();
+            w.requestActivate();
+            Qt.callLater(function() {
+                if (!w)
+                    return;
+                w.raise();
+                w.requestActivate();
+            });
         }
     }
 
