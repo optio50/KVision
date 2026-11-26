@@ -11,7 +11,7 @@ import CCTV_Viewer.Hikvision 1.0
 Window {
     id: win
 
-    width: 560
+    width: 640
     height: 560
     minimumWidth: 420
     minimumHeight: 260
@@ -199,10 +199,18 @@ Window {
     }
 
     function resultText(row) {
+        if (row.key && win.listed(row.key))
+            return qsTr("repair enabled");
         if (row.state === "problem") return qsTr("needs repair");
         if (row.state === "ok") return qsTr("ok");
         if (row.state === "error") return qsTr("could not read");
         return qsTr("no audio");
+    }
+
+    function statusColor(row) {
+        if (row.key && win.listed(row.key))
+            return "#3dbb78";
+        return win.resultColor(row.state);
     }
 
     function resultColor(state) {
@@ -312,7 +320,7 @@ Window {
 
             delegate: Rectangle {
                 width: summaryView.width
-                height: 28
+                height: 32
                 radius: 4
                 color: "#141b22"
                 border.width: 1
@@ -321,7 +329,7 @@ Window {
                 Row {
                     anchors.fill: parent
                     anchors.leftMargin: 8
-                    anchors.rightMargin: 8
+                    anchors.rightMargin: 14
                     spacing: 8
                     Rectangle {
                         width: 10
@@ -331,7 +339,7 @@ Window {
                         color: win.resultColor(modelData.state)
                     }
                     Text {
-                        width: parent.width - 210
+                        width: Math.max(40, parent.width - 10 - 52 - 120 - win.colW - 32)
                         height: parent.height
                         text: modelData.name
                         color: "#eeeeee"
@@ -340,21 +348,32 @@ Window {
                         elide: Text.ElideRight
                     }
                     Text {
-                        width: 70
+                        width: 52
                         height: parent.height
                         text: modelData.hasAudio ? (modelData.codec || qsTr("audio")) : ""
                         color: win.resultColor(modelData.state)
                         font.pixelSize: 12
                         verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
                     }
                     Text {
-                        width: 110
+                        width: 120
                         height: parent.height
                         text: win.resultText(modelData)
-                        color: win.resultColor(modelData.state)
+                        color: win.statusColor(modelData)
                         font.pixelSize: 12
-                        font.bold: modelData.state === "problem"
+                        font.bold: modelData.state === "problem" && !win.listed(modelData.key)
                         verticalAlignment: Text.AlignVCenter
+                        elide: Text.ElideRight
+                    }
+                    Item {
+                        width: win.colW
+                        height: parent.height
+                        CheckBox {
+                            anchors.centerIn: parent
+                            checked: win.listed(modelData.key)
+                            onToggled: win.setOne(modelData.key, checked)
+                        }
                     }
                 }
             }
