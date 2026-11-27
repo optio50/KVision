@@ -597,6 +597,20 @@ FocusScope {
                 HikvisionManager.fetchStreamingChannelsAsync(host, streamHttpPort || 80, username, password);
             return fallback;
         }
+        function ending(suffix) {
+            for (var i = 0; i < ids.length; ++i) {
+                if (ids[i] % 100 === suffix)
+                    return ids[i];
+            }
+            return 0;
+        }
+        // 01 is the main stream and 02 the substream. Some recorders publish
+        // only a main stream plus an unplayable extra id, so a grid must not
+        // treat that extra id as the substream.
+        if (wanted === 1)
+            return ending(1) || ids[0] || fallback;
+        if (wanted === 2)
+            return ending(2) || ending(1) || fallback;
         return ids[wanted - 1] || fallback;
     }
 
