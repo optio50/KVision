@@ -57,7 +57,8 @@ public:
     ~HikvisionEvents() override;
 
     // A tile calls watch() when it starts showing a camera and unwatch() when it stops.
-    // The connection is opened by the first watcher and closed with the last.
+    // A tile opens the connection while it is showing the camera. The detection log holds its own connection,
+    // so a camera that leaves the layout, or has its detection frame switched off, is still logged.
     // name and configDir are only used for the detection log (configDir/logs/Detection.log).
     // recorderIp and recorderChannel say where this camera is played back from (the recorder it is
     // behind, or the camera itself), and are written to the detection log so an entry can be opened in
@@ -67,6 +68,11 @@ public:
                            const QString &recorderIp = QString(), int recorderChannel = 0,
                            bool recorderMode = false);
     Q_INVOKABLE void unwatch(const QString &ip);
+    // The detection log's own hold on a camera. A tile unwatch does not release it.
+    void holdForLog(const QString &ip, int httpPort, const QString &user, const QString &pass,
+                    const QString &name = QString(), const QString &configDir = QString(),
+                    const QString &recorderIp = QString(), int recorderChannel = 0, bool recorderMode = false);
+    void releaseForLog(const QString &ip);
 
     // For a connection to a recorder (recorderMode): the name and address of each camera behind it, as a
     // JSON object {"17": {"name": "NVR Ch. 17 Garage3", "ip": "192.0.0.3"}, ...}. The detection log uses it
@@ -188,7 +194,8 @@ private:
         QHash<int, ChanInfo> chanInfo;
         struct Lens { QString name; int channel = 0; };
         QHash<int, Lens> lens; // a multi-lens camera on its own connection: its own channel -> camera name and recorder channel
-        int watchers = 0;
+        int watchers = 0;       // tiles showing this camera
+        bool logHold = false;   // the detection log keeps the stream even when no tile shows the camera
         int failures = 0;
         bool authFailed = false; // the camera refused our login: never try again in this session
         QNetworkReply *reply = nullptr;
@@ -237,6 +244,9 @@ private:
     };
 
     void open(const QString &ip);
+    // Opens the stream when this connection has none. `lock` is the caller's m_mu lock; it is released if open() runs.
+    void ensureOpen(Conn *c, const QString &ip, const QString &name, const QString &recorderIp,
+                    int recorderChannel, QMutexLocker &lock);
     // Devices that answered 404/405/501, remembered in the log folder so a later start stays quiet.
     void loadNoStreamNoted();
     void storeNoStreamNoted() const;

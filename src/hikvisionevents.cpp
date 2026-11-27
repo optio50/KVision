@@ -152,6 +152,59 @@ void HikvisionEvents::watch(const QString &ip, int httpPort, const QString &user
         m_conns.insert(ip, c);
     }
     ++c->watchers;
+    ensureOpen(c, ip, name, recorderIp, recorderChannel, lock);
+}
+
+void HikvisionEvents::holdForLog(const QString &ip, int httpPort, const QString &user, const QString &pass,
+                                 const QString &name, const QString &configDir,
+                                 const QString &recorderIp, int recorderChannel, bool recorderMode)
+{
+    if (ip.isEmpty() || user.isEmpty() || pass.isEmpty())
+        return;
+    QMutexLocker lock(&m_mu);
+    if (m_logDir.isEmpty() && !configDir.isEmpty())
+        m_logDir = configDir + QStringLiteral("/logs");
+    loadNoStreamNoted();
+    Conn *c = m_conns.value(ip, nullptr);
+    if (!c) {
+        c = new Conn;
+        c->ip = ip;
+        c->httpPort = httpPort > 0 ? httpPort : 80;
+        c->user = user;
+        c->pass = pass;
+        c->name = name;
+        c->recIp = recorderIp;
+        c->recChannel = recorderChannel;
+        c->recorderMode = recorderMode;
+        c->retry = new QTimer(this);
+        c->retry->setSingleShot(true);
+        connect(c->retry, &QTimer::timeout, this, [this, ip]() {
+            Conn *conn = m_conns.value(ip, nullptr);
+            if (!conn)
+                return;
+            if (conn->unsupported)
+                m_noStreamUntil.remove(ip);
+            open(ip);
+        });
+        c->watchdog = new QTimer(this);
+        c->watchdog->setSingleShot(true);
+        c->watchdog->setInterval(kStallMs);
+        connect(c->watchdog, &QTimer::timeout, this, [this, ip]() {
+            Conn *conn = m_conns.value(ip, nullptr);
+            if (!conn || !conn->reply)
+                return;
+            qWarning() << "[Events]" << ip << "sent nothing for" << kStallMs / 1000 << "seconds. Reopening the detection stream.";
+            conn->reply->abort();
+        });
+        m_conns.insert(ip, c);
+    }
+    c->logHold = true;
+    ensureOpen(c, ip, name, recorderIp, recorderChannel, lock);
+}
+
+void HikvisionEvents::ensureOpen(Conn *c, const QString &ip, const QString &name, const QString &recorderIp,
+                                 int recorderChannel, QMutexLocker &lock)
+{
     if (c->name.isEmpty() && !name.isEmpty())
         c->name = name;
     if (c->recIp.isEmpty() && !recorderIp.isEmpty()) {
@@ -177,7 +230,23 @@ void HikvisionEvents::unwatch(const QString &ip)
     Conn *c = m_conns.value(ip, nullptr);
     if (!c)
         return;
-    if (--c->watchers <= 0) {
+    if (c->watchers > 0)
+        --c->watchers;
+    // The log hold is separate. Leaving a layout, or switching a detection frame off, drops only the tile.
+    if (c->watchers <= 0 && !c->logHold) {
+        lock.unlock();
+        close(ip);
+    }
+}
+
+void HikvisionEvents::releaseForLog(const QString &ip)
+{
+    QMutexLocker lock(&m_mu);
+    Conn *c = m_conns.value(ip, nullptr);
+    if (!c)
+        return;
+    c->logHold = false;
+    if (c->watchers <= 0) {
         lock.unlock();
         close(ip);
     }

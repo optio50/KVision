@@ -267,14 +267,14 @@ void HikvisionEventLogger::applyPlan(const Plan &plan)
             continue;
         if (it == wanted.constEnd() && plan.failedRecorders.contains(old.recIp))
             continue;
-        m_events->unwatch(ip);
+        m_events->releaseForLog(ip);
         m_active.remove(ip);
     }
     for (auto it = wanted.constBegin(); it != wanted.constEnd(); ++it) {
         if (m_active.contains(it.key()))
             continue;
         const Entry &e = it.value();
-        m_events->watch(e.ip, e.http, e.user, e.pass, e.name, e.configDir, e.recIp, e.recChannel, e.recorderMode);
+        m_events->holdForLog(e.ip, e.http, e.user, e.pass, e.name, e.configDir, e.recIp, e.recChannel, e.recorderMode);
         if (!e.chanInfoJson.isEmpty())
             m_events->setChannelInfo(e.ip, e.chanInfoJson);
         if (!e.lensJson.isEmpty())
