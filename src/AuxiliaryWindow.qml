@@ -708,8 +708,9 @@ Window {
                                 return;
                             }
                             var delta = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.angleDelta.x;
+                            // Wheel up slides the layout buttons to the right.
                             layoutButtonFlick.contentX = Math.max(0, Math.min(layoutButtonFlick.contentWidth - layoutButtonFlick.width,
-                                                                              layoutButtonFlick.contentX - delta));
+                                                                              layoutButtonFlick.contentX + delta));
                             wheel.accepted = true;
                         }
                     }
