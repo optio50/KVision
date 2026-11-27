@@ -6,6 +6,7 @@
 #include <QCoreApplication>
 #include <QDateTime>
 #include <QDebug>
+#include <QEventLoop>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDir>
@@ -76,6 +77,9 @@ HikvisionEvents::HikvisionEvents(QObject *parent)
     m_worker->moveToThread(m_thread);
     m_thread->start();
     m_net = new QNetworkAccessManager(this);
+    // A follow writes its log line and then asks for the pictures. Closing the window used to exit while those
+    // replies were still out, so the line stayed and the snapshots were never saved.
+    connect(QCoreApplication::instance(), &QCoreApplication::aboutToQuit, this, [this]() { drainSnapshots(); });
     connect(m_net, &QNetworkAccessManager::authenticationRequired, this,
             [](QNetworkReply *reply, QAuthenticator *auth) {
         // One attempt only: when the stored password is wrong, a second try could lock the camera.
@@ -428,6 +432,8 @@ void HikvisionEvents::parseIncoming(const QString &ip, const QByteArray &chunk, 
             if (alert.active) {
                 const QString t = alert.target.isEmpty() ? QStringLiteral("other") : alert.target;
                 logDetection(c, alert.target, alert.logKind, camTime, camChannel, eventWhere(body)); // the log keeps every labelled report
+                if (!reportIsLate(camTime))
+                    noteSiblingTarget(c, ip, camChannel, t);
                 notePictureRect(c, body, camChannel, camTime, alert.logKind);
                 // The settings can switch kinds and targets off for the screen: no frame for those.
                 // A replayed report is still logged and its picture is still kept; it does not flash the tile.
@@ -446,8 +452,11 @@ void HikvisionEvents::parseIncoming(const QString &ip, const QByteArray &chunk, 
             const QString motionKey = ip + QLatin1Char('|') + QString::number(camChannel);
             const qint64 lastMs = m_motionSeen.value(motionKey, 0);
             m_motionSeen.insert(motionKey, nowMs);
-            if (m_wLogMotion && nowMs - lastMs >= kMotionQuietMs)
+            if (m_wLogMotion && nowMs - lastMs >= kMotionQuietMs) {
                 logDetection(c, QString(), QStringLiteral("Motion"), camTime, camChannel);
+                if (!reportIsLate(camTime))
+                    noteSiblingTarget(c, ip, camChannel, QStringLiteral("other"));
+            }
             if (alert.frame == EventAlert::Flash)
                 emit targetDetected(ip, QStringLiteral("other"), QStringLiteral("MOTION"), camChannel); // shows "MOTION"
             else if (alert.frame == EventAlert::Keep)
@@ -456,6 +465,8 @@ void HikvisionEvents::parseIncoming(const QString &ip, const QByteArray &chunk, 
         }
         if (alert.action == EventAlert::LabelledMotion) {
             logDetection(c, alert.target, QStringLiteral("Motion"), camTime, camChannel); // the log keeps every labelled report
+            if (!reportIsLate(camTime))
+                noteSiblingTarget(c, ip, camChannel, alert.target);
             {
                 // Motion is not a smart event and brings no picture of its own, so a still is asked for from the camera.
                 const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
@@ -490,7 +501,10 @@ void HikvisionEvents::parseIncoming(const QString &ip, const QByteArray &chunk, 
             if (pm.capturedEnd() <= c->jsonScanned)
                 continue;
             scannedTo = qMax(scannedTo, int(pm.capturedEnd()));
-            emit trackingChanged(ip, pm.captured(1).toInt(), pm.captured(2) == QLatin1String("leave"));
+            const int channel = pm.captured(1).toInt();
+            const bool leave = pm.captured(2) == QLatin1String("leave");
+            emit trackingChanged(ip, channel, leave);
+            notePtzLeave(c, ip, channel, leave);
         }
         QRegularExpressionMatchIterator gi = gisRx.globalMatch(text, qMax(0, c->jsonScanned - 300));
         while (gi.hasNext()) {
@@ -498,7 +512,9 @@ void HikvisionEvents::parseIncoming(const QString &ip, const QByteArray &chunk, 
             if (gm.capturedEnd() <= c->jsonScanned)
                 continue;
             scannedTo = qMax(scannedTo, int(gm.capturedEnd()));
-            emit ptzMoved(ip, gm.captured(1).toInt());
+            const int channel = gm.captured(1).toInt();
+            emit ptzMoved(ip, channel);
+            notePtzMoved(c, ip, channel);
         }
         c->jsonScanned = scannedTo;
     }
@@ -535,6 +551,8 @@ void HikvisionEvents::handleFace(Conn *c, const QString &ip, const QString &body
     const bool newRun = nowMs - lastMs >= kMotionQuietMs;
     if (newRun)
         logDetection(c, QStringLiteral("face"), QStringLiteral("Face detection"), cameraTime, eventChannel);
+    if (!reportIsLate(cameraTime))
+        noteSiblingTarget(c, ip, eventChannel, QStringLiteral("face"));
     // The later stills are taken here, on the reports that prove the face is still being sent. A timer would fire after the
     // face had gone, and m_motionSeen is only touched on this thread.
     if (m_wFacePicture && !reportIsLate(cameraTime)) {
@@ -599,6 +617,8 @@ void HikvisionEvents::handleFaceCapture(Conn *c, const QString &ip, const FaceCa
                     .arg(face.h, 0, 'f', 3);
     }
     logDetection(c, QStringLiteral("face"), QStringLiteral("Face detection"), face.cameraTime, face.channel, where);
+    if (!reportIsLate(face.cameraTime))
+        noteSiblingTarget(c, ip, face.channel, QStringLiteral("face"));
     QDateTime when = QDateTime::fromString(face.cameraTime, Qt::ISODate);
     if (!when.isValid())
         when = QDateTime::currentDateTime();
@@ -877,6 +897,11 @@ void HikvisionEvents::fetchPicture(const QString &ip, const QUrl &url, const QSt
     reply->setProperty("evPass", pass);
     connect(reply, &QNetworkReply::finished, this, [this, ip, reply, address, lens, kind, secs, hasRect, rect]() {
         reply->deleteLater();
+        // Unlock before this runs, so a tracking snapshot waiting on a free download can start.
+        struct PumpLater {
+            HikvisionEvents *self;
+            ~PumpLater() { self->pumpSnapshotQueue(); }
+        } later{this};
         QMutexLocker finishedLock(&m_mu);
         Conn *conn = m_conns.value(ip, nullptr);
         if (conn && conn->pictureFetches > 0)
@@ -951,12 +976,9 @@ int HikvisionEvents::pictureLens(const Conn *c, int eventChannel) const
 
 void HikvisionEvents::savePicture(const QString &address, int lens, const QString &kind, qint64 secs, const QByteArray &jpeg)
 {
-    if (m_worker && QThread::currentThread() != m_worker->thread()) {
-        QMetaObject::invokeMethod(m_worker, [this, address, lens, kind, secs, jpeg]() {
-            savePicture(address, lens, kind, secs, jpeg);
-        }, Qt::QueuedConnection);
-        return;
-    }
+    // The file is written here, on the thread that has the JPEG. Queueing the write onto the worker lost it when the
+    // window exited as soon as the reply came back: the process was gone before the worker ran. The folder trim is
+    // still done on the worker (prunePictures sends itself there).
     const QString dir = logDirectory();
     if (dir.isEmpty() || address.isEmpty() || jpeg.size() < 1000)
         return;
@@ -1684,6 +1706,94 @@ void HikvisionEvents::setLensInfo(const QString &ip, const QString &json)
     }
 }
 
+namespace {
+constexpr qint64 kFollowStaleMs = 30000; // the lens stopped sending positions: the follow is over
+constexpr qint64 kSiblingFreshMs = 15000; // the other lens's target is only used this long
+constexpr qint64 kPtzMoveFreshMs = 5000;  // a position report this recent means the lens is moving
+}
+
+void HikvisionEvents::noteSiblingTarget(Conn *slot, const QString &ip, int channel, const QString &target)
+{
+    if (!slot || slot->lens.size() < 2 || channel <= 0)
+        return;
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    const QString type = target.isEmpty() ? QStringLiteral("other") : target;
+    for (auto it = slot->lens.constBegin(); it != slot->lens.constEnd(); ++it) {
+        if (it.key() == channel)
+            continue; // the lens that saw the target is not the one that slews
+        Conn::LensFollow &f = slot->follow[it.key()];
+        f.siblingType = type;
+        f.siblingAt = now;
+        // Already off park and moving: there is no new "leave", so this target is the follow.
+        // A target during the way home is not that. The other lens still sees it the whole way back.
+        if (!f.returnSlew && !f.tracking && f.movedAt > f.parkedAt && now - f.movedAt <= kPtzMoveFreshMs)
+            notePtzLeave(slot, ip, it.key(), true);
+        else
+            showFollow(slot, ip, it.key());
+    }
+}
+
+void HikvisionEvents::notePtzLeave(Conn *slot, const QString &ip, int channel, bool leave)
+{
+    if (!slot || slot->lens.size() < 2 || channel <= 0 || !slot->lens.contains(channel))
+        return;
+    Conn::LensFollow &f = slot->follow[channel];
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (!leave) {
+        f.tracking = false;
+        f.logged = false;
+        f.movedAt = 0; // the slew back to park is not a new follow
+        f.returnSlew = true;
+        f.parkedAt = now;
+        return;
+    }
+    f.tracking = true;
+    f.returnSlew = false;
+    f.trackingAt = now;
+    showFollow(slot, ip, channel);
+}
+
+void HikvisionEvents::notePtzMoved(Conn *slot, const QString &ip, int channel)
+{
+    if (!slot || slot->lens.size() < 2 || channel <= 0 || !slot->lens.contains(channel))
+        return;
+    Conn::LensFollow &f = slot->follow[channel];
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (f.tracking) {
+        f.movedAt = now;
+        f.trackingAt = now;
+        showFollow(slot, ip, channel);
+        return;
+    }
+    // One continuous slew. The way home keeps sending positions, so a new follow starts only after a pause.
+    if (f.returnSlew && ((f.movedAt > 0 && now - f.movedAt <= kPtzMoveFreshMs)
+                         || (f.movedAt == 0 && now - f.parkedAt <= kPtzMoveFreshMs))) {
+        f.movedAt = now;
+        return;
+    }
+    f.returnSlew = false;
+    f.movedAt = now;
+    if (!f.siblingType.isEmpty() && now - f.siblingAt <= kSiblingFreshMs && f.siblingAt > f.parkedAt)
+        notePtzLeave(slot, ip, channel, true);
+}
+
+void HikvisionEvents::showFollow(Conn *slot, const QString &ip, int channel)
+{
+    if (!slot)
+        return;
+    Conn::LensFollow &f = slot->follow[channel];
+    const qint64 now = QDateTime::currentMSecsSinceEpoch();
+    if (!f.tracking || now - f.trackingAt > kFollowStaleMs)
+        return;
+    if (f.siblingType.isEmpty() || now - f.siblingAt > kSiblingFreshMs)
+        return; // the lens moved with no target seen (someone steering it): no log line
+    if (f.logged)
+        return;
+    f.logged = true;
+    qDebug() << "[Events] Tracking from" << ip << "channel" << channel << ":" << f.siblingType;
+    logTracking(ip, f.siblingType, channel);
+}
+
 void HikvisionEvents::logTracking(const QString &ip, const QString &target, int lensChannel)
 {
     QMutexLocker lock(&m_mu);
@@ -1695,6 +1805,8 @@ void HikvisionEvents::logTracking(const QString &ip, const QString &target, int 
     if (now - m_lastTrack.value(key, 0) < 10000)
         return;
     m_lastTrack.insert(key, now);
+    // The fourth snapshot is asked for three seconds after the line. A quit before that still waits for it.
+    m_snapshotsUntilMs = qMax(m_snapshotsUntilMs, now + 4500);
     const QDateTime start = QDateTime::currentDateTime();
     logDetection(c, target.isEmpty() ? QStringLiteral("other") : target, QStringLiteral("Tracking"),
                  start.toString(Qt::ISODate), lensChannel);
@@ -1722,59 +1834,199 @@ void HikvisionEvents::takeSnapshot(const QString &ip, int cameraChannel, qint64 
         }, Qt::QueuedConnection);
         return;
     }
-    QMutexLocker lock(&m_mu);
-    Conn *c = m_conns.value(ip, nullptr);
-    if (!c || c->pictureRefused || c->pictureFetches >= 2 || m_logDir.isEmpty())
-        return;
-    if (LoginGuard::instance().isRefused(ip, c->user, c->pass)) {
-        c->pictureRefused = true;
-        return;
+    SnapJob job;
+    job.ip = ip;
+    job.cameraChannel = cameraChannel;
+    job.secs = secs;
+    job.kind = kind;
+    enqueueSnapshot(job);
+}
+
+void HikvisionEvents::enqueueSnapshot(const SnapJob &job)
+{
+    QString user, pass, address;
+    int port = 80;
+    int lens = 0;
+    bool start = false;
+    {
+        QMutexLocker lock(&m_mu);
+        if (m_logDir.isEmpty() || m_stopping.load() || job.cameraChannel <= 0)
+            return;
+        Conn *c = m_conns.value(job.ip, nullptr);
+        if (!c || c->pictureRefused)
+            return;
+        if (LoginGuard::instance().isRefused(job.ip, c->user, c->pass)) {
+            c->pictureRefused = true;
+            return;
+        }
+        // Another two pictures are already downloading. Wait for a free one. Dropping the request here is how a
+        // Tracking line was left with no snapshot: the wide lens had just saved its own pictures.
+        if (c->pictureFetches >= 2) {
+            m_snapQueue.append(job);
+            return;
+        }
+        ++c->pictureFetches;
+        if (job.kind.isEmpty())
+            ++m_trackingInFlight;
+        user = c->user;
+        pass = c->pass;
+        port = c->httpPort;
+        address = cameraAddress(c, job.cameraChannel);
+        lens = pictureLens(c, job.cameraChannel);
+        start = true;
     }
+    if (start)
+        issueSnapshot(job, user, pass, port, address, lens);
+}
+
+void HikvisionEvents::issueSnapshot(const SnapJob &job, const QString &user, const QString &pass, int httpPort,
+                                    const QString &address, int lens)
+{
     QUrl url;
     url.setScheme(QStringLiteral("http"));
-    url.setHost(ip.section(QLatin1Char(':'), 0, 0).trimmed());
-    url.setPort(c->httpPort);
-    url.setPath(QStringLiteral("/ISAPI/Streaming/channels/%1/picture").arg(cameraChannel * 100 + 1));
-    ++c->pictureFetches;
-    const QString user = c->user;
-    const QString pass = c->pass;
-    lock.unlock();
+    url.setHost(job.ip.section(QLatin1Char(':'), 0, 0).trimmed());
+    url.setPort(httpPort);
+    url.setPath(QStringLiteral("/ISAPI/Streaming/channels/%1/picture").arg(job.cameraChannel * 100 + 1));
     QNetworkRequest req(url);
     req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("KVision"));
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    req.setTransferTimeout(5000);
+#endif
     QNetworkReply *reply = m_net->get(req);
     reply->setProperty("evUser", user);
     reply->setProperty("evPass", pass);
-    connect(reply, &QNetworkReply::finished, this, [this, ip, reply, cameraChannel, secs, kind]() {
+    const QString ip = job.ip;
+    const int cameraChannel = job.cameraChannel;
+    const qint64 secs = job.secs;
+    const QString kind = job.kind;
+    const int tries = job.tries;
+    connect(reply, &QNetworkReply::finished, this, [this, ip, reply, cameraChannel, secs, kind, tries, address, lens]() {
         reply->deleteLater();
-        QMutexLocker finishedLock(&m_mu);
-        Conn *conn = m_conns.value(ip, nullptr);
-        if (conn && conn->pictureFetches > 0)
-            --conn->pictureFetches;
         const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
-        if (LoginGuard::isHttpAuthRefusal(status) || reply->error() == QNetworkReply::AuthenticationRequiredError) {
-            if (conn) {
-                conn->pictureRefused = true;
-                LoginGuard::instance().refuse(ip, conn->user, conn->pass);
+        const bool tracking = kind.isEmpty();
+        QByteArray jpeg;
+        bool save = false;
+        {
+            QMutexLocker finishedLock(&m_mu);
+            Conn *conn = m_conns.value(ip, nullptr);
+            if (conn && conn->pictureFetches > 0)
+                --conn->pictureFetches;
+            if (tracking && m_trackingInFlight > 0)
+                --m_trackingInFlight;
+            const bool authRefused = LoginGuard::isHttpAuthRefusal(status)
+                    || reply->error() == QNetworkReply::AuthenticationRequiredError;
+            bool retry = false;
+            bool warned = false;
+            if (authRefused) {
+                if (conn) {
+                    conn->pictureRefused = true;
+                    LoginGuard::instance().refuse(ip, conn->user, conn->pass);
+                }
+                qWarning() << "[Events]" << ip << "refused the login for a snapshot. Not asking again.";
+                warned = true;
+            } else if (status == 403) {
+                if (conn)
+                    conn->pictureRefused = true;
+                qWarning() << "[Events]" << ip << "will not give a snapshot (HTTP 403). The login is still valid.";
+                warned = true;
+            } else if (reply->error() != QNetworkReply::NoError) {
+                retry = tracking && tries < 1 && !m_stopping.load() && !(conn && conn->pictureRefused);
+            } else {
+                jpeg = reply->readAll();
+                if (jpeg.size() < 1000 || jpeg.left(3) != QByteArray("\xff\xd8\xff", 3)) {
+                    jpeg.clear();
+                    retry = tracking && tries < 1 && !m_stopping.load();
+                } else {
+                    save = true;
+                }
             }
-            qWarning() << "[Events]" << ip << "refused the login for a snapshot. Not asking again.";
-            return;
+            // The connection may already have been closed (the tile went away). The address was copied when the
+            // snapshot was asked for, so the JPEG is still kept with the log line.
+            if (retry) {
+                SnapJob again;
+                again.ip = ip;
+                again.cameraChannel = cameraChannel;
+                again.secs = secs;
+                again.kind = kind;
+                again.tries = tries + 1;
+                m_snapQueue.append(again);
+            } else if (tracking && !save && !warned) {
+                qWarning() << "[Events]" << ip << "tracking snapshot was not saved (HTTP" << status << ").";
+            }
         }
-        if (status == 403) {
-            if (conn)
-                conn->pictureRefused = true;
-            qWarning() << "[Events]" << ip << "will not give a snapshot (HTTP 403). The login is still valid.";
-            return;
-        }
-        if (!conn || reply->error() != QNetworkReply::NoError)
-            return;
-        const QByteArray jpeg = reply->readAll();
-        if (jpeg.size() < 1000 || jpeg.left(3) != QByteArray("\xff\xd8\xff", 3))
-            return;
-        const QString address = cameraAddress(conn, cameraChannel);
-        const int lens = pictureLens(conn, cameraChannel);
-        finishedLock.unlock();
-        savePicture(address, lens, kind, secs, jpeg);
+        if (save)
+            savePicture(address, lens, kind, secs, jpeg);
+        pumpSnapshotQueue();
     });
+}
+
+void HikvisionEvents::pumpSnapshotQueue()
+{
+    if (m_snapshotPump)
+        return;
+    m_snapshotPump = true;
+    while (!m_stopping.load()) {
+        SnapJob job;
+        QString user, pass, address;
+        int port = 80;
+        int lens = 0;
+        bool start = false;
+        {
+            QMutexLocker lock(&m_mu);
+            for (int i = 0; i < m_snapQueue.size(); ) {
+                const SnapJob queued = m_snapQueue.at(i);
+                Conn *c = m_conns.value(queued.ip, nullptr);
+                if (!c || c->pictureRefused || m_logDir.isEmpty()
+                        || LoginGuard::instance().isRefused(queued.ip, c->user, c->pass)) {
+                    if (c && LoginGuard::instance().isRefused(queued.ip, c->user, c->pass))
+                        c->pictureRefused = true;
+                    m_snapQueue.removeAt(i);
+                    continue;
+                }
+                if (c->pictureFetches >= 2) {
+                    ++i;
+                    continue;
+                }
+                m_snapQueue.removeAt(i);
+                ++c->pictureFetches;
+                if (queued.kind.isEmpty())
+                    ++m_trackingInFlight;
+                job = queued;
+                user = c->user;
+                pass = c->pass;
+                port = c->httpPort;
+                address = cameraAddress(c, job.cameraChannel);
+                lens = pictureLens(c, job.cameraChannel);
+                start = true;
+                break;
+            }
+        }
+        if (!start)
+            break;
+        issueSnapshot(job, user, pass, port, address, lens);
+    }
+    m_snapshotPump = false;
+}
+
+void HikvisionEvents::drainSnapshots()
+{
+    const qint64 deadline = QDateTime::currentMSecsSinceEpoch() + 10000;
+    auto pending = [this]() {
+        QMutexLocker lock(&m_mu);
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        return now < m_snapshotsUntilMs || m_trackingInFlight > 0 || !m_snapQueue.isEmpty();
+    };
+    if (!pending())
+        return;
+    QEventLoop loop;
+    QTimer tick;
+    tick.setInterval(50);
+    connect(&tick, &QTimer::timeout, &loop, [this, &loop, &pending, deadline]() {
+        if (!pending() || QDateTime::currentMSecsSinceEpoch() >= deadline)
+            loop.quit();
+    });
+    tick.start();
+    loop.exec();
 }
 
 QVariantList HikvisionEvents::logEventsBetween(const QString &recorderIp, int channel, qint64 startMs, qint64 endMs, const QString &configDir) const

@@ -3,6 +3,7 @@
 
 #include <QDateTime>
 #include <QHash>
+#include <QList>
 #include <QMutex>
 #if QT_VERSION >= QT_VERSION_CHECK(5, 14, 0)
 #include <QRecursiveMutex>
@@ -77,7 +78,9 @@ public:
     Q_INVOKABLE void setLensInfo(const QString &ip, const QString &json);
     // A PTZ lens has started to follow a target the other lens named (target is human, vehicle, animal or other).
     // Writes a "Tracking" line to the detection log and keeps four snapshots of the PTZ lens (the first at once, then one a second apart), that the
-    // log window offers with that line. lensChannel is the camera's own channel of the PTZ lens. Only for a camera
+    // log window offers with that line. The event parser calls this, so the background logger records the follow while
+    // the window is closed. The line is written before the camera has answered, so a window that closes while those
+    // replies are still out waits for them. lensChannel is the camera's own channel of the PTZ lens. Only for a camera
     // on its own connection; ignored if the same lens was logged in the last 10 seconds.
     Q_INVOKABLE void logTracking(const QString &ip, const QString &target, int lensChannel);
 
@@ -214,6 +217,19 @@ private:
         qint64 pendingSecs = 0;      // the event's time, which names the saved picture
         bool pictureRefused = false; // the recorder refused the login for a picture: never ask again this session
         int pictureFetches = 0;      // picture downloads in progress
+        // A dual-lens PTZ follow, kept on the worker's copy of the connection. The moving lens leaves its park
+        // preset, and the other lens has named a target. One Tracking line per follow. Not copied out of the worker.
+        struct LensFollow {
+            bool tracking = false;
+            bool logged = false;
+            qint64 trackingAt = 0;
+            qint64 movedAt = 0;
+            qint64 parkedAt = 0;
+            bool returnSlew = false;
+            QString siblingType;
+            qint64 siblingAt = 0;
+        };
+        QHash<int, LensFollow> follow; // this lens's own channel -> its follow
     };
     struct PictureVerdict {
         bool on = false;
@@ -232,6 +248,11 @@ private:
     QString logDirectory() const;
     void onFinished(const QString &ip, QNetworkReply *reply);
     void close(const QString &ip);
+    // The other lens named a target. A lens that is already following, or already moving, may log that follow.
+    void noteSiblingTarget(Conn *slot, const QString &ip, int channel, const QString &target);
+    void notePtzLeave(Conn *slot, const QString &ip, int channel, bool leave);
+    void notePtzMoved(Conn *slot, const QString &ip, int channel);
+    void showFollow(Conn *slot, const QString &ip, int channel);
     void logDetection(const Conn *c, const QString &target, const QString &kind, const QString &cameraTime, int eventChannel,
                       const QString &where = QString());
     // What the camera said about where a smart event happened: "box x/y/w/h zone N poly x/y/x/y/..." (all 0..1 of the picture),
@@ -255,6 +276,21 @@ private:
     void judgeJpeg(const QString &address, bool hasRect, const QRectF &rect, const QByteArray &jpeg);
     void savePicture(const QString &address, int lens, const QString &kind, qint64 secs, const QByteArray &jpeg);
     void takeSnapshot(const QString &ip, int cameraChannel, qint64 secs, const QString &kind = QString());
+    // A snapshot that could not be asked for yet (two picture downloads were already in progress). A tracking
+    // snapshot is queued, not dropped: the log line is already written, and it has to get its picture.
+    struct SnapJob {
+        QString ip;
+        int cameraChannel = 0;
+        qint64 secs = 0;
+        QString kind;
+        int tries = 0;
+    };
+    void enqueueSnapshot(const SnapJob &job);
+    void issueSnapshot(const SnapJob &job, const QString &user, const QString &pass, int httpPort,
+                       const QString &address, int lens);
+    void pumpSnapshotQueue();
+    // Called as the process is leaving. Waits until tracking snapshots already asked for are on disk.
+    void drainSnapshots();
     // An event type KVision has no kind for (a face event, "duration", ...): one line in logs/OtherEvents.log with the
     // raw type name and the start of the camera's message, so unknown events can be seen. Throttled: a line is written
     // when the state of that event changes, and at most every ten minutes while it stays the same.
@@ -285,6 +321,10 @@ private:
     bool m_pictureFaceDetection = false;
     QHash<QString, QPair<QString, qint64>> m_otherSeen; // "ip|channel|type" -> last state logged and when (ms)
     QHash<QString, qint64> m_lastTrack; // when a lens last logged a track (ms), to ignore a second tile of the same camera
+    QList<SnapJob> m_snapQueue;
+    int m_trackingInFlight = 0;     // tracking snapshot downloads whose JPEG is not saved yet
+    qint64 m_snapshotsUntilMs = 0;  // the last tracking snapshot of a follow is asked for at this time
+    bool m_snapshotPump = false;
     int pictureLens(const Conn *c, int eventChannel) const;
     // Keeps the newest m_maxPictures pictures of each camera in logs/pictures (or of one camera) and deletes the older ones.
     void prunePictures(const QString &dirPath, const QString &key);

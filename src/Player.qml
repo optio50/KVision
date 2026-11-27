@@ -1389,10 +1389,8 @@ FocusScope {
             return; // the PTZ moved with no target seen (someone steering it), so no frame and no log line
         // This lens has a rule of its own on screen. Leave that label, and still record the follow once.
         if (root.targetType !== "" && root.targetSource !== "TRACKING") {
-            if (!root.followLogged) {
+            if (!root.followLogged)
                 root.followLogged = true;
-                HikvisionEvents.logTracking(root.watchedIp, root.siblingType, root.lensChannel);
-            }
             return;
         }
         var starting = root.targetSource !== "TRACKING";
@@ -1402,10 +1400,8 @@ FocusScope {
         root.lastTargetReport = now;
         if (changed)
             HikvisionEvents.logFrame(root.watchedIp, root.targetCaption(" - "), root.index, root.cameraNameInfo);
-        if (starting && !root.followLogged) {
+        if (starting && !root.followLogged)
             root.followLogged = true;
-            HikvisionEvents.logTracking(root.watchedIp, root.siblingType, root.lensChannel); // the log line and four snapshots
-        }
     }
 
     function endTracking() {
