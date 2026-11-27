@@ -3891,7 +3891,9 @@ Window {
                              }
                             
                             var seenKinds = ({})
-                            var colors = ["#00f5d4", "#e0aaff", "#70e000", "#ff5c8a"]
+                            // Continuous recording. Hikvision draws this as a darker blue, and the gray and yellow
+                            // event marks need that darker ground or they disappear into the bar.
+                            var barColor = "#1e5a94"
                             var activeCams = getLoadedCameras()
                             var N = activeCams.length
                             var barsTotalHeight = N * 8
@@ -3905,7 +3907,6 @@ Window {
                             // Draw stacked timeline segments for all active viewports
                             for (var i = 0; i < N; i++) {
                                 var cam = activeCams[i]
-                                var barColor = colors[i % colors.length]
                                 var barY = height - (N - i) * 8
                                 
                                 ctx.fillStyle = barColor
