@@ -1,6 +1,9 @@
 #include "eventalert.h"
 
 #include <QHash>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QRegularExpression>
 
 namespace {
@@ -146,4 +149,119 @@ EventAlert classifyEventAlert(const QString &body, const QSet<QString> &kinds, c
     if (kinds.contains(QStringLiteral("motion")) && targets.contains(alert.target) && !late)
         alert.frame = EventAlert::Flash;
     return alert;
+}
+
+namespace {
+// Index just past the object that opens at `openBrace`, or -1 while it is still incomplete.
+int jsonObjectEnd(const QString &text, int openBrace)
+{
+    int depth = 0;
+    bool inString = false;
+    bool escaped = false;
+    for (int i = openBrace; i < text.size(); ++i) {
+        const QChar ch = text.at(i);
+        if (inString) {
+            if (escaped)
+                escaped = false;
+            else if (ch == QLatin1Char('\\'))
+                escaped = true;
+            else if (ch == QLatin1Char('"'))
+                inString = false;
+            continue;
+        }
+        if (ch == QLatin1Char('"')) {
+            inString = true;
+            continue;
+        }
+        if (ch == QLatin1Char('{'))
+            ++depth;
+        else if (ch == QLatin1Char('}')) {
+            --depth;
+            if (depth == 0)
+                return i + 1;
+        }
+    }
+    return -1;
+}
+}
+
+QVector<FaceCaptureEvent> splitFaceCaptures(const QString &text)
+{
+    QVector<FaceCaptureEvent> found;
+    static const QRegularExpression typeRx(QStringLiteral("\"eventType\"\\s*:\\s*\"faceCapture\""));
+    int from = 0;
+    while (from < text.size()) {
+        const QRegularExpressionMatch type = typeRx.match(text, from);
+        if (!type.hasMatch())
+            break;
+        const int open = text.lastIndexOf(QLatin1Char('{'), type.capturedStart());
+        if (open < 0) {
+            from = type.capturedEnd();
+            continue;
+        }
+        const int end = jsonObjectEnd(text, open);
+        if (end < 0)
+            break; // the object has started and the rest has not arrived
+        from = end;
+        const QJsonObject obj = QJsonDocument::fromJson(text.mid(open, end - open).toUtf8()).object();
+        if (obj.value(QStringLiteral("eventType")).toString() != QLatin1String("faceCapture"))
+            continue;
+        FaceCaptureEvent face;
+        face.start = open;
+        face.end = end;
+        face.active = obj.value(QStringLiteral("eventState")).toString() == QLatin1String("active");
+        face.cameraTime = obj.value(QStringLiteral("dateTime")).toString();
+        face.channel = obj.value(QStringLiteral("channelID")).toInt();
+        const QJsonArray caps = obj.value(QStringLiteral("faceCapture")).toArray();
+        if (!caps.isEmpty()) {
+            const QJsonObject cap = caps.at(0).toObject();
+            face.sceneUrl = cap.value(QStringLiteral("targetAttrs")).toObject().value(QStringLiteral("bkgUrl")).toString()
+                                .replace(QStringLiteral("&amp;"), QStringLiteral("&"));
+            const QJsonArray faces = cap.value(QStringLiteral("faces")).toArray();
+            if (!faces.isEmpty()) {
+                const QJsonObject one = faces.at(0).toObject();
+                face.faceUrl = one.value(QStringLiteral("URL")).toString().replace(QStringLiteral("&amp;"), QStringLiteral("&"));
+                const QJsonObject rect = one.value(QStringLiteral("faceRect")).toObject();
+                if (rect.contains(QStringLiteral("x")) && rect.contains(QStringLiteral("width"))) {
+                    face.hasRect = true;
+                    face.x = rect.value(QStringLiteral("x")).toDouble();
+                    face.y = rect.value(QStringLiteral("y")).toDouble();
+                    face.w = rect.value(QStringLiteral("width")).toDouble();
+                    face.h = rect.value(QStringLiteral("height")).toDouble();
+                }
+            }
+        }
+        found.append(face);
+    }
+    return found;
+}
+
+QVector<FaceJpeg> faceCaptureJpegs(const QByteArray &data)
+{
+    QVector<FaceJpeg> found;
+    int from = 0;
+    while (from + 3 < data.size()) {
+        const int start = data.indexOf("\xff\xd8\xff", from);
+        if (start < 0)
+            break;
+        const int marker = data.indexOf("\xff\xd9", start + 3);
+        if (marker < 0)
+            break; // the rest of this picture has not arrived
+        FaceJpeg pic;
+        pic.start = start;
+        pic.end = marker + 2;
+        const int headFrom = qMax(0, start - 700);
+        const QString head = QString::fromLatin1(data.constData() + headFrom, start - headFrom).toLower();
+        const int idAt = head.lastIndexOf(QStringLiteral("content-id:"));
+        if (idAt >= 0) {
+            const QString id = head.mid(idAt + 11, 80);
+            if (id.contains(QStringLiteral("background")))
+                pic.background = true;
+            else if (id.contains(QStringLiteral("face")))
+                pic.face = true;
+        }
+        found.append(pic);
+        from = pic.end;
+    }
+    return found;
 }

@@ -24,6 +24,7 @@
 #include <QSet>
 #include <QUrl>
 #include <algorithm>
+#include <cmath>
 
 namespace {
 const int kMaxFailures = 3;       // after this many failed attempts in a row, tell the user once (it keeps trying)
@@ -379,12 +380,26 @@ void HikvisionEvents::parseIncoming(const QString &ip, const QByteArray &chunk, 
     if (c->buffer.size() > kMaxBuffer) {
         c->buffer = c->buffer.right(kMaxBuffer / 2);
         c->jsonScanned = 0;
+        c->faceJsonScanned = 0;
+        c->facePicFrom = 0;
+        c->pendingFace = false;
     }
 
     int consumed = 0;
     // Pictures ride in the same stream and contain zero bytes. QString::fromLatin1(QByteArray) stops at the first one,
     // which hid every event that came after a picture, so the length is given explicitly.
     const QString text = QString::fromLatin1(c->buffer.constData(), c->buffer.size());
+    // A G3 with face detection on sends JSON faceCapture instead of the XML facedetection alert, then
+    // the pictures. Line and intrusion stay on the XML path and are unchanged when the camera is switched back.
+    const QVector<FaceCaptureEvent> faceCaptures = splitFaceCaptures(text);
+    for (const FaceCaptureEvent &face : faceCaptures) {
+        if (face.end <= c->faceJsonScanned)
+            continue;
+        c->faceJsonScanned = qMax(c->faceJsonScanned, face.end);
+        if (!face.active || !sourceAllowed(c, face.channel))
+            continue;
+        handleFaceCapture(c, ip, face);
+    }
     const QVector<EventAlertSpan> spans = splitEventAlerts(text);
     const QDateTime now = QDateTime::currentDateTime();
     for (const EventAlertSpan &span : spans) {
@@ -487,9 +502,13 @@ void HikvisionEvents::parseIncoming(const QString &ip, const QByteArray &chunk, 
         }
         c->jsonScanned = scannedTo;
     }
+    if (c->pendingFace)
+        takeFaceCapturePictures(c, c->buffer.size());
     if (consumed > 0) {
         c->buffer.remove(0, consumed);
         c->jsonScanned = qMax(0, c->jsonScanned - consumed);
+        c->faceJsonScanned = qMax(0, c->faceJsonScanned - consumed);
+        c->facePicFrom = qMax(0, c->facePicFrom - consumed);
     }
     judgePicture(c, c->buffer);
 }
@@ -557,8 +576,119 @@ void HikvisionEvents::handleFace(Conn *c, const QString &ip, const QString &body
     emit targetDetected(ip, QStringLiteral("face"), QStringLiteral("FACE"), eventChannel);
 }
 
+void HikvisionEvents::handleFaceCapture(Conn *c, const QString &ip, const FaceCaptureEvent &face)
+{
+    // Pictures of the previous capture sit in front of this one. Keep them before the index moves.
+    if (c->pendingFace)
+        takeFaceCapturePictures(c, face.start);
+    // The camera repeats the same capture once for each attached picture. A new shot has a new time or a new box.
+    const bool sameShot = c->pendingFace && face.channel == c->pendingFaceChannel && face.cameraTime == c->pendingFaceTime
+        && face.hasRect == c->pendingHasRect
+        && std::abs(face.x - c->pendingRect.x()) < 0.001 && std::abs(face.y - c->pendingRect.y()) < 0.001
+        && std::abs(face.w - c->pendingRect.width()) < 0.001 && std::abs(face.h - c->pendingRect.height()) < 0.001;
+    if (sameShot) {
+        c->facePicFrom = qMax(c->facePicFrom, face.end);
+        return;
+    }
+    QString where;
+    if (face.hasRect) {
+        where = QStringLiteral("box %1/%2/%3/%4")
+                    .arg(face.x, 0, 'f', 3)
+                    .arg(face.y, 0, 'f', 3)
+                    .arg(face.w, 0, 'f', 3)
+                    .arg(face.h, 0, 'f', 3);
+    }
+    logDetection(c, QStringLiteral("face"), QStringLiteral("Face detection"), face.cameraTime, face.channel, where);
+    QDateTime when = QDateTime::fromString(face.cameraTime, Qt::ISODate);
+    if (!when.isValid())
+        when = QDateTime::currentDateTime();
+    c->pendingFace = true;
+    c->pendingFaceTime = face.cameraTime;
+    c->pendingFaceChannel = face.channel;
+    c->faceSavedScene = false;
+    c->faceSavedBody = false;
+    c->facePicFrom = face.end;
+    c->pendingSecs = when.toSecsSinceEpoch();
+    c->pendingAddress = cameraAddress(c, face.channel);
+    c->pendingLens = pictureLens(c, face.channel);
+    c->pendingKind = QStringLiteral("Face detection");
+    c->pendingHasRect = face.hasRect;
+    c->pendingRect = QRectF(face.x, face.y, face.w, face.h);
+    // An NVR names the pictures as links. A camera leaves the links empty and the JPEGs follow on the stream.
+    if (!face.sceneUrl.isEmpty() || !face.faceUrl.isEmpty()) {
+        if (!face.sceneUrl.isEmpty()) {
+            fetchPicture(c->ip, QUrl(face.sceneUrl), c->pendingAddress, c->pendingLens, c->pendingKind, c->pendingSecs,
+                         c->pendingHasRect, c->pendingRect);
+            c->faceSavedScene = true;
+        }
+        if (!face.faceUrl.isEmpty()) {
+            // The wide shot is the first picture on the log line. The face crop is the next one.
+            fetchPicture(c->ip, QUrl(face.faceUrl), c->pendingAddress, c->pendingLens, c->pendingKind,
+                         face.sceneUrl.isEmpty() ? c->pendingSecs : c->pendingSecs + 1, false, QRectF());
+            c->faceSavedBody = true;
+        }
+        if (face.sceneUrl.isEmpty())
+            c->faceSavedScene = true;
+        if (face.faceUrl.isEmpty())
+            c->faceSavedBody = true;
+    }
+    if (!m_wKinds.contains(QStringLiteral("face")) || reportIsLate(face.cameraTime))
+        return; // the log and the pictures stay; the tile label follows the Face detection tick
+    qDebug() << "[Events] face capture from" << ip << "channel" << face.channel;
+    emit targetDetected(ip, QStringLiteral("face"), QStringLiteral("FACE"), face.channel);
+}
+
+void HikvisionEvents::takeFaceCapturePictures(Conn *c, int limit)
+{
+    if (!c->pendingFace || limit <= c->facePicFrom)
+        return;
+    const QByteArray slice = c->buffer.mid(c->facePicFrom, limit - c->facePicFrom);
+    const QVector<FaceJpeg> pics = faceCaptureJpegs(slice);
+    int used = 0;
+    int unlabeled = 0;
+    for (const FaceJpeg &pic : pics) {
+        const QByteArray jpeg = slice.mid(pic.start, pic.end - pic.start);
+        bool scene = pic.background;
+        bool body = pic.face;
+        if (!scene && !body) {
+            // Without a content id the capture comes first and the wide shot second.
+            if (unlabeled == 0)
+                body = true;
+            else
+                scene = true;
+            ++unlabeled;
+        }
+        if (scene && !c->faceSavedScene) {
+            savePicture(c->pendingAddress, c->pendingLens, c->pendingKind, c->pendingSecs, jpeg);
+            judgeJpeg(c->pendingAddress, c->pendingHasRect, c->pendingRect, jpeg);
+            c->faceSavedScene = true;
+        } else if (body && !c->faceSavedBody) {
+            // The second picture on the log line. This is the camera's face or full-body shot.
+            savePicture(c->pendingAddress, c->pendingLens, c->pendingKind, c->pendingSecs + 1, jpeg);
+            c->faceSavedBody = true;
+        }
+        used = pic.end;
+    }
+    if (used > 0)
+        c->facePicFrom += used;
+    if (c->faceSavedScene && c->faceSavedBody) {
+        c->pendingFace = false;
+        return;
+    }
+    if (!c->faceSavedScene && !c->faceSavedBody)
+        return;
+    const QByteArray tail = slice.mid(used);
+    if (tail.contains("\xff\xd8\xff"))
+        return; // another picture is still arriving
+    const QString tailText = QString::fromLatin1(tail);
+    if (tailText.contains(QStringLiteral("EventNotificationAlert"))
+        || tailText.contains(QStringLiteral("\"eventType\"")))
+        c->pendingFace = false; // the next alert started, so no further picture belongs to this capture
+}
+
 void HikvisionEvents::notePictureRect(Conn *c, const QString &body, int eventChannel, const QString &cameraTime, const QString &kind)
 {
+    c->pendingFace = false; // a line or intrusion picture belongs to that event, not a face capture
     static const QRegularExpression rectRx(QStringLiteral(
         "<TargetRect>\\s*<X>([\\d.]+)</X>\\s*<Y>([\\d.]+)</Y>\\s*<width>([\\d.]+)</width>\\s*<height>([\\d.]+)</height>"));
     static const QRegularExpression picRx(QStringLiteral("<detectionPicturesNumber>(\\d+)</detectionPicturesNumber>"));

@@ -18,6 +18,8 @@
 
 #include <atomic>
 
+#include "eventalert.h"
+
 class QNetworkAccessManager;
 class QNetworkReply;
 class QThread;
@@ -189,6 +191,13 @@ private:
         QNetworkReply *reply = nullptr;
         QByteArray buffer;   // only the worker's copy is used; the window thread does not parse it
         int jsonScanned = 0; // how much of the buffer has been searched for PTZ JSON messages already
+        int faceJsonScanned = 0; // how much has been searched for a G3 faceCapture object
+        bool pendingFace = false; // a faceCapture was logged and its JPEGs may still be arriving
+        QString pendingFaceTime; // that capture's camera time, so a repeat of it is not logged again
+        int pendingFaceChannel = 0;
+        int facePicFrom = 0; // buffer index where those JPEGs start
+        bool faceSavedScene = false; // the wide shot was kept
+        bool faceSavedBody = false; // the face or full-body capture was kept
         qulonglong generation = 1; // bumped each time the stream is opened, so a late chunk is not parsed into the new one
         QTimer *retry = nullptr;
         QTimer *watchdog = nullptr; // fires when nothing has arrived for too long: a stalled stream is reopened
@@ -235,6 +244,10 @@ private:
     // A "facedetection" report: logged, and a label shown on the tile (it has no box to frame). It brings no picture.
     // When face pictures are on, stills are taken from later reports of the same visit (see handleFace).
     void handleFace(Conn *c, const QString &ip, const QString &body, const QString &cameraTime, int eventChannel);
+    // A G3 faceCapture JSON alert: one finished capture, logged like Face detection, with the wide
+    // shot and the camera's face or full-body JPEG kept from the bytes that follow it.
+    void handleFaceCapture(Conn *c, const QString &ip, const FaceCaptureEvent &face);
+    void takeFaceCapturePictures(Conn *c, int limit);
     void notePictureRect(Conn *c, const QString &body, int eventChannel, const QString &cameraTime, const QString &kind);
     // A recorder sends a link to the picture instead of the picture. Downloads it with the connection's login
     // (one try, and only from the connection's own address), then keeps and judges it like an attached one.

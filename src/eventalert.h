@@ -42,4 +42,35 @@ struct EventAlert {
 EventAlert classifyEventAlert(const QString &body, const QSet<QString> &kinds, const QSet<QString> &targets,
                               bool frameMotion, const QDateTime &now);
 
+// One G3 "faceCapture" JSON alert. These cameras send this instead of the XML "facedetection"
+// alert, and the JPEGs follow it in the same stream. end is the index just past the object.
+struct FaceCaptureEvent {
+    int start = 0;
+    int end = 0;
+    bool active = false;
+    QString cameraTime;
+    int channel = 0;
+    bool hasRect = false;
+    double x = 0;
+    double y = 0;
+    double w = 0;
+    double h = 0;
+    // An NVR sends the pictures as links. A camera leaves these empty and attaches the JPEGs instead.
+    QString sceneUrl;
+    QString faceUrl;
+};
+
+QVector<FaceCaptureEvent> splitFaceCaptures(const QString &text);
+
+// A finished JPEG that follows a face capture. background is the wide shot the face rectangle
+// refers to. face is the camera's capture of the person, which may be a face or a full body.
+struct FaceJpeg {
+    int start = 0;
+    int end = 0;
+    bool background = false;
+    bool face = false;
+};
+
+QVector<FaceJpeg> faceCaptureJpegs(const QByteArray &data);
+
 #endif

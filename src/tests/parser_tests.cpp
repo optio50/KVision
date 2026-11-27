@@ -248,6 +248,45 @@ TEST(EventAlert, SmartEventsFlashOnlyWhenActiveAndOnTime)
     EXPECT_EQ(empty.frame, EventAlert::Flash);
 }
 
+TEST(EventAlert, FaceCaptureJsonKeepsTheFaceRect)
+{
+    const QString json = QStringLiteral(
+        "{\"eventType\":\"faceCapture\",\"eventState\":\"active\",\"dateTime\":\"2026-11-27T02:13:51-09:00\","
+        "\"channelID\":1,\"faceCapture\":[{\"faces\":[{\"faceRect\":{\"x\":0.912,\"y\":0.061,\"width\":0.075,\"height\":0.132}}]}]}");
+    const QByteArray wrapped = QByteArray("----boundary\r\n") + json.toUtf8() + QByteArray("\r\n--boundary");
+    const QVector<FaceCaptureEvent> faces = splitFaceCaptures(QString::fromLatin1(wrapped));
+    ASSERT_EQ(faces.size(), 1);
+    EXPECT_TRUE(faces.at(0).active);
+    EXPECT_EQ(faces.at(0).channel, 1);
+    EXPECT_EQ(faces.at(0).cameraTime, QStringLiteral("2026-11-27T02:13:51-09:00"));
+    EXPECT_TRUE(faces.at(0).hasRect);
+    EXPECT_NEAR(faces.at(0).x, 0.912, 0.0001);
+    EXPECT_NEAR(faces.at(0).h, 0.132, 0.0001);
+    EXPECT_TRUE(faces.at(0).sceneUrl.isEmpty());
+    EXPECT_TRUE(faces.at(0).faceUrl.isEmpty());
+    EXPECT_TRUE(splitFaceCaptures(json.left(40)).isEmpty());
+
+    const QString linked = QStringLiteral(
+        "{\"eventType\":\"faceCapture\",\"eventState\":\"active\",\"dateTime\":\"2026-11-27T03:36:39-09:00\","
+        "\"channelID\":17,\"faceCapture\":[{\"targetAttrs\":{\"bkgUrl\":\"http://192.0.0.99/picture/wide?name=a&amp;size=10\"},"
+        "\"faces\":[{\"faceRect\":{\"x\":0.570,\"y\":0.268,\"width\":0.040,\"height\":0.068},"
+        "\"URL\":\"http://192.0.0.99/picture/face?name=b&size=9\"}]}]}");
+    const QVector<FaceCaptureEvent> nvr = splitFaceCaptures(linked);
+    ASSERT_EQ(nvr.size(), 1);
+    EXPECT_EQ(nvr.at(0).channel, 17);
+    EXPECT_EQ(nvr.at(0).sceneUrl, QStringLiteral("http://192.0.0.99/picture/wide?name=a&size=10"));
+    EXPECT_EQ(nvr.at(0).faceUrl, QStringLiteral("http://192.0.0.99/picture/face?name=b&size=9"));
+
+    const QByteArray facePic = QByteArray("Content-ID: faceImage\r\n\r\n") + QByteArray("\xff\xd8\xff") + QByteArray(20, '\x11') + QByteArray("\xff\xd9");
+    const QByteArray scenePic = QByteArray("Content-ID: backgroundImage\r\n\r\n") + QByteArray("\xff\xd8\xff") + QByteArray(30, '\x22') + QByteArray("\xff\xd9");
+    const QVector<FaceJpeg> pics = faceCaptureJpegs(facePic + scenePic + QByteArray("\xff\xd8\xff"));
+    ASSERT_EQ(pics.size(), 2);
+    EXPECT_TRUE(pics.at(0).face);
+    EXPECT_FALSE(pics.at(0).background);
+    EXPECT_TRUE(pics.at(1).background);
+    EXPECT_EQ(pics.at(0).end - pics.at(0).start, 25);
+}
+
 TEST(EventAlert, FaceAndUnknownTypesDoNotFlash)
 {
     const QString face = alertXml(QStringLiteral("facedetection"), QStringLiteral("active"), kFresh);
