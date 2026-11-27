@@ -1534,7 +1534,7 @@ FocusScope {
                                 var current = (host === rootWindow) ? stackLayout.currentIndex : host.layoutIndex;
                                 rootWindow.handleLayoutWheel(wheel, collection, current, function(idx) {
                                     if (host === rootWindow) {
-                                        stackLayout.currentIndex = idx;
+                                        rootWindow.selectLayout(idx);
                                     } else {
                                         host.layoutIndex = idx;
                                     }

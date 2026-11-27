@@ -3,6 +3,8 @@
 #include <QFile>
 #include <QDir>
 #include <QSettings>
+#include <QSaveFile>
+#include <QRegularExpression>
 #include <QFileInfo>
 #include <QCoreApplication>
 #include <QProcessEnvironment>
@@ -242,6 +244,66 @@ void Context::writeSetting(const QString &category, const QString &key, const QV
     if (!category.isEmpty()) {
         settings.endGroup();
     }
+    settings.sync();
+}
+
+static QString auxiliaryLayoutFilePath(int auxiliaryId)
+{
+    const QString configPath = Context::config() ? Context::config()->fileName() : QSettings().fileName();
+    return QFileInfo(configPath).absolutePath() + QStringLiteral("/auxiliary-%1.layout").arg(auxiliaryId);
+}
+
+static bool auxiliaryLayoutUidOk(const QString &uid)
+{
+    static const QRegularExpression re(QStringLiteral("^[A-Za-z0-9]{1,32}$"));
+    return re.match(uid).hasMatch();
+}
+
+void Context::writeAuxiliaryLayout(int auxiliaryId, int index, const QString &uid)
+{
+    if (auxiliaryId <= 0 || index < 0 || index > 10000 || !auxiliaryLayoutUidOk(uid))
+        return;
+    QSaveFile file(auxiliaryLayoutFilePath(auxiliaryId));
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+        return;
+    const QByteArray body = QByteArrayLiteral("uid=") + uid.toLatin1()
+            + QByteArrayLiteral("\nindex=") + QByteArray::number(index)
+            + QByteArrayLiteral("\n");
+    if (file.write(body) != body.size())
+        return;
+    file.commit();
+}
+
+QVariantMap Context::readAuxiliaryLayout(int auxiliaryId) const
+{
+    QVariantMap out;
+    if (auxiliaryId <= 0)
+        return out;
+    QFile file(auxiliaryLayoutFilePath(auxiliaryId));
+    if (!file.open(QIODevice::ReadOnly))
+        return out;
+    QString uid;
+    int index = -1;
+    const QStringList lines = QString::fromUtf8(file.readAll()).split(QLatin1Char('\n'));
+    for (const QString &line : lines) {
+        if (line.startsWith(QLatin1String("uid=")))
+            uid = line.mid(4).trimmed();
+        else if (line.startsWith(QLatin1String("index=")))
+            index = line.mid(6).trimmed().toInt();
+    }
+    if (!auxiliaryLayoutUidOk(uid) || index < 0 || index > 10000)
+        return out;
+    out.insert(QStringLiteral("uid"), uid);
+    out.insert(QStringLiteral("index"), index);
+    return out;
+}
+
+int Context::readAuxiliaryLayoutIndex(int auxiliaryId) const
+{
+    const QVariantMap saved = readAuxiliaryLayout(auxiliaryId);
+    if (!saved.contains(QStringLiteral("index")))
+        return -1;
+    return saved.value(QStringLiteral("index")).toInt();
 }
 
 QVariant Context::readSetting(const QString &category, const QString &key, const QVariant &defaultValue) const

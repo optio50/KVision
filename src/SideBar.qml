@@ -2101,7 +2101,7 @@ FocusScope {
                                         implicitHeight: 28
                                         highlighted: stackLayout.currentIndex === modelData
                                         onClicked: {
-                                            stackLayout.currentIndex = modelData;
+                                            rootWindow.selectLayout(modelData);
                                         }
                                         contentItem: Image {
                                             anchors.centerIn: parent

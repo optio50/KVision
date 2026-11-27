@@ -64,6 +64,12 @@ public:
     Q_INVOKABLE QString readLocalFile(const QString &filePath) const;
     Q_INVOKABLE QVariant readSetting(const QString &category, const QString &key, const QVariant &defaultValue = QVariant()) const;
     Q_INVOKABLE void writeSetting(const QString &category, const QString &key, const QVariant &value);
+    // The extra window's layout is kept beside the shared settings file. The main window and the
+    // background logger both rewrite that file, and a cached copy can put the first layout back.
+    Q_INVOKABLE void writeAuxiliaryLayout(int auxiliaryId, int index, const QString &uid);
+    Q_INVOKABLE QVariantMap readAuxiliaryLayout(int auxiliaryId) const;
+    // -1 when this extra window has not saved a layout yet.
+    Q_INVOKABLE int readAuxiliaryLayoutIndex(int auxiliaryId) const;
 
 signals:
     void languageChanged();

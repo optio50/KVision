@@ -151,7 +151,7 @@ ColumnLayout {
             }
         }
 
-        stackLayout.currentIndex = layoutsCollectionModel.count - 1;
+        rootWindow.selectLayout(layoutsCollectionModel.count - 1);
         rootPanel.statusColor = "#00f5d4";
         rootPanel.statusMessage = qsTr("Grid created: %1").arg(layout.name);
     }
@@ -251,7 +251,7 @@ ColumnLayout {
                 }
 
                 // Force navigation to the newly created preset!
-                stackLayout.currentIndex = layoutsCollectionModel.count - 1;
+                rootWindow.selectLayout(layoutsCollectionModel.count - 1);
 
             } else {
                 // EDIT MODE

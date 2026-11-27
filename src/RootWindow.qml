@@ -1050,11 +1050,11 @@ ApplicationWindow {
     }
     Shortcut {
         sequence: "Alt+Right"
-        onActivated: stackLayout.currentIndex = Math.min(stackLayout.currentIndex + 1, stackLayout.count - 1)
+        onActivated: rootWindow.selectLayout(Math.min(stackLayout.currentIndex + 1, stackLayout.count - 1))
     }
     Shortcut {
         sequence: "Alt+Left"
-        onActivated: stackLayout.currentIndex = Math.max(stackLayout.currentIndex - 1, 0)
+        onActivated: rootWindow.selectLayout(Math.max(stackLayout.currentIndex - 1, 0))
     }
     // Shortcuts for the first 9 presets (Alt + 1, Alt + 2, ..., Alt + 9)
     Repeater {
@@ -1063,7 +1063,7 @@ ApplicationWindow {
         Item {
             Shortcut {
                 sequence: "Alt+" + (index + 1)
-                onActivated: stackLayout.currentIndex = index
+                onActivated: rootWindow.selectLayout(index)
             }
         }
     }
@@ -1430,7 +1430,70 @@ ApplicationWindow {
     }
 
     property int savedLayoutIndex: -1
+    // Startup moves the stack before the saved layout is applied. Those moves are not saved.
+    property bool layoutIndexReady: false
+    // The layout the user put on the extra window. A layout pass can report the first layout
+    // afterwards; that report is not the choice and is not written.
+    property int auxiliaryChosenIndex: -1
+    // Set once the extra window starts closing, so teardown cannot replace the saved layout.
+    property bool auxiliaryLayoutFrozen: false
     property var scratchLayout: null
+
+    function auxiliaryLayoutCategory() {
+        return "AuxiliaryLayout_" + Context.auxiliaryId;
+    }
+
+    // The layout index saved the last time this extra window closed.
+    function auxiliaryLayoutToRestore() {
+        var savedIndex = Context.readAuxiliaryLayoutIndex(Context.auxiliaryId);
+        if (isNaN(savedIndex))
+            savedIndex = -1;
+        if (savedIndex >= 0 && savedIndex < layoutsCollectionModel.count && layoutIsPageable(layoutsCollectionModel, savedIndex))
+            return savedIndex;
+        var idx = parseInt(Context.readSetting(auxiliaryLayoutCategory(), "currentIndex", -1));
+        if (isNaN(idx))
+            idx = -1;
+        if (idx >= 0 && idx < layoutsCollectionModel.count && layoutIsPageable(layoutsCollectionModel, idx))
+            return idx;
+        return -1;
+    }
+
+    // Called only when the extra window is closing. Opening must not write, or the first
+    // layout replaces the index that was saved on the way out.
+    function rememberAuxiliaryLayout(index) {
+        if (!Context.isAuxiliary || auxiliaryLayoutFrozen)
+            return;
+        if (!layoutIsPageable(layoutsCollectionModel, index))
+            return;
+        var layout = layoutsCollectionModel.get(index);
+        var uid = layout && layout.uid ? String(layout.uid) : "";
+        if (uid.length === 0)
+            return;
+        Context.writeAuxiliaryLayout(Context.auxiliaryId, index, uid);
+        var category = auxiliaryLayoutCategory();
+        Context.writeSetting(category, "currentIndex", index);
+        Context.writeSetting(category, "layoutUid", uid);
+    }
+
+    function freezeAuxiliaryLayout() {
+        if (!Context.isAuxiliary || auxiliaryLayoutFrozen)
+            return;
+        var index = auxiliaryChosenIndex >= 0 ? auxiliaryChosenIndex : stackLayout.currentIndex;
+        rememberAuxiliaryLayout(index);
+        auxiliaryLayoutFrozen = true;
+    }
+
+    // Show one saved layout. On the extra window the chosen layout is stored here, because
+    // StackLayout treats a write of the index it already has as a no-op and a later layout
+    // pass then snaps back to the first layout.
+    function selectLayout(index) {
+        var pageable = rootWindow.layoutIsPageable(layoutsCollectionModel, index);
+        if (Context.isAuxiliary && pageable)
+            rootWindow.auxiliaryChosenIndex = index;
+        if (stackLayout.currentIndex === index)
+            stackLayout.currentIndex = -1;
+        stackLayout.currentIndex = index;
+    }
 
     function persistedLayoutsJson() {
         var models = layoutsCollectionModel.toJSValue();
@@ -1482,7 +1545,11 @@ ApplicationWindow {
             size: Qt.size(1, 1)
         }
 
-        onCountChanged: stackLayout.currentIndex = stackLayout.currentIndex.clamp(0, layoutsCollectionModel.count - 1)
+        onCountChanged: {
+            if (stackLayout.currentIndex < 0)
+                return;
+            stackLayout.currentIndex = stackLayout.currentIndex.clamp(0, layoutsCollectionModel.count - 1);
+        }
         Component.onCompleted: {
             // First-run pictures, only used when no layout has been saved yet. Both are public road cameras
             // published for anyone to view: a Norwegian highway camera, and a Minnesota highway camera.
@@ -1541,13 +1608,13 @@ ApplicationWindow {
             if (needsUid && !Context.isAuxiliary)
                 saveTimer.restart();
 
-            if (Context.isAuxiliary) {
-                stackLayout.currentIndex = -1;
-            } else {
-                // Force initialize "currentIndex" if option "-p" is set
-                var currentIndex = (Context.config.currentIndex >= 0) ? Context.config.currentIndex : windowLayoutSettings.currentIndex;
-                stackLayout.currentIndex = currentIndex.clamp(0, layoutsCollectionModel.count - 1);
-            }
+            // Same path for the main window and the extra window. Each one has its own
+            // settings group, and the saved index is applied once the layouts are loaded.
+            rootWindow.layoutIndexReady = true;
+            var currentIndex = (!Context.isAuxiliary && Context.config.currentIndex >= 0)
+                    ? Context.config.currentIndex
+                    : windowLayoutSettings.currentIndex;
+            stackLayout.currentIndex = currentIndex.clamp(0, layoutsCollectionModel.count - 1);
         }
     }
 
@@ -2331,10 +2398,7 @@ ApplicationWindow {
                             onClicked: {
                                 if (rootWindow.scratchLayout && layoutsCollectionModel.get(layoutIndex) === rootWindow.scratchLayout) return;
                                 rootWindow.savedLayoutIndex = -1;
-                                if (stackLayout.currentIndex === layoutIndex) {
-                                    stackLayout.currentIndex = -1;
-                                }
-                                stackLayout.currentIndex = layoutIndex;
+                                rootWindow.selectLayout(layoutIndex);
                             }
                         }
                     }
@@ -2520,11 +2584,10 @@ ApplicationWindow {
             id: stackLayout
 
             visible: false
-            currentIndex: -1
             anchors.fill: parent
 
             onCurrentIndexChanged: {
-                if (rootWindow.layoutReorderHold)
+                if (rootWindow.layoutReorderHold || !rootWindow.layoutIndexReady || currentIndex < 0)
                     return;
                 windowLayoutSettings.currentIndex = currentIndex;
             }
@@ -2579,7 +2642,7 @@ ApplicationWindow {
                     return;
                 }
                 rootWindow.handleLayoutWheel(wheel, layoutsCollectionModel, stackLayout.currentIndex, function(idx) {
-                    stackLayout.currentIndex = idx;
+                    rootWindow.selectLayout(idx);
                 });
             }
         }
@@ -2903,7 +2966,7 @@ ApplicationWindow {
                 }
             }
             handleLayoutWheel(wheel, layoutsCollectionModel, stackLayout.currentIndex, function(idx) {
-                stackLayout.currentIndex = idx;
+                rootWindow.selectLayout(idx);
             });
         });
     }
@@ -2932,6 +2995,10 @@ ApplicationWindow {
         confirmButtonText: qsTr("LNG_00005")
         cancelButtonText: qsTr("LNG_00004")
         isDanger: true
+        onRejected: {
+            if (Context.isAuxiliary)
+                rootWindow.auxiliaryLayoutFrozen = false;
+        }
         onAccepted: {
             if (saveTimer.running) {
                 saveTimer.stop();
