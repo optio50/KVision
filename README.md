@@ -231,6 +231,7 @@ The same changes as the list above, in more detail. The original application alr
 ### Hikvision NVR/DVR Deep Integration
 
 * **Auto-Discovery**: Enter your NVR/DVR IP address and credentials to automatically discover and list all active camera channels.
+* **Zero channel:** If your Hikvision NVR supports a zero channel, add it as an RTSP stream with **Add Stream**, using `rtsp://USER:PASSWORD@IPADDRESS:554/Streaming/Channels/001`.
 * **Automatic NVR Preset Grid**: Click **"Generate Grid"** in the recorders panel to automatically generate a tailored viewport layout (preset) mapping all discovered cameras to an optimal grid size.
 * **Dynamic Quality Selection**: Manually toggle between **Main Stream** (high resolution) and **Sub Stream** (low bandwidth/CPU load) for any viewport via the context menu to save system resources and network bandwidth.
 * **Local Camera Renaming (Custom Names)**: Clicking the edit icon (pencil) on a camera tile in the recorder channel list allows setting a custom, local name for that camera. The name update is immediately reflected on the tile, live players, and playback timeline. Custom names are saved locally in the settings JSON and do not alter the physical NVR device. The custom name can be reset to the NVR default at any time.
