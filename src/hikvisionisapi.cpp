@@ -20,6 +20,8 @@
 #include <cstring>
 #include "hikvisionmanager.h"
 #include "context.h"
+#include "config.h"
+#include "recordersecrets.h"
 
 HikvisionISAPI::HikvisionISAPI(QObject *parent)
     : QObject(parent)
@@ -608,8 +610,12 @@ void HikvisionISAPI::searchSmartTargets(const QVariantMap &recorderInfo, const Q
         int httpPort = recorderInfo.value(QStringLiteral("httpPort")).toInt();
         if (httpPort <= 0)
             httpPort = 80;
-        const QString user = recorderInfo.value(QStringLiteral("username")).toString();
-        const QString pass = recorderInfo.value(QStringLiteral("password")).toString();
+        QString user = recorderInfo.value(QStringLiteral("username")).toString();
+        QString pass = recorderInfo.value(QStringLiteral("password")).toString();
+        const QString configFile = Context::config() ? Context::config()->fileName() : QString();
+        // The playback list can hand the search a recorder with no username. The saved
+        // login is the one playback itself uses.
+        RecorderSecrets::fillLogin(configFile, ip, &user, &pass);
         const QString dirPath = QDir::tempPath() + QStringLiteral("/kvision-smart");
         QDir dir(dirPath);
         if (dir.exists())
@@ -861,7 +867,162 @@ void HikvisionISAPI::searchSmartTargets(const QVariantMap &recorderInfo, const Q
                 note = QStringLiteral("The recorder did not answer the vehicle search.");
         }
 
-        if ((human || face) && !ip.isEmpty()) {
+        // Face pictures on this recorder are the face-comparison captures. The SDK picture
+        // search signs in again and, when that sign-in fails, reports it without looking.
+        if (face && !narrowEvents && !ip.isEmpty()) {
+            const QString windowStart = start.toOffsetFromUtc(start.offsetFromUtc()).toString(Qt::ISODate);
+            const QString windowEnd = end.toOffsetFromUtc(end.offsetFromUtc()).toString(Qt::ISODate);
+            QList<int> faceChannels;
+            for (const QVariant &item : channels) {
+                const int channel = item.toMap().value(QStringLiteral("channelId")).toInt();
+                if (channel > 0)
+                    faceChannels.append(channel);
+            }
+            int faceKept = 0;
+            bool faceAnswered = false;
+            QByteArray faceReply;
+            auto searchFaces = [&](int onlyChannel) {
+                if (faceKept >= 40 || hits.size() >= 48)
+                    return;
+                const QString searchId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+                int position = 0;
+                for (int page = 0; page < 6 && faceKept < 40 && hits.size() < 48; ++page) {
+                    QString xml = QStringLiteral(
+                        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
+                        "<FCSearchDescription version=\"2.0\" xmlns=\"http://www.isapi.org/ver20/XMLSchema\">"
+                        "<searchID>%1</searchID>"
+                        "<searchResultPosition>%2</searchResultPosition>"
+                        "<maxResults>20</maxResults>"
+                        "<snapStartTime>%3</snapStartTime>"
+                        "<snapEndTime>%4</snapEndTime>"
+                        "<eventType>unlimit</eventType>")
+                        .arg(searchId)
+                        .arg(position)
+                        .arg(windowStart)
+                        .arg(windowEnd);
+                    if (onlyChannel > 0)
+                        xml += QStringLiteral("<channelID>%1</channelID>").arg(onlyChannel);
+                    xml += QStringLiteral("</FCSearchDescription>");
+                    const QByteArray raw = curlExchange(user, pass,
+                        QStringLiteral("http://%1:%2/ISAPI/Intelligent/FDLib/FCSearch").arg(ip).arg(httpPort),
+                        xml.toUtf8(), 25, QByteArray("application/xml"));
+                    if (!raw.contains("FCSearchResult")) {
+                        faceReply = raw;
+                        return;
+                    }
+                    faceAnswered = true;
+                    QString status;
+                    int matched = 0;
+                    int added = 0;
+                    QXmlStreamReader reader(raw);
+                    while (!reader.atEnd()) {
+                        reader.readNext();
+                        if (!reader.isStartElement())
+                            continue;
+                        if (reader.name() == QLatin1String("responseStatusStrg")) {
+                            status = reader.readElementText();
+                        } else if (reader.name() == QLatin1String("numOfMatches")) {
+                            matched = reader.readElementText().toInt();
+                        } else if (reader.name() == QLatin1String("MatchElement")) {
+                            QString faceUrl;
+                            QString sceneUrl;
+                            QString whenText;
+                            int channel = onlyChannel;
+                            double rx = 0, ry = 0, rw = 0, rh = 0;
+                            while (!reader.atEnd() && !(reader.isEndElement() && reader.name() == QLatin1String("MatchElement"))) {
+                                reader.readNext();
+                                if (!reader.isStartElement())
+                                    continue;
+                                const QStringRef tag = reader.name();
+                                if (tag == QLatin1String("facePicURL"))
+                                    faceUrl = reader.readElementText();
+                                else if (tag == QLatin1String("snapPicURL"))
+                                    sceneUrl = reader.readElementText();
+                                else if (tag == QLatin1String("snapTime"))
+                                    whenText = reader.readElementText();
+                                else if (tag == QLatin1String("channelID"))
+                                    channel = reader.readElementText().toInt();
+                                else if (tag == QLatin1String("x"))
+                                    rx = reader.readElementText().toDouble();
+                                else if (tag == QLatin1String("y"))
+                                    ry = reader.readElementText().toDouble();
+                                else if (tag == QLatin1String("width"))
+                                    rw = reader.readElementText().toDouble();
+                                else if (tag == QLatin1String("height"))
+                                    rh = reader.readElementText().toDouble();
+                            }
+                            if (faceKept >= 40 || hits.size() >= 48)
+                                break;
+                            if (channel > 0 && !faceChannels.isEmpty() && !faceChannels.contains(channel))
+                                continue;
+                            const QDateTime when = QDateTime::fromString(whenText, Qt::ISODate);
+                            QByteArray jpeg;
+                            if (!faceUrl.isEmpty())
+                                jpeg = curlExchange(user, pass, faceUrl, QByteArray(), 15);
+                            QString path;
+                            if (jpeg.startsWith("\xff\xd8\xff"))
+                                path = saveSmartCrop(jpeg, 0, 0, 0, 0, dirPath, 1000 + faceKept);
+                            if (path.isEmpty() && !sceneUrl.isEmpty()) {
+                                jpeg = curlExchange(user, pass, sceneUrl, QByteArray(), 15);
+                                if (jpeg.startsWith("\xff\xd8\xff"))
+                                    path = saveSmartCrop(jpeg, rx, ry, rw, rh, dirPath, 1000 + faceKept);
+                            }
+                            addHit(path, when, QStringLiteral("face"), channel > 0 ? channel : onlyChannel, QString());
+                            ++faceKept;
+                            ++added;
+                        }
+                    }
+                    position += qMax(1, matched > 0 ? matched : added);
+                    if (status != QLatin1String("MORE") || added == 0)
+                        return;
+                }
+            };
+            auto runFaceSearch = [&]() {
+                faceAnswered = false;
+                if (faceChannels.size() == 1)
+                    searchFaces(faceChannels.first());
+                else
+                    searchFaces(0);
+                if (!faceAnswered && faceChannels.size() != 1) {
+                    for (int channel : faceChannels) {
+                        if (faceKept >= 40 || hits.size() >= 48)
+                            break;
+                        searchFaces(channel);
+                    }
+                }
+            };
+            runFaceSearch();
+            if (!faceAnswered) {
+                const QString saved = RecorderSecrets::passwordFor(configFile, ip, user);
+                if (!saved.isEmpty() && saved != pass) {
+                    pass = saved;
+                    faceKept = 0;
+                    runFaceSearch();
+                }
+            }
+            if (faceAnswered)
+                sawSupport = true;
+            else if (note.isEmpty()) {
+                const QString text = QString::fromUtf8(faceReply);
+                const int statusAt = text.indexOf(QStringLiteral("<statusString>"));
+                QString status;
+                if (statusAt >= 0) {
+                    const int end = text.indexOf(QStringLiteral("</statusString>"), statusAt);
+                    if (end > statusAt)
+                        status = text.mid(statusAt + 14, end - (statusAt + 14));
+                }
+                if (status.isEmpty() && text.contains(QStringLiteral("Unauthorized"), Qt::CaseInsensitive))
+                    status = QStringLiteral("login refused");
+                note = status.isEmpty()
+                    ? QStringLiteral("The recorder did not answer the face search.")
+                    : QStringLiteral("The recorder refused the face search (%1).").arg(status);
+                qWarning() << "[SmartSearch] face search failed for" << ip << "port" << httpPort
+                           << "userLen" << user.size() << "passLen" << pass.size()
+                           << "bytes" << faceReply.size() << faceReply.left(160);
+            }
+        }
+
+        if (human && !narrowEvents && !ip.isEmpty()) {
             const int port = recorderInfo.value(QStringLiteral("sdkPort")).toInt() > 0
                 ? recorderInfo.value(QStringLiteral("sdkPort")).toInt()
                 : recorderInfo.value(QStringLiteral("port")).toInt();
@@ -869,8 +1030,10 @@ void HikvisionISAPI::searchSmartTargets(const QVariantMap &recorderInfo, const Q
             std::memset(&deviceInfo, 0, sizeof(deviceInfo));
             const LONG userId = HikvisionManager::instance()->loginShared(ip, port > 0 ? port : 8000, user, pass, deviceInfo);
             if (userId < 0) {
-                if (note.isEmpty())
-                    note = QStringLiteral("Could not sign in to the recorder for people and faces.");
+                // Log pictures are already in the list. A recorder sign-in failure is a second
+                // search, so it only becomes the note when this search found nothing else.
+                if (note.isEmpty() && hits.isEmpty())
+                    note = QStringLiteral("Could not sign in to the recorder for human pictures.");
             } else {
                 const auto &info = deviceInfo.struDeviceV30;
                 const QDateTime startLocal = start.toLocalTime();
@@ -884,7 +1047,6 @@ void HikvisionISAPI::searchSmartTargets(const QVariantMap &recorderInfo, const Q
                         return logical + info.byStartChan - 1;
                     return logical;
                 };
-                int kept = 0;
                 // Human pictures are the human-recognition captures (file type 0x2f). The behaviour
                 // search on this recorder is vehicle pictures, so it is not used for Human.
                 int humanKept = 0;
@@ -946,66 +1108,6 @@ void HikvisionISAPI::searchSmartTargets(const QVariantMap &recorderInfo, const Q
                         }
                         NET_DVR_CloseFindPicture(find);
                     }
-                }
-                if (face && !narrowEvents) {
-                for (const QVariant &item : channels) {
-                    if (kept >= 40)
-                        break;
-                    const int logical = item.toMap().value(QStringLiteral("channelId")).toInt();
-                    if (logical <= 0)
-                        continue;
-                    const int channel = sdkChannel(logical);
-
-                    NET_DVR_SMART_SEARCH_PIC_PARA para;
-                    std::memset(&para, 0, sizeof(para));
-                    para.dwChanNo = static_cast<DWORD>(channel);
-                    para.wSearchType = 1;
-                    para.struStartTime.wYear = static_cast<WORD>(startLocal.date().year());
-                    para.struStartTime.byMonth = static_cast<BYTE>(startLocal.date().month());
-                    para.struStartTime.byDay = static_cast<BYTE>(startLocal.date().day());
-                    para.struStartTime.byHour = static_cast<BYTE>(startLocal.time().hour());
-                    para.struStartTime.byMinute = static_cast<BYTE>(startLocal.time().minute());
-                    para.struStartTime.bySecond = static_cast<BYTE>(startLocal.time().second());
-                    para.struEndTime.wYear = static_cast<WORD>(endLocal.date().year());
-                    para.struEndTime.byMonth = static_cast<BYTE>(endLocal.date().month());
-                    para.struEndTime.byDay = static_cast<BYTE>(endLocal.date().day());
-                    para.struEndTime.byHour = static_cast<BYTE>(endLocal.time().hour());
-                    para.struEndTime.byMinute = static_cast<BYTE>(endLocal.time().minute());
-                    para.struEndTime.bySecond = static_cast<BYTE>(endLocal.time().second());
-
-                    const LONG find = NET_DVR_SmartSearchPicture(userId, &para);
-                    if (find < 0) {
-                        if (NET_DVR_GetLastError() == NET_DVR_NOSUPPORT)
-                            sawUnsupported = true;
-                        continue;
-                    }
-                    sawSupport = true;
-                    int guard = 0;
-                    while (guard++ < 80 && kept < 40) {
-                        NET_DVR_SMART_SEARCH_PIC_RET ret;
-                        std::memset(&ret, 0, sizeof(ret));
-                        const LONG state = NET_DVR_FindNextSmartPicture(find, &ret);
-                        if (state == NET_DVR_ISFINDING)
-                            continue;
-                        if (state != NET_DVR_FILE_SUCCESS)
-                            break;
-                        if (ret.dwFileSize == 0 || ret.dwFileSize > 8 * 1024 * 1024)
-                            continue;
-                        QByteArray jpeg(int(ret.dwFileSize) + 64, 0);
-                        DWORD got = 0;
-                        if (!NET_DVR_GetPicture_V30(userId, ret.sFileName, jpeg.data(), DWORD(jpeg.size()), &got) || got < 32)
-                            continue;
-                        jpeg.truncate(int(got));
-                        const NET_VCA_RECT rect = ret.uPicFeature.struFaceSubInfo.struVcaRect;
-                        const QString path = saveSmartCrop(jpeg, rect.fX, rect.fY, rect.fWidth, rect.fHeight, dirPath, 1000 + hits.size());
-                        QDateTime when(QDate(ret.struTime.wYear, ret.struTime.byMonth, ret.struTime.byDay),
-                                       QTime(ret.struTime.byHour, ret.struTime.byMinute, ret.struTime.bySecond),
-                                       Qt::LocalTime);
-                        addHit(path, when, QStringLiteral("face"), logical, QString());
-                        ++kept;
-                    }
-                    NET_DVR_CloseSmartSearchPicture(find);
-                }
                 }
             }
         }

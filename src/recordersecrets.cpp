@@ -161,6 +161,60 @@ QString RecorderSecrets::secretsFileFor(const QString &configFile)
     return dir + QStringLiteral("/recorders.secrets");
 }
 
+QString RecorderSecrets::passwordFor(const QString &configFile, const QString &ip, const QString &user)
+{
+    const QString host = ip.trimmed();
+    if (configFile.isEmpty() || host.isEmpty())
+        return QString();
+    const QJsonObject secrets = readSecrets(secretsFileFor(configFile));
+    if (!user.isEmpty())
+        return secrets.value(identityKey(host, user, QString())).toString();
+    const QString prefix = host + QLatin1Char('\n');
+    QString found;
+    for (auto it = secrets.constBegin(); it != secrets.constEnd(); ++it) {
+        if (!it.key().startsWith(prefix))
+            continue;
+        if (!found.isEmpty())
+            return QString();
+        found = it.value().toString();
+    }
+    return found;
+}
+
+void RecorderSecrets::fillLogin(const QString &configFile, const QString &ip, QString *user, QString *password)
+{
+    if (!user || !password || configFile.isEmpty() || ip.trimmed().isEmpty())
+        return;
+    if (!user->isEmpty() && !password->isEmpty())
+        return;
+    QSettings settings(configFile, QSettings::IniFormat);
+    settings.beginGroup(QStringLiteral("Hikvision"));
+    const QString stored = settings.value(QStringLiteral("recordersJson"), QStringLiteral("[]")).toString();
+    settings.endGroup();
+    const QString host = ip.trimmed();
+    QString foundUser;
+    QString foundPass;
+    int matches = 0;
+    const QJsonArray list = QJsonDocument::fromJson(openRecorders(stored, configFile).toUtf8()).array();
+    for (const QJsonValue &value : list) {
+        const QJsonObject obj = value.toObject();
+        if (obj.value(QStringLiteral("ip")).toString().trimmed() != host)
+            continue;
+        const QString savedUser = obj.value(QStringLiteral("username")).toString();
+        if (savedUser.isEmpty())
+            continue;
+        ++matches;
+        foundUser = savedUser;
+        foundPass = obj.value(QStringLiteral("password")).toString();
+    }
+    if (matches != 1)
+        return;
+    if (user->isEmpty())
+        *user = foundUser;
+    if (password->isEmpty())
+        *password = foundPass;
+}
+
 QString RecorderSecrets::openRecorders(const QString &stored, const QString &configFile)
 {
     QJsonParseError err;

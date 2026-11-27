@@ -319,3 +319,68 @@ TEST(RecorderSecrets, MigratesIniAndDoesNotWipeWhenTheKeyIsMissing)
     EXPECT_EQ(passwordOf(RecorderSecrets::openRecorders(onDisk, conf), QStringLiteral("10.0.0.8")),
               QStringLiteral("pw-one"));
 }
+
+TEST(RecorderSecrets, FillLoginUsesTheNamedRecorderAndSkipsABlankUser)
+{
+    QTemporaryDir dir;
+    ASSERT_TRUE(dir.isValid());
+    const QString conf = dir.filePath(QStringLiteral("KVision.conf"));
+    QJsonObject zero;
+    zero.insert(QStringLiteral("name"), QStringLiteral("Zero Channel"));
+    zero.insert(QStringLiteral("ip"), QStringLiteral("10.0.0.99"));
+    zero.insert(QStringLiteral("username"), QString());
+    const QString live = compact(QJsonArray{
+        recorder(QStringLiteral("10.0.0.99"), QStringLiteral("admin"), QStringLiteral("pw-nvr"), true),
+        zero});
+    const QString sealed = RecorderSecrets::sealRecorders(live, conf);
+    ASSERT_FALSE(sealed.isEmpty());
+    {
+        QSettings settings(conf, QSettings::IniFormat);
+        settings.beginGroup(QStringLiteral("Hikvision"));
+        settings.setValue(QStringLiteral("recordersJson"), sealed);
+        settings.endGroup();
+        settings.sync();
+    }
+
+    QString user;
+    QString pass;
+    RecorderSecrets::fillLogin(conf, QStringLiteral("10.0.0.99"), &user, &pass);
+    EXPECT_EQ(user, QStringLiteral("admin"));
+    EXPECT_EQ(pass, QStringLiteral("pw-nvr"));
+
+    user.clear();
+    pass = QStringLiteral("already");
+    RecorderSecrets::fillLogin(conf, QStringLiteral("10.0.0.99"), &user, &pass);
+    EXPECT_EQ(user, QStringLiteral("admin"));
+    EXPECT_EQ(pass, QStringLiteral("already"));
+
+    user = QStringLiteral("other");
+    pass = QStringLiteral("kept");
+    RecorderSecrets::fillLogin(conf, QStringLiteral("10.0.0.99"), &user, &pass);
+    EXPECT_EQ(user, QStringLiteral("other"));
+    EXPECT_EQ(pass, QStringLiteral("kept"));
+
+    user.clear();
+    pass.clear();
+    RecorderSecrets::fillLogin(conf, QStringLiteral("10.0.0.8"), &user, &pass);
+    EXPECT_TRUE(user.isEmpty());
+    EXPECT_TRUE(pass.isEmpty());
+
+    const QString both = compact(QJsonArray{
+        recorder(QStringLiteral("10.0.0.99"), QStringLiteral("admin"), QStringLiteral("pw-nvr"), true),
+        recorder(QStringLiteral("10.0.0.99"), QStringLiteral("guest"), QStringLiteral("pw-guest"), true)});
+    const QString sealedBoth = RecorderSecrets::sealRecorders(both, conf);
+    ASSERT_FALSE(sealedBoth.isEmpty());
+    {
+        QSettings settings(conf, QSettings::IniFormat);
+        settings.beginGroup(QStringLiteral("Hikvision"));
+        settings.setValue(QStringLiteral("recordersJson"), sealedBoth);
+        settings.endGroup();
+        settings.sync();
+    }
+    user.clear();
+    pass.clear();
+    RecorderSecrets::fillLogin(conf, QStringLiteral("10.0.0.99"), &user, &pass);
+    EXPECT_TRUE(user.isEmpty());
+    EXPECT_TRUE(pass.isEmpty());
+}
