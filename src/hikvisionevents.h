@@ -88,6 +88,10 @@ public:
     // from a car): whether each movement is written to the detection log (one line when it starts, then none until the
     // camera has been still for a few seconds), and whether it shows a frame on the tile. Both are off by default.
     Q_INVOKABLE void setUnlabelledMotion(bool log, bool frame);
+    // Face reports bring no picture. When save is on, a still is taken as soon as a face is reported, then one second
+    // and three seconds later, and only while that same visit is still being reported. Off until switched on. The
+    // tile's "Face detection" tick does not change this.
+    Q_INVOKABLE void setFacePicture(bool save);
     // Where each camera behind a recorder gets its reports from. overridesJson is {"<recorderIp>#<channel>": "camera" | "recorder"};
     // a camera not in it uses defaultSource. A camera's own connection and the recorder's connection both carry its reports, so
     // each ignores the cameras that are meant to come from the other, and nothing is logged twice. A camera that is its own
@@ -228,7 +232,8 @@ private:
     // Returns true if a whole picture was there (so the event is done with).
     bool judgePicture(Conn *c, const QByteArray &data);
     // Remembers the target rectangle an event names, so the picture that follows it can be judged.
-    // A "facedetection" report: logged, and a label shown on the tile (it has no box to frame). It brings no picture and none is taken.
+    // A "facedetection" report: logged, and a label shown on the tile (it has no box to frame). It brings no picture.
+    // When face pictures are on, stills are taken from later reports of the same visit (see handleFace).
     void handleFace(Conn *c, const QString &ip, const QString &body, const QString &cameraTime, int eventChannel);
     void notePictureRect(Conn *c, const QString &body, int eventChannel, const QString &cameraTime, const QString &kind);
     // A recorder sends a link to the picture instead of the picture. Downloads it with the connection's login
@@ -245,15 +250,26 @@ private:
     static constexpr qint64 kMotionQuietMs = 10000; // a movement that has been still this long is over; the next starts a new log line
     // A labelled motion report (human, vehicle, animal, other) gets a still picture, at most once per kMotionPictureGapMs for
     // each camera, so a constant stream of reports cannot fill the disk. These pictures have their own, smaller limit (a
-    // quarter of the "pictures per camera" setting) so they cannot push a camera's smart-event pictures out.
+    // quarter of the "pictures per camera" setting) so they cannot push a camera's smart-event pictures out. Face stills
+    // (up to three a visit) share that smaller limit.
     static constexpr qint64 kMotionPictureGapMs = 30000;
     QHash<QString, qint64> m_motionPictureAt; // "ip|channel" -> when the last one was taken (ms)
     bool sourceAllowed(const Conn *c, int eventChannel) const;
     QHash<QString, QString> m_sourceOverrides; // "recorderIp#channel" -> "camera" or "recorder"
     QString m_defaultSource = QStringLiteral("camera");
-    QHash<QString, qint64> m_motionSeen; // "ip|channel" -> when an unlabelled motion report last arrived (ms)
+    QHash<QString, qint64> m_motionSeen; // "ip|channel" -> when an unlabelled motion report last arrived (ms). Face uses "ip|face|channel".
+    // One face visit, on the worker only (the same thread as m_motionSeen). The later stills are taken from later
+    // reports, not from a timer, so a visit that stops being reported does not get a picture of a later moment.
+    struct FaceRun {
+        qint64 startMs = 0;
+        qint64 baseSecs = 0; // the first report's second; the stills are named from this so the log line finds them
+        bool shot1 = false;
+        bool shot3 = false;
+    };
+    QHash<QString, FaceRun> m_faceRuns; // same key as the face entry in m_motionSeen
     bool m_logUnlabelledMotion = false;
     bool m_frameUnlabelledMotion = false;
+    bool m_pictureFaceDetection = false;
     QHash<QString, QPair<QString, qint64>> m_otherSeen; // "ip|channel|type" -> last state logged and when (ms)
     QHash<QString, qint64> m_lastTrack; // when a lens last logged a track (ms), to ignore a second tile of the same camera
     int pictureLens(const Conn *c, int eventChannel) const;
@@ -284,6 +300,7 @@ private:
     QString m_wDefaultSource = QStringLiteral("camera");
     bool m_wLogMotion = false;
     bool m_wFrameMotion = false;
+    bool m_wFacePicture = false;
     QString m_wLogDir;
     int m_wMaxPictures = 100;
     // A device that answered 404, 405 or 501. Kept here, not only on the connection, because the connection is

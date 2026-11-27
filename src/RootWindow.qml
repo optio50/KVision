@@ -301,8 +301,11 @@ ApplicationWindow {
         // detection log, and show a "MOTION" frame for it. Both off until switched on.
         property bool logUnlabelledMotion: false
         property bool frameUnlabelledMotion: false
+        // Stills for a face report, which brings none of its own. Off until switched on. Separate from the tile's Face label.
+        property bool pictureFaceDetection: false
         onLogUnlabelledMotionChanged: rootWindow.applyDetectionFilters()
         onFrameUnlabelledMotionChanged: rootWindow.applyDetectionFilters()
+        onPictureFaceDetectionChanged: rootWindow.applyDetectionFilters()
         property string targetOffCameras: "[]" // JSON list of camera addresses with the indicator switched off
         property string targetNvrOnCameras: "[]" // JSON list of "recorderIp#channel" entries switched on for cameras behind a recorder
         // Right-click > VCA > Target Boxes on a live Hikvision tile: KVision draws the camera's tracked targets
@@ -756,6 +759,10 @@ ApplicationWindow {
             var diskFrameMotion = Context.readSetting("", "frameUnlabelledMotion", false);
             if (generalSettings.frameUnlabelledMotion !== diskFrameMotion) {
                 generalSettings.frameUnlabelledMotion = diskFrameMotion;
+            }
+            var diskFacePicture = Context.readSetting("", "pictureFaceDetection", false);
+            if (generalSettings.pictureFaceDetection !== diskFacePicture) {
+                generalSettings.pictureFaceDetection = diskFacePicture;
             }
             var diskSourceOverrides = String(Context.readSetting("", "targetSourceOverrides", "{}"));
             if (generalSettings.targetSourceOverrides !== diskSourceOverrides) {
@@ -2731,6 +2738,7 @@ ApplicationWindow {
         Context.writeSetting("", "targetTargets", generalSettings.targetTargets);
         Context.writeSetting("", "logUnlabelledMotion", generalSettings.logUnlabelledMotion);
         Context.writeSetting("", "frameUnlabelledMotion", generalSettings.frameUnlabelledMotion);
+        Context.writeSetting("", "pictureFaceDetection", generalSettings.pictureFaceDetection);
         Context.writeSetting("", "targetOffCameras", generalSettings.targetOffCameras);
         if (rootWindow.nvrListReady)
             Context.writeSetting("", "targetNvrOnCameras", generalSettings.targetNvrOnCameras);
@@ -2826,6 +2834,7 @@ ApplicationWindow {
         HikvisionEvents.setAllowedTargets(generalSettings.targetTargets);
         HikvisionEvents.setMaxPictures(generalSettings.picturesPerCamera);
         HikvisionEvents.setUnlabelledMotion(generalSettings.logUnlabelledMotion, generalSettings.frameUnlabelledMotion);
+        HikvisionEvents.setFacePicture(generalSettings.pictureFaceDetection);
     }
 
     // The logger keeps one watcher on every camera while the log switch is on, independent of the tiles.

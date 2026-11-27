@@ -2549,6 +2549,52 @@ FocusScope {
                         }
 
                         GroupBox {
+                            title: qsTr("Face detection pictures")
+                            Layout.fillWidth: true
+
+                            background: Rectangle {
+                                color: "#141a21"
+                                border.color: "#2a3540"
+                                border.width: 1
+                                radius: 8
+                            }
+                            label: Text {
+                                text: parent.title
+                                color: "#00f5d4"
+                                font.bold: true
+                                font.pixelSize: 12
+                            }
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                spacing: 8
+
+                                SelectableLabel {
+                                    text: qsTr("A face report brings no photo of its own. With this on, KVision takes a still as soon as a face is reported, then another 1 second later and another 3 seconds later, only while the camera is still reporting that face. After 10 seconds with no face, the next report starts a new set. The detection log still has one line for the visit, and the log viewer shows the stills with that line.")
+                                    textColor: "#6f7f8c"
+                                    font.pixelSize: 10
+                                    wrapMode: TextEdit.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                                CheckBox {
+                                    text: qsTr("Save stills when a face is reported")
+                                    checked: generalSettings.pictureFaceDetection
+                                    onToggled: generalSettings.pictureFaceDetection = checked
+                                }
+
+                                SelectableLabel {
+                                    text: qsTr("These stills are kept to a smaller number than line and intrusion pictures, so a busy face camera cannot push those out. The Face detection tick above only changes the tile label. It does not save a picture. Use the camera as the detection source so the still comes from that camera.")
+                                    textColor: "#6f7f8c"
+                                    font.pixelSize: 10
+                                    wrapMode: TextEdit.Wrap
+                                    Layout.fillWidth: true
+                                }
+
+                            }
+                        }
+
+                        GroupBox {
                             title: qsTr("Detection log and pictures")
                             Layout.fillWidth: true
 

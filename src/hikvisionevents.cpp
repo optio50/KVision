@@ -340,6 +340,7 @@ bool HikvisionEvents::loadSnap(const QString &ip, qulonglong generation, Conn *m
     m_wDefaultSource = m_defaultSource;
     m_wLogMotion = m_logUnlabelledMotion;
     m_wFrameMotion = m_frameUnlabelledMotion;
+    m_wFacePicture = m_pictureFaceDetection;
     m_wLogDir = m_logDir;
     m_wMaxPictures = m_maxPictures;
     return true;
@@ -495,10 +496,14 @@ void HikvisionEvents::parseIncoming(const QString &ip, const QByteArray &chunk, 
 
 // A camera with face detection on sends "facedetection" while a face is in view, about once a second. The report names no box and
 // brings no picture, so there is nothing to frame. The first one of a run is written to the detection log (the next line only after
-// kMotionQuietMs without one); no picture is taken for it (sourceAllowed() has already dropped the copy from the other connection, the
-// camera's or the recorder's, whichever is not the camera's chosen event source); every one keeps the tile's "FACE DETECTED" label up.
-// The tile label follows the "Face detection" choice of the on-screen settings (on by default); a face is not a target kind, so the
-// target choices do not apply to it.
+// kMotionQuietMs without one). sourceAllowed() has already dropped the copy from the other connection, the camera's or the
+// recorder's, whichever is not the camera's chosen event source. When face pictures are on, a still is taken at that first report,
+// then another from a report that arrives about one second later and another from one about three seconds later, only while the
+// camera is still sending them. A report that arrives after the window has passed does not stand in for a missed one. The stills
+// are named from the first report's second (that second, then +1 and +3) so the one log line finds all three. A late replay is
+// logged and does not take a still: a picture asked for now would be the wrong moment. The tile's "FACE DETECTED" label follows
+// the "Face detection" choice of the on-screen settings (on by default) and is separate from the stills. A face is not a target
+// kind, so the target choices do not apply to it.
 void HikvisionEvents::handleFace(Conn *c, const QString &ip, const QString &body, const QString &cameraTime, int eventChannel)
 {
     static const QRegularExpression stateRx(QStringLiteral("<eventState>([^<]*)</eventState>"));
@@ -508,10 +513,44 @@ void HikvisionEvents::handleFace(Conn *c, const QString &ip, const QString &body
     const QString key = ip + QStringLiteral("|face|") + QString::number(eventChannel);
     const qint64 lastMs = m_motionSeen.value(key, 0);
     m_motionSeen.insert(key, nowMs);
-    if (nowMs - lastMs >= kMotionQuietMs)
+    const bool newRun = nowMs - lastMs >= kMotionQuietMs;
+    if (newRun)
         logDetection(c, QStringLiteral("face"), QStringLiteral("Face detection"), cameraTime, eventChannel);
+    // The later stills are taken here, on the reports that prove the face is still being sent. A timer would fire after the
+    // face had gone, and m_motionSeen is only touched on this thread.
+    if (m_wFacePicture && !reportIsLate(cameraTime)) {
+        static constexpr qint64 kShot1Ms = 1000;
+        static constexpr qint64 kShot3Ms = 3000;
+        static constexpr qint64 kShot3LateMs = 4500; // a report much later than three seconds is not "still there at three seconds"
+        const int channel = eventChannel > 0 ? eventChannel : 1;
+        if (newRun) {
+            QDateTime when = QDateTime::fromString(cameraTime, Qt::ISODate);
+            if (!when.isValid())
+                when = QDateTime::currentDateTime();
+            const qint64 base = when.toSecsSinceEpoch();
+            takeSnapshot(ip, channel, base, QStringLiteral("Face detection"));
+            FaceRun run;
+            run.startMs = nowMs;
+            run.baseSecs = base;
+            m_faceRuns.insert(key, run);
+        } else {
+            auto it = m_faceRuns.find(key);
+            if (it != m_faceRuns.end()) {
+                const qint64 elapsed = nowMs - it->startMs;
+                // A report that arrives only once the three-second window has opened does not also count as the one-second still.
+                if (!it->shot1 && elapsed >= kShot1Ms && elapsed < kShot3Ms) {
+                    it->shot1 = true;
+                    takeSnapshot(ip, channel, it->baseSecs + 1, QStringLiteral("Face detection"));
+                }
+                if (!it->shot3 && elapsed >= kShot3Ms && elapsed < kShot3LateMs) {
+                    it->shot3 = true;
+                    takeSnapshot(ip, channel, it->baseSecs + 3, QStringLiteral("Face detection"));
+                }
+            }
+        }
+    }
     if (!m_wKinds.contains(QStringLiteral("face")))
-        return; // "Face detection" is switched off for the screen (the log is not affected)
+        return; // "Face detection" is switched off for the screen (the log and the stills are not affected)
     if (reportIsLate(cameraTime))
         return; // a replayed face report stays in the log and does not put the label back up
     qDebug() << "[Events] face from" << ip << "channel" << eventChannel;
@@ -812,7 +851,7 @@ void HikvisionEvents::savePicture(const QString &address, int lens, const QStrin
 }
 
 // Keeps the newest m_maxPictures pictures of each camera (or lens) - all of them when key is empty - and deletes the
-// older ones. Motion pictures are counted apart from the smart-event ones, and kept fewer.
+// older ones. Motion pictures and face stills are counted apart from the smart-event ones, and kept fewer.
 //
 // This used to list the whole folder with each file's modification time (QDir::entryInfoList sorted by time) on every save. With 5,655
 // pictures that took about a second on the thread that draws the screen, and a burst of pictures froze the program for several
@@ -875,7 +914,9 @@ void HikvisionEvents::pruneCamera(const QString &dirPath, const QString &key, bo
         const qint64 secs = secsText.toLongLong(&ok);
         if (!ok)
             continue; // another camera whose name starts the same
-        const bool motion = rest.endsWith(QLatin1String("-motion"));
+        // Face stills share the smaller cap. A face camera can save three pictures a visit, and that must not push
+        // line and intrusion pictures out. About a quarter of the per-camera limit is about eight such visits.
+        const bool motion = rest.endsWith(QLatin1String("-motion")) || rest.endsWith(QLatin1String("-facedetection"));
         pics.append({n, secs, motion});
         (motion ? motionCount : otherCount)++;
     }
@@ -1390,6 +1431,23 @@ QVariantMap HikvisionEvents::readDetections(int skip, int count, const QString &
                     }
                     if (!all.isEmpty())
                         pic = all.first();
+                } else if (kindText == QLatin1String("Face detection") && ms > 0) {
+                    // One line at the start of a visit. The stills are that second, one second later and three seconds later.
+                    const qint64 base = ms / 1000;
+                    const int lens = channel > 0 ? channel : 0;
+                    const qint64 offs[3] = {0, 1, 3};
+                    for (qint64 off : offs) {
+                        const QString tries[2] = { picturePath(configDir, picIp, base + off, lens, kindText),
+                                                   picturePath(configDir, picIp, base + off, 0, kindText) };
+                        for (const QString &t : tries) {
+                            if (QFile::exists(t)) {
+                                all << t;
+                                break;
+                            }
+                        }
+                    }
+                    if (!all.isEmpty())
+                        pic = all.first();
                 }
                 if (all.isEmpty() && !pic.isEmpty() && QFile::exists(pic))
                     all << pic;
@@ -1448,6 +1506,12 @@ void HikvisionEvents::setUnlabelledMotion(bool log, bool frame)
     QMutexLocker lock(&m_mu);
     m_logUnlabelledMotion = log;
     m_frameUnlabelledMotion = frame;
+}
+
+void HikvisionEvents::setFacePicture(bool save)
+{
+    QMutexLocker lock(&m_mu);
+    m_pictureFaceDetection = save;
 }
 
 void HikvisionEvents::setAllowedTargets(const QString &targets)

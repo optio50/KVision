@@ -45,6 +45,7 @@ struct Settings {
     QString targets = QStringLiteral("human,vehicle,animal,other");
     int pictures = 100;
     bool logMotion = false; // log motion reports that name no target
+    bool pictureFace = false; // stills for a face report: at once, then 1 s and 3 s while it keeps reporting
     QString sourceOverrides = QStringLiteral("{}"); // where single cameras behind a recorder get their reports from
 };
 
@@ -58,6 +59,7 @@ Settings readSettings(const QString &configPath)
         r.targets = s.value(QStringLiteral("targetTargets"), r.targets).toString();
         r.pictures = s.value(QStringLiteral("picturesPerCamera"), 100).toInt();
         r.logMotion = s.value(QStringLiteral("logUnlabelledMotion"), false).toBool();
+        r.pictureFace = s.value(QStringLiteral("pictureFaceDetection"), false).toBool();
         r.sourceOverrides = s.value(QStringLiteral("targetSourceOverrides"), QStringLiteral("{}")).toString();
         r.source = s.value(QStringLiteral("targetSource"), QStringLiteral("camera")).toString();
         if (r.source != QLatin1String("camera") && r.source != QLatin1String("recorder"))
@@ -152,6 +154,7 @@ int runHeadlessEvents(int argc, char *argv[])
         events.setAllowedTargets(s.targets);
         events.setMaxPictures(s.pictures);
         events.setUnlabelledMotion(s.logMotion, false);
+        events.setFacePicture(s.pictureFace);
 
         if (!s.enabled)
             state = QStringLiteral("disabled");
