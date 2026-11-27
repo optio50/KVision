@@ -358,6 +358,7 @@ void HikvisionEvents::open(const QString &ip)
     connect(c->reply, &QIODevice::readyRead, this, [this, ip]() { onReadyRead(ip); });
     QNetworkReply *reply = c->reply;
     connect(reply, &QNetworkReply::finished, this, [this, ip, reply]() { onFinished(ip, reply); });
+    fetchZoneRules(ip);
 }
 
 void HikvisionEvents::onReadyRead(const QString &ip)
@@ -500,7 +501,8 @@ void HikvisionEvents::parseIncoming(const QString &ip, const QByteArray &chunk, 
             // detection frame with that target, like a labelled motion report.
             if (alert.active) {
                 const QString t = alert.target.isEmpty() ? QStringLiteral("other") : alert.target;
-                logDetection(c, alert.target, alert.logKind, camTime, camChannel, eventWhere(body)); // the log keeps every labelled report
+                logDetection(c, alert.target, alert.logKind, camTime, camChannel,
+                             completeZoneWhere(ip, camChannel, alert.logKind, eventWhere(body))); // the log keeps every labelled report
                 if (!reportIsLate(camTime))
                     noteSiblingTarget(c, ip, camChannel, t);
                 notePictureRect(c, body, camChannel, camTime, alert.logKind);
@@ -1333,6 +1335,181 @@ QString HikvisionEvents::eventWhere(const QString &body)
     return out.join(QLatin1Char(' '));
 }
 
+QVector<double> HikvisionEvents::savedZone(const QString &deviceIp, int ruleChannel, const QString &kind, int zone) const
+{
+    QMutexLocker lock(&m_zoneMu);
+    return m_zoneRules.value(deviceIp + QLatin1Char('\n') + QString::number(ruleChannel) + QLatin1Char('\n') + kind
+                             + QLatin1Char('\n') + QString::number(zone));
+}
+
+void HikvisionEvents::zoneDevice(const QString &ip, const QString &recorderIp, int channel, const QString &source,
+                                 QString *deviceIp, int *ruleChannel) const
+{
+    if (source == QLatin1String("NVR")) {
+        *deviceIp = recorderIp.isEmpty() ? ip : recorderIp;
+        *ruleChannel = channel > 0 ? channel : 1;
+        return;
+    }
+    *deviceIp = ip;
+    // A camera behind a recorder reports its own channel as 1 (or 2 for the other lens). The log line
+    // carries the recorder channel, so the lens map is what turns that back into the camera's channel.
+    if (!recorderIp.isEmpty() && recorderIp != ip) {
+        int local = 1;
+        QMutexLocker lock(&m_mu);
+        const Conn *c = m_conns.value(ip, nullptr);
+        if (c) {
+            for (auto it = c->lens.constBegin(); it != c->lens.constEnd(); ++it) {
+                if (channel > 0 && it->channel == channel) {
+                    local = it.key();
+                    break;
+                }
+            }
+        }
+        *ruleChannel = local;
+        return;
+    }
+    *ruleChannel = channel > 0 ? channel : 1;
+}
+
+QVariantList HikvisionEvents::completedZoneFor(const QString &ip, const QString &recorderIp, int channel, const QString &kind,
+                                               const QString &source, int zone, const QVariantList &poly) const
+{
+    QVector<double> alert;
+    alert.reserve(poly.size());
+    for (const QVariant &v : poly)
+        alert.append(v.toDouble());
+    QString deviceIp;
+    int ruleChannel = 1;
+    zoneDevice(ip, recorderIp, channel, source, &deviceIp, &ruleChannel);
+    const QVector<double> full = completedZone(alert, savedZone(deviceIp, ruleChannel, kind, zone));
+    QVariantList out;
+    for (double n : full)
+        out.append(n);
+    return out;
+}
+
+QString HikvisionEvents::completeZoneWhere(const QString &ip, int channel, const QString &kind, const QString &where) const
+{
+    if (where.isEmpty() || ip.isEmpty())
+        return where;
+    int zone = 0;
+    QVector<double> poly;
+    const QStringList tok = where.split(QLatin1Char(' '));
+    for (int i = 0; i + 1 < tok.size(); i += 2) {
+        if (tok.at(i) == QLatin1String("zone"))
+            zone = tok.at(i + 1).toInt();
+        else if (tok.at(i) == QLatin1String("poly")) {
+            for (const QString &n : tok.at(i + 1).split(QLatin1Char('/')))
+                poly.append(n.toDouble());
+        }
+    }
+    if (zone <= 0 || poly.size() < 4)
+        return where;
+    const QVector<double> full = completedZone(poly, savedZone(ip, channel > 0 ? channel : 1, kind, zone));
+    if (full.size() == poly.size())
+        return where;
+    QStringList pts;
+    for (double n : full)
+        pts << QString::number(n, 'f', 3);
+    const QString replacement = QStringLiteral("poly ") + pts.join(QLatin1Char('/'));
+    const int at = where.indexOf(QStringLiteral(" poly "));
+    if (at < 0)
+        return where + QLatin1Char(' ') + replacement;
+    return where.left(at + 1) + replacement;
+}
+
+void HikvisionEvents::fetchZoneRules(const QString &ip)
+{
+    struct Need { int channel; QString path; QString kind; };
+    QVector<Need> needs;
+    QString user, pass, host;
+    int port = 80;
+    {
+        QMutexLocker lock(&m_mu);
+        Conn *c = m_conns.value(ip, nullptr);
+        // A recorder has a rule page per channel. Those are read with the camera's own connection, which is
+        // where this camera's events come from. Asking the recorder for every channel would be a lot of pages.
+        if (!c || c->recorderMode || c->authFailed || c->user.isEmpty() || c->pass.isEmpty())
+            return;
+        user = c->user;
+        pass = c->pass;
+        port = c->httpPort > 0 ? c->httpPort : 80;
+        host = c->ip.section(QLatin1Char(':'), 0, 0).trimmed();
+        QList<int> channels;
+        if (c->lens.isEmpty())
+            channels << 1;
+        else {
+            for (auto it = c->lens.constBegin(); it != c->lens.constEnd(); ++it)
+                channels << it.key();
+        }
+        const struct { const char *path; const char *kind; } asks[] = {
+            {"/ISAPI/Smart/FieldDetection/%1", "Intrusion"},
+            {"/ISAPI/Smart/LineDetection/%1", "Line crossing"},
+            {"/ISAPI/Smart/regionEntrance/%1", "Region entrance"},
+            {"/ISAPI/Smart/regionExit/%1", "Region exit"},
+            {"/ISAPI/Smart/RegionExiting/%1", "Region exit"},
+        };
+        for (int ch : channels) {
+            for (const auto &a : asks) {
+                const QString askKey = ip + QLatin1Char('\n') + QString::number(ch) + QLatin1Char('\n')
+                    + QLatin1String(a.kind) + QLatin1Char('\n') + QLatin1String(a.path);
+                if (m_zoneAsked.contains(askKey))
+                    continue;
+                m_zoneAsked.insert(askKey);
+                needs.append(Need{ch, QString::fromLatin1(a.path).arg(ch), QString::fromLatin1(a.kind)});
+            }
+        }
+    }
+    if (needs.isEmpty() || LoginGuard::instance().isRefused(ip, user, pass))
+        return;
+    for (const Need &n : needs) {
+        QUrl url;
+        url.setScheme(QStringLiteral("http"));
+        url.setHost(host);
+        url.setPort(port);
+        url.setPath(n.path);
+        QNetworkRequest req(url);
+        req.setHeader(QNetworkRequest::UserAgentHeader, QStringLiteral("KVision"));
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+        req.setTransferTimeout(8000);
+#endif
+        QNetworkReply *reply = m_net->get(req);
+        reply->setProperty("evUser", user);
+        reply->setProperty("evPass", pass);
+        reply->setProperty("zoneIp", ip);
+        reply->setProperty("zoneCh", n.channel);
+        reply->setProperty("zoneKind", n.kind);
+        connect(reply, &QNetworkReply::finished, this, [this, reply]() { onZoneRules(reply); });
+    }
+}
+
+void HikvisionEvents::onZoneRules(QNetworkReply *reply)
+{
+    reply->deleteLater();
+    if (m_stopping.load())
+        return;
+    const int status = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();
+    if (status != 200)
+        return;
+    const QString ip = reply->property("zoneIp").toString();
+    const int channel = reply->property("zoneCh").toInt();
+    const QString kind = reply->property("zoneKind").toString();
+    const QVector<ZonePolygon> zones = zonePolygonsFromRule(QString::fromUtf8(reply->readAll()));
+    if (zones.isEmpty() || ip.isEmpty() || channel <= 0 || kind.isEmpty())
+        return;
+    {
+        QMutexLocker lock(&m_zoneMu);
+        for (const ZonePolygon &z : zones) {
+            if (z.id <= 0 || z.points.size() < 4)
+                continue;
+            m_zoneRules.insert(ip + QLatin1Char('\n') + QString::number(channel) + QLatin1Char('\n') + kind
+                                   + QLatin1Char('\n') + QString::number(z.id),
+                               z.points);
+        }
+    }
+    emit zoneRulesReady();
+}
+
 void HikvisionEvents::logDetection(const Conn *c, const QString &target, const QString &kind, const QString &cameraTime, int eventChannel,
                                    const QString &where)
 {
@@ -1760,19 +1937,22 @@ void HikvisionEvents::setChannelInfo(const QString &ip, const QString &json)
 
 void HikvisionEvents::setLensInfo(const QString &ip, const QString &json)
 {
-    QMutexLocker lock(&m_mu);
-    Conn *c = m_conns.value(ip, nullptr);
-    if (!c)
-        return;
-    const QJsonObject o = QJsonDocument::fromJson(json.toUtf8()).object();
-    c->lens.clear();
-    for (auto it = o.constBegin(); it != o.constEnd(); ++it) {
-        const QJsonObject v = it.value().toObject();
-        Conn::Lens l;
-        l.name = v.value(QStringLiteral("name")).toString();
-        l.channel = v.value(QStringLiteral("channel")).toInt();
-        c->lens.insert(it.key().toInt(), l);
+    {
+        QMutexLocker lock(&m_mu);
+        Conn *c = m_conns.value(ip, nullptr);
+        if (!c)
+            return;
+        const QJsonObject o = QJsonDocument::fromJson(json.toUtf8()).object();
+        c->lens.clear();
+        for (auto it = o.constBegin(); it != o.constEnd(); ++it) {
+            const QJsonObject v = it.value().toObject();
+            Conn::Lens l;
+            l.name = v.value(QStringLiteral("name")).toString();
+            l.channel = v.value(QStringLiteral("channel")).toInt();
+            c->lens.insert(it.key().toInt(), l);
+        }
     }
+    fetchZoneRules(ip);
 }
 
 namespace {

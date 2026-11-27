@@ -197,7 +197,7 @@ Window {
                 start = items.length;
             for (var k = 0; k < pics.length; ++k)
                 items.push({ "path": pics[k], "boxes": boxesOf[pics[k]] || [], "epochMs": e.epochMs + k * 1000, "camera": e.camera, "channel": e.channel, "kind": e.kind,
-                             "entryIndex": i,
+                             "entryIndex": i, "ip": e.ip, "recorderIp": e.recorderIp, "source": e.source,
                              "box": (pics.length === 1 || k === 0) ? e.box : [], "poly": (pics.length === 1 || k === 0) ? e.poly : [], "zone": e.zone,
                              "caption": e.time + "   " + e.target + "   " + e.kind + (e.zone > 0 ? " (" + qsTr("zone %1").arg(e.zone) + ")" : "") + "   " + e.camera
                                         + (e.source === "NVR" ? "   [" + qsTr("picture from the NVR") + "]" : (e.source === "camera" ? "   [" + qsTr("picture from the camera") + "]" : ""))
@@ -257,6 +257,14 @@ Window {
             signal closed()
             onShownChanged: { pv.updateFrame(); pv.resetZoom() }
             Component.onCompleted: pv.updateFrame()
+            // The alert often names only the first four corners. The saved rule is the whole zone.
+            function zonePoly(it) {
+                if (!it || !it.poly || it.poly.length < 4)
+                    return [];
+                var full = HikvisionEvents.completedZoneFor(it.ip || "", it.recorderIp || "", it.channel || 0,
+                                                            it.kind || "", it.source || "", it.zone || 0, it.poly);
+                return (full && full.length > it.poly.length) ? full : it.poly;
+            }
             function updateFrame() {
                 var it = pv.items.length > 0 ? pv.items[pv.shown] : null;
                 if (!it || !it.box || it.box.length < 4) { pv.hasFrame = -1; return; }
@@ -534,18 +542,23 @@ Window {
                         onXChanged: marks.requestPaint()
                         onYChanged: marks.requestPaint()
                     }
+                    Connections {
+                        target: HikvisionEvents
+                        onZoneRulesReady: marks.requestPaint()
+                    }
                     onPaint: {
                         var ctx = getContext("2d");
                         ctx.clearRect(0, 0, width, height);
                         if (!pv.drawMarks || pic.shownW <= 0)
                             return;
                         var it = pv.items[pv.shown];
+                        var poly = pv.zonePoly(it);
                         ctx.lineJoin = "round";
-                        // the zone the camera named, in orange
-                        if (it.poly && it.poly.length >= 6) {
+                        // the zone configured for this rule, in orange
+                        if (poly && poly.length >= 6) {
                             ctx.beginPath();
-                            for (var i = 0; i + 1 < it.poly.length; i += 2) {
-                                var px = pic.x + pic.offX + it.poly[i] * pic.shownW, py = pic.y + pic.offY + it.poly[i + 1] * pic.shownH;
+                            for (var i = 0; i + 1 < poly.length; i += 2) {
+                                var px = pic.x + pic.offX + poly[i] * pic.shownW, py = pic.y + pic.offY + poly[i + 1] * pic.shownH;
                                 if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
                             }
                             ctx.closePath();

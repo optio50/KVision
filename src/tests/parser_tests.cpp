@@ -202,6 +202,56 @@ TEST(EventAlert, PlainMotionKeepsOrFlashes)
     EXPECT_EQ(classifyEventAlert(plain, noMotion, kTargets, true, kNow).frame, EventAlert::NoFrame);
 }
 
+TEST(ZoneRule, ShortAlertKeepsTheConfiguredRegion)
+{
+    // A driveway region-entrance rule: seven corners, Y counted up from the bottom. The alert names
+    // only the first four, already counted down from the top. Closing those four is the small shape.
+    const QString xml = QStringLiteral(
+        "<RegionEntrance><normalizedScreenWidth>1000</normalizedScreenWidth>"
+        "<normalizedScreenHeight>1000</normalizedScreenHeight>"
+        "<RegionEntranceRegion><id>1</id><RegionCoordinatesList>"
+        "<RegionCoordinates><positionX>82</positionX><positionY>736</positionY></RegionCoordinates>"
+        "<RegionCoordinates><positionX>382</positionX><positionY>876</positionY></RegionCoordinates>"
+        "<RegionCoordinates><positionX>353</positionX><positionY>910</positionY></RegionCoordinates>"
+        "<RegionCoordinates><positionX>424</positionX><positionY>923</positionY></RegionCoordinates>"
+        "<RegionCoordinates><positionX>745</positionX><positionY>882</positionY></RegionCoordinates>"
+        "<RegionCoordinates><positionX>505</positionX><positionY>789</positionY></RegionCoordinates>"
+        "<RegionCoordinates><positionX>45</positionX><positionY>604</positionY></RegionCoordinates>"
+        "</RegionCoordinatesList></RegionEntranceRegion>"
+        "<RegionEntranceRegion><id>2</id><RegionCoordinatesList>"
+        "<RegionCoordinates><positionX>0</positionX><positionY>0</positionY></RegionCoordinates>"
+        "</RegionCoordinatesList></RegionEntranceRegion>"
+        "<LineItem><id>4</id><CoordinatesList>"
+        "<Coordinates><positionX>373</positionX><positionY>1000</positionY></Coordinates>"
+        "<Coordinates><positionX>448</positionX><positionY>823</positionY></Coordinates>"
+        "</CoordinatesList></LineItem>"
+        "</RegionEntrance>");
+    const QVector<ZonePolygon> zones = zonePolygonsFromRule(xml);
+    ASSERT_EQ(zones.size(), 2);
+    EXPECT_EQ(zones.at(0).id, 1);
+    ASSERT_EQ(zones.at(0).points.size(), 14);
+    EXPECT_NEAR(zones.at(0).points.at(0), 0.082, 1e-9);
+    EXPECT_NEAR(zones.at(0).points.at(1), 0.264, 1e-9);
+    EXPECT_NEAR(zones.at(0).points.at(8), 0.745, 1e-9);
+    EXPECT_NEAR(zones.at(0).points.at(9), 0.118, 1e-9);
+    EXPECT_NEAR(zones.at(0).points.at(12), 0.045, 1e-9);
+    EXPECT_NEAR(zones.at(0).points.at(13), 0.396, 1e-9);
+    EXPECT_EQ(zones.at(1).id, 4);
+    ASSERT_EQ(zones.at(1).points.size(), 4);
+    EXPECT_NEAR(zones.at(1).points.at(1), 0.0, 1e-9);
+    EXPECT_NEAR(zones.at(1).points.at(3), 0.177, 1e-9);
+
+    QVector<double> alert;
+    for (int i = 0; i < 8; ++i)
+        alert << zones.at(0).points.at(i);
+    const QVector<double> full = completedZone(alert, zones.at(0).points);
+    EXPECT_EQ(full.size(), 14);
+    EXPECT_EQ(completedZone(zones.at(0).points, zones.at(0).points).size(), 14);
+    QVector<double> redrawn = alert;
+    redrawn[0] = 0.5;
+    EXPECT_EQ(completedZone(redrawn, zones.at(0).points).size(), alert.size());
+}
+
 TEST(EventAlert, SmartEventsFlashOnlyWhenActiveAndOnTime)
 {
     struct Sample {

@@ -151,6 +151,63 @@ EventAlert classifyEventAlert(const QString &body, const QSet<QString> &kinds, c
     return alert;
 }
 
+QVector<ZonePolygon> zonePolygonsFromRule(const QString &xml)
+{
+    QVector<ZonePolygon> out;
+    static const QRegularExpression itemRx(
+        QStringLiteral("<(RegionEntranceRegion|FieldDetectionRegion|LineItem|RegionExitingRegion)\\b[^>]*>(.*?)</\\1>"),
+        QRegularExpression::DotMatchesEverythingOption);
+    static const QRegularExpression idRx(QStringLiteral("<id>(\\d+)</id>"));
+    static const QRegularExpression ptRx(QStringLiteral("<positionX>(\\d+)</positionX>\\s*<positionY>(\\d+)</positionY>"));
+    static const QRegularExpression wRx(QStringLiteral("<normalizedScreenWidth>(\\d+)</normalizedScreenWidth>"));
+    static const QRegularExpression hRx(QStringLiteral("<normalizedScreenHeight>(\\d+)</normalizedScreenHeight>"));
+    int normW = 1000;
+    int normH = 1000;
+    const QRegularExpressionMatch wm = wRx.match(xml);
+    const QRegularExpressionMatch hm = hRx.match(xml);
+    if (wm.hasMatch() && wm.captured(1).toInt() > 0)
+        normW = wm.captured(1).toInt();
+    if (hm.hasMatch() && hm.captured(1).toInt() > 0)
+        normH = hm.captured(1).toInt();
+    QRegularExpressionMatchIterator it = itemRx.globalMatch(xml);
+    while (it.hasNext()) {
+        const QString block = it.next().captured(2);
+        const int id = idRx.match(block).captured(1).toInt();
+        if (id <= 0)
+            continue;
+        QVector<double> pts;
+        bool any = false;
+        QRegularExpressionMatchIterator p = ptRx.globalMatch(block);
+        while (p.hasNext()) {
+            const QRegularExpressionMatch m = p.next();
+            const int x = m.captured(1).toInt();
+            const int y = m.captured(2).toInt();
+            if (x != 0 || y != 0)
+                any = true;
+            // The document counts Y up from the bottom. The picture and the alert count down from the top.
+            pts << (double(x) / normW) << (double(normH - y) / normH);
+        }
+        if (!any || pts.size() < 4)
+            continue;
+        ZonePolygon zone;
+        zone.id = id;
+        zone.points = pts;
+        out.append(zone);
+    }
+    return out;
+}
+
+QVector<double> completedZone(const QVector<double> &alertPoly, const QVector<double> &rulePoly)
+{
+    if (rulePoly.size() <= alertPoly.size() || alertPoly.size() < 4 || (alertPoly.size() % 2) != 0 || (rulePoly.size() % 2) != 0)
+        return alertPoly;
+    for (int i = 0; i < alertPoly.size(); ++i) {
+        if (qAbs(alertPoly.at(i) - rulePoly.at(i)) > 0.002)
+            return alertPoly;
+    }
+    return rulePoly;
+}
+
 namespace {
 // Index just past the object that opens at `openBrace`, or -1 while it is still incomplete.
 int jsonObjectEnd(const QString &text, int openBrace)

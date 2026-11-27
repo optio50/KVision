@@ -16,6 +16,7 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QTimer>
+#include <QVector>
 
 #include <atomic>
 
@@ -141,6 +142,10 @@ public:
     Q_INVOKABLE QVariantMap readDetections(int skip, int count, const QString &configDir, const QString &filterIp = QString(),
                                            qint64 fromMs = 0, qint64 toMs = 0, const QString &target = QString(), const QString &kinds = QString(),
                                            const QString &hideTargets = QString(), const QString &hideKinds = QString()) const;
+    // The zone to draw on an event picture. poly is the corners the alert named (x, y, x, y... of the picture).
+    // When those are only the start of the region saved on the camera, the saved region is returned. Otherwise poly.
+    Q_INVOKABLE QVariantList completedZoneFor(const QString &ip, const QString &recorderIp, int channel, const QString &kind,
+                                              const QString &source, int zone, const QVariantList &poly) const;
     // hideTargets and hideKinds are the opposite of target and kinds: lists of what to leave out. hideTargets takes
     // human, vehicle, animal, other and unnamed (motion that named no target, written as "Object detected, Motion");
     // hideKinds takes the log's words for the type, like kinds.
@@ -179,6 +184,8 @@ signals:
     void ptzMoved(const QString &ip, int channel);
     // The connection failed and will not be retried until a tile watches again.
     void listenFailed(const QString &ip, const QString &message);
+    // A camera's saved line or area was read. An open event picture asks again for the zone it draws.
+    void zoneRulesReady();
 
 private:
     struct Conn {
@@ -266,8 +273,17 @@ private:
     void logDetection(const Conn *c, const QString &target, const QString &kind, const QString &cameraTime, int eventChannel,
                       const QString &where = QString());
     // What the camera said about where a smart event happened: "box x/y/w/h zone N poly x/y/x/y/..." (all 0..1 of the picture),
-    // the last item of a log line. Empty when the event names nothing.
+    // the last item of a log line. Empty when the event names nothing. The alert often stops at four corners;
+    // completeZoneWhere puts the rest of the saved rule on the line when it has been read.
     static QString eventWhere(const QString &body);
+    QString completeZoneWhere(const QString &ip, int channel, const QString &kind, const QString &where) const;
+    // Reads the saved line and area rules once for a camera connection (not a recorder's whole channel list).
+    void fetchZoneRules(const QString &ip);
+    void onZoneRules(QNetworkReply *reply);
+    // Which device and channel hold the rule for a logged event. A camera behind a recorder keeps its rule on its own channel.
+    void zoneDevice(const QString &ip, const QString &recorderIp, int channel, const QString &source,
+                    QString *deviceIp, int *ruleChannel) const;
+    QVector<double> savedZone(const QString &deviceIp, int ruleChannel, const QString &kind, int zone) const;
     // Looks for the picture that follows an event in `data`, and records whether it carries the target frame.
     // Returns true if a whole picture was there (so the event is done with).
     bool judgePicture(Conn *c, const QByteArray &data);
@@ -343,6 +359,11 @@ private:
     QString cameraAddress(const Conn *c, int eventChannel) const;
 
     QNetworkAccessManager *m_net = nullptr;
+    // Saved zone corners, keyed by "address\\nchannel\\nkind\\nzone". Filled by a read of the camera's rule pages.
+    QHash<QString, QVector<double>> m_zoneRules;
+    QSet<QString> m_zoneAsked; // a rule page already requested this session, so a reconnect does not ask again
+    mutable QMutex m_zoneMu;
+
     int m_maxPictures = 100;
     QHash<QString, Conn *> m_conns;
     QThread *m_thread = nullptr;

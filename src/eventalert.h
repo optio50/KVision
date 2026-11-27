@@ -42,6 +42,22 @@ struct EventAlert {
 EventAlert classifyEventAlert(const QString &body, const QSet<QString> &kinds, const QSet<QString> &targets,
                               bool frameMotion, const QDateTime &now);
 
+// One zone from a camera's saved line or area rule. points is x, y, x, y... as a fraction of the
+// picture, with Y measured from the top. The rule document itself measures Y from the bottom.
+struct ZonePolygon {
+    int id = 0;
+    QVector<double> points;
+};
+
+// The corners of every zone in a region, intrusion or line document. A zone with no corners is left out.
+QVector<ZonePolygon> zonePolygonsFromRule(const QString &xml);
+
+// Some cameras name only the first four corners in the alert. Closing those draws a small shape that is
+// not the region on the camera's rule page. When the alert's corners are the start of the saved rule,
+// the rule is the zone that was configured. A rule that no longer starts the same way is left alone,
+// and so is a camera that already sent the whole shape.
+QVector<double> completedZone(const QVector<double> &alertPoly, const QVector<double> &rulePoly);
+
 // One G3 "faceCapture" JSON alert. These cameras send this instead of the XML "facedetection"
 // alert, and the JPEGs follow it in the same stream. end is the index just past the object.
 struct FaceCaptureEvent {
