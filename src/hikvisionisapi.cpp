@@ -616,11 +616,22 @@ void HikvisionISAPI::searchSmartTargets(const QVariantMap &recorderInfo, const Q
         // The playback list can hand the search a recorder with no username. The saved
         // login is the one playback itself uses.
         RecorderSecrets::fillLogin(configFile, ip, &user, &pass);
-        const QString dirPath = QDir::tempPath() + QStringLiteral("/kvision-smart");
-        QDir dir(dirPath);
-        if (dir.exists())
-            dir.removeRecursively();
+        // Each search writes its own folder. The previous folder stays until the
+        // picture list has let go of it; deleting it here made the next search
+        // unable to save, so the list came back empty.
+        const QString dirPath = QDir::tempPath() + QStringLiteral("/kvision-smart-%1").arg(token);
         QDir().mkpath(dirPath);
+        {
+            const QString keep = QStringLiteral("kvision-smart-%1").arg(token);
+            const QString previous = QStringLiteral("kvision-smart-%1").arg(qMax(0, token - 1));
+            const QDir tempDir(QDir::tempPath());
+            const QStringList old = tempDir.entryList({QStringLiteral("kvision-smart*")}, QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QString &name : old) {
+                if (name == keep || name == previous)
+                    continue;
+                QDir(tempDir.filePath(name)).removeRecursively();
+            }
+        }
 
         auto cameraNameFor = [&](int channel) {
             for (const QVariant &item : channels) {
@@ -828,7 +839,7 @@ void HikvisionISAPI::searchSmartTargets(const QVariantMap &recorderInfo, const Q
                 if (!pic.open(QIODevice::ReadOnly))
                     continue;
                 const QString saved = saveSmartCrop(pic.readAll(), row.x, row.y, row.w, row.h, dirPath, indexBase + added);
-                addHit(saved, row.when, kind, row.channel, row.name, row.detail);
+                addHit(saved.isEmpty() ? row.path : saved, row.when, kind, row.channel, row.name, row.detail);
                 ++added;
             }
             return added;
@@ -1026,9 +1037,37 @@ void HikvisionISAPI::searchSmartTargets(const QVariantMap &recorderInfo, const Q
             const int port = recorderInfo.value(QStringLiteral("sdkPort")).toInt() > 0
                 ? recorderInfo.value(QStringLiteral("sdkPort")).toInt()
                 : recorderInfo.value(QStringLiteral("port")).toInt();
-            NET_DVR_DEVICEINFO_V40 deviceInfo;
-            std::memset(&deviceInfo, 0, sizeof(deviceInfo));
-            const LONG userId = HikvisionManager::instance()->loginShared(ip, port > 0 ? port : 8000, user, pass, deviceInfo);
+            NET_DVR_DEVICEINFO_V40 sharedInfo;
+            std::memset(&sharedInfo, 0, sizeof(sharedInfo));
+            // The shared sign-in is only so the SDK is up. Picture search on that
+            // same sign-in works once; the next search is refused until playback
+            // logs out. A separate sign-in is closed before this search returns.
+            const LONG sharedId = HikvisionManager::instance()->loginShared(ip, port > 0 ? port : 8000, user, pass, sharedInfo);
+            LONG userId = sharedId;
+            bool privateLogin = false;
+            NET_DVR_DEVICEINFO_V40 deviceInfo = sharedInfo;
+            if (sharedId >= 0) {
+                const QByteArray host = ip.toUtf8();
+                const QByteArray userBytes = user.toUtf8();
+                const QByteArray passBytes = pass.toUtf8();
+                HikvisionManager::instance()->withSdkLock([&]() {
+                    NET_DVR_USER_LOGIN_INFO loginInfo;
+                    std::memset(&loginInfo, 0, sizeof(loginInfo));
+                    std::strncpy(loginInfo.sDeviceAddress, host.constData(), sizeof(loginInfo.sDeviceAddress) - 1);
+                    loginInfo.wPort = static_cast<WORD>(port > 0 ? port : 8000);
+                    std::strncpy(loginInfo.sUserName, userBytes.constData(), sizeof(loginInfo.sUserName) - 1);
+                    std::strncpy(loginInfo.sPassword, passBytes.constData(), sizeof(loginInfo.sPassword) - 1);
+                    loginInfo.bUseAsynLogin = FALSE;
+                    NET_DVR_DEVICEINFO_V40 privInfo;
+                    std::memset(&privInfo, 0, sizeof(privInfo));
+                    const LONG priv = NET_DVR_Login_V40(&loginInfo, &privInfo);
+                    if (priv >= 0) {
+                        userId = priv;
+                        deviceInfo = privInfo;
+                        privateLogin = true;
+                    }
+                });
+            }
             if (userId < 0) {
                 // Log pictures are already in the list. A recorder sign-in failure is a second
                 // search, so it only becomes the note when this search found nothing else.
@@ -1110,6 +1149,14 @@ void HikvisionISAPI::searchSmartTargets(const QVariantMap &recorderInfo, const Q
                     }
                 }
             }
+            if (privateLogin) {
+                const LONG priv = userId;
+                HikvisionManager::instance()->withSdkLock([priv]() {
+                    NET_DVR_Logout(priv);
+                });
+            }
+            if (sharedId >= 0)
+                HikvisionManager::instance()->logoutShared(ip);
         }
 
         // The event-recording list is for a camera on its own card. A camera on a recorder keeps
