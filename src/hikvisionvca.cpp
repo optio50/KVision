@@ -113,6 +113,9 @@ QVector<HikVcaDecoder::Rule> parseG3RuleList(const unsigned char *p, int len)
 // starts at byte 22. PlayCtrl's parsers read it after a 4-byte {0xffff, scale} prefix:
 //  - targets: IVS_META_DATA_sys_parse -> count (byte 0), then 28-byte records from +8:
 //      +0 id, +12 x, +16 y, +20 width, +24 height (floats 0..1 of the picture)
+//    Scale 0x2325 (this panoramic substream) carries six extra bytes after each
+//    rectangle. Linux PlayCtrl leaves those unread, so only the first vehicle
+//    survives. decodeIvs2325Targets reads them the way the Windows player does.
 //  - rules:   IVS_RULE_DATA_sys_parse on one rule at a time. Older cameras end each rule with five
 //      zero bytes. A panoramic (DT387G2P) ends each rule with four, and the next rule may start
 //      with 0x00, which looks like a fifth zero. +4 record: byte 0 id, byte 2 kind (0 = line,
@@ -271,6 +274,28 @@ void HikVcaDecoder::handlePacket(const unsigned char *p, int len, qint64 pts)
     }
     if (kind == 1 && newFormat)
         return; // a G3 sends its boxes in the 0x0014 target list; this packet is a different layout
+    if (kind == 1 && p[14] == 0x23 && p[15] == 0x25) {
+        const qint64 ms = (pts - m_videoBasePts) / 90;
+        QVector<VcaTargetBox> boxes;
+        if (!decodeIvs2325Targets(p, len, &boxes))
+            return;
+        if (!m_samples.empty() && m_samples.back().ms > ms)
+            m_alarms.clear();
+        Sample sample;
+        sample.ms = ms;
+        for (const VcaTargetBox &box : boxes) {
+            const QRectF rect(box.x, box.y, box.w, box.h);
+            const bool alarm = targetInAlarm(box.id, rect, ms);
+            if (alarm) {
+                const auto a = m_alarms.constFind(box.id);
+                if (a != m_alarms.constEnd() && !sample.alarmRules.contains(a->rule))
+                    sample.alarmRules.append(a->rule);
+            }
+            sample.targets.append({box.id, rect, alarm});
+        }
+        addSample(sample);
+        return;
+    }
     if (kind == 1) {
         const qint64 ms = (pts - m_videoBasePts) / 90;
         QByteArray in;

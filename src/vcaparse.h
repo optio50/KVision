@@ -46,6 +46,11 @@ QVector<int> g3RuleStarts(const unsigned char *p, int len);
 // in which case the caller keeps its previous sample.
 bool decodeG3Targets(const unsigned char *p, int len, QVector<VcaTargetBox> *out);
 
+// Kind-1 target packet whose scale word (bytes 14-15) is 0x2325. Linux PlayCtrl reads the
+// rectangle and then stops. The Windows player reads six more bytes before the next target,
+// which is what puts the second vehicle on the right bits. False when this is not that packet.
+bool decodeIvs2325Targets(const unsigned char *p, int len, QVector<VcaTargetBox> *out);
+
 // A kind-2 alarm packet. None when the tail does not match, or the packet is not an alarm.
 VcaAlarmIds readVcaAlarm(const unsigned char *p, int len);
 

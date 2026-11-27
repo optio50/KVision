@@ -421,6 +421,42 @@ TEST(VcaParse, TargetListSkipsZeroIdAndBoxesOutsideThePicture)
     EXPECT_FALSE(decodeG3Targets(packet, 128, nullptr));
 }
 
+TEST(VcaParse, Scale2325KeepsBothVehicles)
+{
+    // NVR channel 12 substream, one private packet, two parked vehicles.
+    // Linux PlayCtrl returns the first box and a second record with id 0.
+    const unsigned char packet[] = {
+        0x00, 0x03, 0x00, 0x10, 0x00, 0x01, 0x80, 0x00, 0x00, 0xff, 0x00, 0x00, 0xff, 0xff, 0x23, 0x25,
+        0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x02, 0x81, 0x87, 0x80, 0x84, 0x38, 0x00, 0x00, 0x08, 0xbb,
+        0x00, 0x0d, 0xf0, 0x1d, 0x81, 0x54, 0x05, 0x78, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x0d, 0x78, 0xc0, 0x14, 0x90, 0x0c, 0xb8, 0x05, 0x8c, 0x03, 0xf4, 0x00, 0x00, 0x00, 0x00, 0x00,
+        0x00, 0xff, 0xff, 0x03,
+    };
+    QVector<VcaTargetBox> boxes;
+    ASSERT_TRUE(decodeIvs2325Targets(packet, int(sizeof packet), &boxes));
+    ASSERT_EQ(boxes.size(), 2);
+    EXPECT_EQ(boxes[0].id, 17880u);
+    EXPECT_NEAR(boxes[0].x, 0.4640625f, 0.0002f);
+    EXPECT_NEAR(boxes[0].y, 0.0537037f, 0.0002f);
+    EXPECT_NEAR(boxes[0].w, 0.04375f, 0.0002f);
+    EXPECT_NEAR(boxes[0].h, 0.1611111f, 0.0002f);
+    EXPECT_EQ(boxes[1].id, 27590u);
+    EXPECT_NEAR(boxes[1].x, 0.1708333f, 0.0002f);
+    EXPECT_NEAR(boxes[1].y, 0.3759259f, 0.0002f);
+    EXPECT_NEAR(boxes[1].w, 0.184375f, 0.0002f);
+    EXPECT_NEAR(boxes[1].h, 0.4675926f, 0.0002f);
+
+    unsigned char other[sizeof packet];
+    std::memcpy(other, packet, sizeof packet);
+    other[14] = 0x23;
+    other[15] = 0x24;
+    EXPECT_FALSE(decodeIvs2325Targets(other, int(sizeof other), &boxes));
+    EXPECT_TRUE(boxes.isEmpty());
+    EXPECT_FALSE(decodeIvs2325Targets(packet, 21, &boxes));
+    EXPECT_FALSE(decodeIvs2325Targets(nullptr, int(sizeof packet), &boxes));
+    EXPECT_FALSE(decodeIvs2325Targets(packet, int(sizeof packet), nullptr));
+}
+
 TEST(VcaParse, AlarmIds)
 {
     unsigned char g3[40];
