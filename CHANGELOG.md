@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [3.10.0] - 28 Nov 2026
+
 ### Added
 * **Video stream for every camera.** Settings > Camera Tools has **Choose streams...**. Auto, Main, Sub and Third, one mark per camera. A choice takes effect at once on every layout that shows that camera, and a camera added to a layout later keeps it. Auto uses the sub-stream on a multi-camera layout and the main stream when that tile is alone. Each of those layouts is listed under the camera with an **Exclude** tick: a ticked layout keeps the stream its tiles already have. Right-clicking a stream on a tile sets that tile and ticks Exclude for that layout. Clearing the tick puts the layout back on the camera's choice.
 * **Target boxes and VCA lines for every camera.** Settings > Camera Tools has **Choose cameras...**. Standalone cameras are listed first. A dual-lens camera is that camera and its two lenses, and a recorder is listed after them with one row per channel. Target Boxes and VCA Lines are two separated columns, and each tick lines up under its heading. A tick takes effect at once. The same ticks as the right-click menu. The camera is not changed.
@@ -13,6 +15,10 @@ All notable changes to this project will be documented in this file.
 * **Target boxes recover after the report clock runs ahead of the camera.** A later target report is drawn again, without reopening the connection. Rule lines were already unaffected. Changing layout no longer crashes while those connections are closing.
 
 ### Changed
+* **Updating from a release tag returns to master.** `./install.sh --update` switches a folder that is sitting on a release tag back to `master`, then pulls and rebuilds. A folder already on a branch stays on that branch. Releases 3.0.0 through 3.9.0 do not contain this script, so those installs run `git checkout master` first.
+* **Opening playback from one camera fits that picture.** Right-click Playback, and the tile's playback button, size the archive window to that camera and keep the timeline buttons on the screen. Opening playback for a whole recorder still uses most of the screen.
+* **Tile controls use orange-red.** Volume, zoom, PTZ and the talk button light up in orange-red, and the zoom box is the same color.
+* **Region entrance is green and intrusion is orange.** They no longer match the blue recording bar or the red line-crossing marks.
 * **Layout & Grid Tools explains its sections.** Window Division says to hold a square (or press F2) to type a custom size such as 2x3. Geometry Ratio, Grid Operations and Toolbar layouts have a short tip too.
 * **The auxiliary window toolbar is larger.** Its buttons and icons are one and a half times the main window's, so they stay easy to use at normal size on a 1080p screen.
 * **Auxiliary window size.** Settings > User Interface Settings chooses the scale of the next auxiliary window: same as the main window, Normal (1), Medium (1.5), or Large (2). Normal is the default, so a 1080p screen is not drawn at the 4K scale.

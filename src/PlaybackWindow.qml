@@ -54,6 +54,13 @@ Window {
         interval: 350
         repeat: false
     }
+    // Re-apply the fit after the button row has a real width and the window manager has placed the frame.
+    Timer {
+        id: fitSettleTimer
+        interval: 200
+        repeat: false
+        onTriggered: playbackWindow.settleFit()
+    }
     readonly property bool isBottomPanelShowed: !playbackWindow.hideTimelineOption || bottomHoverArea.containsMouse || bottomPanelMouseArea.containsMouse || bottomKeepVisibleTimer.running
     property int fullScreenPlayerIndex: -1
 
@@ -179,6 +186,21 @@ Window {
     // When set (epoch milliseconds), playback starts at this moment instead of near the latest recording.
     // Used to open an entry of the detection log. It is cleared once it has been used.
     property real initialStartMs: 0
+    // One camera opened from the live view: size the window to that picture and keep the
+    // timeline buttons on the screen. pictureWidth/Height are the live frame when we have it.
+    property bool sizeToPicture: false
+    property int pictureWidth: 0
+    property int pictureHeight: 0
+    property bool applyingFit: false
+    property bool fittedOnce: false
+    property bool userAdjustedSize: false
+    property bool archiveFitted: false
+    // Ignore the window manager's first resize. A real drag counts only after settleFit.
+    property bool acceptUserSize: false
+    property int fittedWidth: 0
+    property int fittedHeight: 0
+    onWidthChanged: if (acceptUserSize && !applyingFit) userAdjustedSize = true
+    onHeightChanged: if (acceptUserSize && !applyingFit) userAdjustedSize = true
     // ip_channel -> the start time (ms) of the quick 24-hour search. A day search
     // starts at midnight, so an answer is the quick search only when its start matches.
     property var activeFastSearches: ({})
@@ -190,6 +212,130 @@ Window {
     // Cached segments for all active viewports (keyed by recorderIp_channelId_dateKey)
     property var activePlayersFetching: ({})
     
+    function screenWorkArea() {
+        var geo = (typeof rootWindow !== "undefined" && rootWindow.screen) ? rootWindow.screen.availableGeometry : null;
+        if (geo && geo.width > 100 && geo.height > 100)
+            return { "x": geo.x, "y": geo.y, "width": geo.width, "height": geo.height };
+        return { "x": 0, "y": 0, "width": Screen.desktopAvailableWidth, "height": Screen.desktopAvailableHeight };
+    }
+
+    // The date, speed, download and VCR buttons are one non-wrapping row over the picture.
+    // implicitWidth is 0 until that row is polished, so the first open uses a measured floor.
+    function controlStripWidth() {
+        var measured = transportRow.implicitWidth;
+        if (measured > 200)
+            return measured + 48;
+        return 1520;
+    }
+
+    function placeInWorkArea(area, winW, winH) {
+        var edge = 12;
+        // The frame is added after the window is shown. Leave room or the bottom buttons open under the panel.
+        var frameTop = 40;
+        var frameBottom = 28;
+        var px = Math.round(area.x + Math.max(edge, (area.width - winW) / 2));
+        var py = Math.round(area.y + frameTop + Math.max(0, (area.height - frameTop - frameBottom - winH) / 2));
+        var maxX = area.x + area.width - winW - edge;
+        var maxY = area.y + area.height - winH - frameBottom;
+        x = Math.max(area.x, Math.min(px, maxX));
+        y = Math.max(area.y, Math.min(py, maxY));
+    }
+
+    // Picture area matches the camera, as large as the screen allows, and at least as wide as the playback buttons.
+    // The timeline is drawn over the bottom of the picture, so it is not added to the window height.
+    function fitWindowToPicture(frameW, frameH) {
+        if (!(frameW > 0) || !(frameH > 0))
+            return;
+        var area = screenWorkArea();
+        if (!(area.width > 100) || !(area.height > 100))
+            return;
+
+        var edge = 12;
+        var frameTop = 40;
+        var frameBottom = 28;
+        var maxW = Math.max(640, area.width - edge * 2);
+        var maxH = Math.max(420, area.height - frameTop - frameBottom);
+        var sidebar = sidebarVisible ? Math.max(sidebarPanel.width, 280) : 0;
+        var controls = controlStripWidth();
+        var aspect = frameW / frameH;
+        var videoMaxW = Math.max(320, maxW - sidebar);
+        var videoW = videoMaxW;
+        if (videoW / aspect > maxH)
+            videoW = maxH * aspect;
+        var pictureW = videoW;
+        if (videoW < controls)
+            videoW = Math.min(videoMaxW, controls);
+
+        var winW = Math.round(Math.min(maxW, sidebar + videoW));
+        var winH = Math.round(Math.min(maxH, Math.max(420, pictureW / aspect)));
+        var minW = Math.round(Math.min(maxW, sidebar + Math.min(controls, videoMaxW)));
+
+        acceptUserSize = false;
+        applyingFit = true;
+        if (minimumWidth < minW)
+            minimumWidth = minW;
+        width = Math.max(minW, winW);
+        height = Math.max(420, winH);
+        fittedWidth = width;
+        fittedHeight = height;
+        placeInWorkArea(area, width, height);
+        fittedOnce = true;
+        fitSettleTimer.restart();
+    }
+
+    // Second pass: the button row now has a real width, and the frame has been placed.
+    function settleFit() {
+        if (!sizeToPicture || userAdjustedSize) {
+            applyingFit = false;
+            acceptUserSize = true;
+            return;
+        }
+        var area = screenWorkArea();
+        if (!(area.width > 100) || !(area.height > 100)) {
+            applyingFit = false;
+            acceptUserSize = true;
+            return;
+        }
+        var edge = 12;
+        var frameBottom = 28;
+        var maxW = Math.max(640, area.width - edge * 2);
+        var sidebar = sidebarVisible ? Math.max(sidebarPanel.width, 280) : 0;
+        var need = Math.round(Math.min(maxW, sidebar + controlStripWidth()));
+        applyingFit = true;
+        if (minimumWidth < need)
+            minimumWidth = need;
+        if (width + 8 < need)
+            width = need;
+        if (fittedWidth > width + 8)
+            width = fittedWidth;
+        if (fittedHeight > height + 8)
+            height = fittedHeight;
+        var maxX = area.x + area.width - width - edge;
+        var maxY = area.y + area.height - height - frameBottom;
+        if (x < area.x || x > maxX || y < area.y || (y + height) > maxY)
+            placeInWorkArea(area, width, height);
+        fittedWidth = width;
+        fittedHeight = height;
+        applyingFit = false;
+        acceptUserSize = true;
+    }
+
+    function noteArchivePicture(w, h) {
+        if (!sizeToPicture || userAdjustedSize || archiveFitted)
+            return;
+        if (gridLayoutColumns !== 1 || gridLayoutRows !== 1)
+            return;
+        if (!(w > 16) || !(h > 16))
+            return;
+        var aspectNew = w / h;
+        var aspectOld = (pictureWidth > 100 && pictureHeight > 100) ? (pictureWidth / pictureHeight) : 0;
+        pictureWidth = w;
+        pictureHeight = h;
+        archiveFitted = true;
+        if (aspectOld <= 0 || Math.abs(aspectOld - aspectNew) / aspectNew > 0.03)
+            fitWindowToPicture(w, h);
+    }
+
     function getDateKey(date) {
         if (!date) return "";
         return date.getFullYear() + "-" + date.getMonth() + "-" + date.getDate();
@@ -758,6 +904,11 @@ Window {
             
             startFastSeekSearch(camItem);
             searchRecordingsForDate(currentDate)
+            if (sizeToPicture) {
+                var fw = pictureWidth > 100 ? pictureWidth : 16;
+                var fh = pictureHeight > 100 ? pictureHeight : 9;
+                fitWindowToPicture(fw, fh);
+            }
         } else {
             // When opened empty, pad the active players list to grid size with nulls
             resizeActivePlayersList(gridLayoutColumns * gridLayoutRows);
@@ -1806,7 +1957,9 @@ Window {
         Rectangle {
             id: sidebarPanel
             Layout.fillHeight: true
-            width: sidebarVisible ? 280 : 0
+            Layout.preferredWidth: sidebarVisible ? 280 : 0
+            Layout.minimumWidth: sidebarVisible ? 280 : 0
+            Layout.maximumWidth: sidebarVisible ? 280 : 0
             visible: sidebarVisible
             color: "#0b0f13"
             
@@ -2247,6 +2400,7 @@ Window {
                                     
                                     HikvisionArchivePlayer {
                                         id: playerItem
+                                        onVideoSizeChanged: playbackWindow.noteArchivePicture(videoWidth, videoHeight)
                                         x: tileContainer.isOneToOne ? tileContainer.oneToOneX : (tileContainer.isZoomed ? -tileContainer.zoomX * width : 0)
                                         y: tileContainer.isOneToOne ? tileContainer.oneToOneY : (tileContainer.isZoomed ? -tileContainer.zoomY * height : 0)
                                         width: tileContainer.isOneToOne ? ((playerItem.videoWidth > 0) ? playerItem.videoWidth : videoWrapper.width) : (videoWrapper.width / Math.max(0.001, tileContainer.zoomWidth))
@@ -2435,8 +2589,8 @@ Window {
                                         y: Math.min(zoomMouseArea.startY, zoomMouseArea.currentY)
                                         width: Math.abs(zoomMouseArea.startX - zoomMouseArea.currentX)
                                         height: Math.abs(zoomMouseArea.startY - zoomMouseArea.currentY)
-                                        color: "#3300f5d4"
-                                        border.color: "#00f5d4"
+                                        color: "#33ff4500"
+                                        border.color: "#ff4500"
                                         border.width: 1
                                     }
 
@@ -2664,13 +2818,13 @@ Window {
                                                     Rectangle {
                                                         width: volumeSlider.visualPosition * parent.width
                                                         height: parent.height
-                                                        color: "#00f5d4"
+                                                        color: "#ff4500"
                                                         radius: 2
                                                         layer.enabled: true
                                                         layer.effect: Glow {
                                                             radius: 4
                                                             samples: 8
-                                                            color: "#00f5d4"
+                                                            color: "#ff4500"
                                                             transparentBorder: true
                                                         }
                                                     }
@@ -2711,7 +2865,7 @@ Window {
                                                 contentItem: Image {
                                                     sourceSize: Qt.size(32, 32)
                                                     fillMode: Image.PreserveAspectFit
-                                                    source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5'></polygon><path d='M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07'></path></svg>"
+                                                    source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5'></polygon><path d='M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07'></path></svg>"
                                                 }
 
                                                 MouseArea {
@@ -2764,7 +2918,7 @@ Window {
                                                  source: snapshotBadge.isSavingSnapshot ?
                                                      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff7a00' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'></path><circle cx='12' cy='13' r='4'></circle></svg>" :
                                                      (snapshotMouseAreaBtn.containsMouse ?
-                                                         "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'></path><circle cx='12' cy='13' r='4'></circle></svg>" :
+                                                         "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'></path><circle cx='12' cy='13' r='4'></circle></svg>" :
                                                          "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'></path><circle cx='12' cy='13' r='4'></circle></svg>")
                                              }
 
@@ -2858,10 +3012,10 @@ Window {
                                             background: Rectangle {
                                                 radius: 12
                                                 color: vcaBadge.vcaOn ?
-                                                    (vcaMouseAreaBtn.pressed ? "#4400f5d4" : (vcaMouseAreaBtn.containsMouse ? "#3300f5d4" : "#2200f5d4")) :
+                                                    (vcaMouseAreaBtn.pressed ? "#44ff4500" : (vcaMouseAreaBtn.containsMouse ? "#33ff4500" : "#22ff4500")) :
                                                     (vcaMouseAreaBtn.pressed ? "#4a5560" : (vcaMouseAreaBtn.containsMouse ? "#3a4550" : "#cc121214"))
                                                 border.color: vcaBadge.vcaOn ?
-                                                    "#cc00f5d4" :
+                                                    "#ccff4500" :
                                                     ((vcaMouseAreaBtn.containsMouse || vcaMouseAreaBtn.pressed) ? "#cc8898a6" : "#802a3540")
                                                 border.width: 1
                                             }
@@ -2871,7 +3025,7 @@ Window {
                                                 sourceSize: Qt.size(32, 32)
                                                 fillMode: Image.PreserveAspectFit
                                                 source: (vcaBadge.vcaOn || vcaMouseAreaBtn.containsMouse) ?
-                                                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='2 6 22 3 22 21 2 21'></polygon><rect x='8' y='9' width='6' height='9'></rect></svg>" :
+                                                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='2 6 22 3 22 21 2 21'></polygon><rect x='8' y='9' width='6' height='9'></rect></svg>" :
                                                     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='2 6 22 3 22 21 2 21'></polygon><rect x='8' y='9' width='6' height='9'></rect></svg>"
                                             }
 
@@ -2901,10 +3055,10 @@ Window {
                                             background: Rectangle {
                                                 radius: 12
                                                 color: tileContainer.isOneToOne ?
-                                                    (oneToOneMouseAreaBtn.pressed ? "#4400f5d4" : (oneToOneMouseAreaBtn.containsMouse ? "#3300f5d4" : "#2200f5d4")) :
+                                                    (oneToOneMouseAreaBtn.pressed ? "#44ff4500" : (oneToOneMouseAreaBtn.containsMouse ? "#33ff4500" : "#22ff4500")) :
                                                     (oneToOneMouseAreaBtn.pressed ? "#4a5560" : (oneToOneMouseAreaBtn.containsMouse ? "#3a4550" : "#cc121214"))
                                                 border.color: tileContainer.isOneToOne ?
-                                                    "#cc00f5d4" :
+                                                    "#ccff4500" :
                                                     ((oneToOneMouseAreaBtn.containsMouse || oneToOneMouseAreaBtn.pressed) ? "#cc8898a6" : "#802a3540")
                                                 border.width: 1
                                             }
@@ -2913,7 +3067,7 @@ Window {
                                                 sourceSize: Qt.size(32, 32)
                                                 fillMode: Image.PreserveAspectFit
                                                 source: (tileContainer.isOneToOne || oneToOneMouseAreaBtn.containsMouse) ?
-                                                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 8.5L8 7v10M16 8.5L18 7v10'></path><circle cx='12' cy='10' r='1' fill='%2300f5d4' stroke='none'></circle><circle cx='12' cy='14' r='1' fill='%2300f5d4' stroke='none'></circle></svg>" :
+                                                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 8.5L8 7v10M16 8.5L18 7v10'></path><circle cx='12' cy='10' r='1' fill='%23ff4500' stroke='none'></circle><circle cx='12' cy='14' r='1' fill='%23ff4500' stroke='none'></circle></svg>" :
                                                     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 8.5L8 7v10M16 8.5L18 7v10'></path><circle cx='12' cy='10' r='1' fill='%23ffffff' stroke='none'></circle><circle cx='12' cy='14' r='1' fill='%23ffffff' stroke='none'></circle></svg>"
                                             }
 
@@ -2944,13 +3098,13 @@ Window {
                                                 color: tileContainer.isZoomed ?
                                                     (zoomMouseAreaBtn.pressed ? "#44ff3333" : (zoomMouseAreaBtn.containsMouse ? "#33ff3333" : "#22121214")) :
                                                     (tileContainer.isZoomSelectionMode ?
-                                                        (zoomMouseAreaBtn.pressed ? "#4400f5d4" : (zoomMouseAreaBtn.containsMouse ? "#3300f5d4" : "#2200f5d4")) :
+                                                        (zoomMouseAreaBtn.pressed ? "#44ff4500" : (zoomMouseAreaBtn.containsMouse ? "#33ff4500" : "#22ff4500")) :
                                                         (zoomMouseAreaBtn.pressed ? "#4a5560" : (zoomMouseAreaBtn.containsMouse ? "#3a4550" : "#cc121214"))
                                                     )
                                                 border.color: tileContainer.isZoomed ?
                                                     (zoomMouseAreaBtn.containsMouse ? "#ccff3333" : "#80ff3333") :
                                                     (tileContainer.isZoomSelectionMode ?
-                                                        "#cc00f5d4" :
+                                                        "#ccff4500" :
                                                         ((zoomMouseAreaBtn.containsMouse || zoomMouseAreaBtn.pressed) ? "#cc8898a6" : "#802a3540")
                                                     )
                                                 border.width: 1
@@ -2962,7 +3116,7 @@ Window {
                                                 source: tileContainer.isZoomed ?
                                                     "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff3333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'></circle><line x1='21' y1='21' x2='16.65' y2='16.65'></line><line x1='8' y1='11' x2='14' y2='11'></line></svg>" :
                                                     ((tileContainer.isZoomSelectionMode || zoomMouseAreaBtn.containsMouse) ?
-                                                        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'></circle><line x1='21' y1='21' x2='16.65' y2='16.65'></line><line x1='11' y1='8' x2='11' y2='14'></line><line x1='8' y1='11' x2='14' y2='11'></line></svg>" :
+                                                        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'></circle><line x1='21' y1='21' x2='16.65' y2='16.65'></line><line x1='11' y1='8' x2='11' y2='14'></line><line x1='8' y1='11' x2='14' y2='11'></line></svg>" :
                                                         "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'></circle><line x1='21' y1='21' x2='16.65' y2='16.65'></line><line x1='11' y1='8' x2='11' y2='14'></line><line x1='8' y1='11' x2='14' y2='11'></line></svg>"
                                                     )
                                             }
@@ -3003,10 +3157,10 @@ Window {
                                             background: Rectangle {
                                                 radius: 12
                                                 color: fullScreenBadge.badgeActive ?
-                                                    (fullScreenMouseAreaBtn.pressed ? "#4400f5d4" : (fullScreenMouseAreaBtn.containsMouse ? "#3300f5d4" : "#2200f5d4")) :
+                                                    (fullScreenMouseAreaBtn.pressed ? "#44ff4500" : (fullScreenMouseAreaBtn.containsMouse ? "#33ff4500" : "#22ff4500")) :
                                                     (fullScreenMouseAreaBtn.pressed ? "#4a5560" : (fullScreenMouseAreaBtn.containsMouse ? "#3a4550" : "#cc121214"))
                                                 border.color: fullScreenBadge.badgeActive ?
-                                                    "#cc00f5d4" :
+                                                    "#ccff4500" :
                                                     ((fullScreenMouseAreaBtn.containsMouse || fullScreenMouseAreaBtn.pressed) ? "#cc8898a6" : "#802a3540")
                                                 border.width: 1
                                             }
@@ -3015,9 +3169,9 @@ Window {
                                                 sourceSize: Qt.size(32, 32)
                                                 fillMode: Image.PreserveAspectFit
                                                 source: fullScreenBadge.badgeActive ?
-                                                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14h6v6m10-6h-6v6M4 10h6V4m10 6h-6V4'></path></svg>" :
+                                                    "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M4 14h6v6m10-6h-6v6M4 10h6V4m10 6h-6V4'></path></svg>" :
                                                     (fullScreenMouseAreaBtn.containsMouse ?
-                                                        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3'></path></svg>" :
+                                                        "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3'></path></svg>" :
                                                         "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3'></path></svg>"
                                                     )
                                             }
@@ -3109,13 +3263,13 @@ Window {
                                             height: 36
                                             radius: 18
                                             color: "transparent"
-                                            border.color: isSelected ? "#00f5d4" : "#556b7c"
+                                            border.color: isSelected ? "#ff4500" : "#556b7c"
                                             border.width: 1
                                             Layout.alignment: Qt.AlignHCenter
                                             
                                             Text {
                                                 text: "+"
-                                                color: isSelected ? "#00f5d4" : "#556b7c"
+                                                color: isSelected ? "#ff4500" : "#556b7c"
                                                 font.pixelSize: 20
                                                 font.bold: true
                                                 anchors.centerIn: parent
@@ -3288,6 +3442,7 @@ Window {
                         spacing: 0
                     
                     RowLayout {
+                        id: transportRow
                         Layout.fillWidth: true
                         Layout.margins: 5
                         Layout.leftMargin: 15

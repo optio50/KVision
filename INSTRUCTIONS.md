@@ -4,7 +4,7 @@
 
 **Support KVision:** if you find it useful, you can support its development by [donating with PayPal](https://paypal.me/optio50).
 
-This manual describes KVision 3.9. The Changelog tab in the options window lists what changed in each release.
+This manual describes KVision 3.10. The Changelog tab in the options window lists what changed in each release.
 
 ---
 

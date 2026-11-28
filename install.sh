@@ -116,6 +116,13 @@ do_update() {
     if ! git -C "$ROOT" diff --quiet || ! git -C "$ROOT" diff --cached --quiet; then
         fail "You have local changes in this folder. Commit or discard them, then run --update again."
     fi
+    # A release install is a detached tag. Pull only works on a branch, so return
+    # to the master branch this clone already has, then fast-forward as usual.
+    # Someone already on master, or on another branch, is left there.
+    if ! git -C "$ROOT" symbolic-ref -q HEAD >/dev/null; then
+        say "This folder is on a release tag. Switching back to master"
+        git -C "$ROOT" checkout master || fail "Could not switch to master. From this folder run: git checkout master"
+    fi
     say "Fetching the latest version"
     git -C "$ROOT" pull --ff-only || fail "Could not update. Check your internet connection."
     install_dependencies

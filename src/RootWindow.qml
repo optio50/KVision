@@ -229,10 +229,12 @@ ApplicationWindow {
     }
 
     readonly property var eventKindOrder: ["motion", "other", "enter", "exit", "line", "intrusion"]
+    // Region entrance is green so it does not sit on the blue recording bar.
+    // Intrusion is orange so it does not read as the red of a line crossing.
     function eventKindColor(kind) {
         return kind === "line" ? "#ff3344"
-             : (kind === "intrusion" ? "#ff00c8"
-             : (kind === "enter" ? "#3a86ff"
+             : (kind === "intrusion" ? "#ff8a00"
+             : (kind === "enter" ? "#2bd67a"
              : (kind === "exit" ? "#8338ec"
              : (kind === "other" ? "#cfd8dc" : "#ffd23f"))));
     }
@@ -1102,8 +1104,9 @@ ApplicationWindow {
         Context.startAuxiliaryProcess();
     }
 
-    function openPlaybackWindow(recInfo, channelId, cameraName, startMs) {
+    function openPlaybackWindow(recInfo, channelId, cameraName, startMs, frameW, frameH) {
         var at = startMs > 0 ? startMs : 0;
+        var oneCamera = !!(recInfo && channelId > 0);
         if (playbackWindowLoader.active) {
             if (playbackWindowLoader.item) {
                 if (at > 0) {
@@ -1118,14 +1121,23 @@ ApplicationWindow {
                 playbackWindowLoader.item.raise();
             }
         } else {
-            playbackWindowLoader.setSource("qrc:/src/PlaybackWindow.qml", {
+            var props = {
                 "recorderInfo": recInfo,
                 "channelId": channelId,
                 "cameraName": cameraName,
-                "initialStartMs": at,
-                "width": rootWindow.width * 0.9,
-                "height": rootWindow.height * 0.9
-            });
+                "initialStartMs": at
+            };
+            if (oneCamera) {
+                // Right-click Playback (and the tile's playback button): fit this camera, and
+                // stay on the screen so the timeline buttons are not cut off.
+                props.sizeToPicture = true;
+                props.pictureWidth = frameW > 100 ? frameW : 0;
+                props.pictureHeight = frameH > 100 ? frameH : 0;
+            } else {
+                props.width = rootWindow.width * 0.9;
+                props.height = rootWindow.height * 0.9;
+            }
+            playbackWindowLoader.setSource("qrc:/src/PlaybackWindow.qml", props);
             playbackWindowLoader.active = true;
         }
     }

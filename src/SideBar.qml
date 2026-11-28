@@ -258,6 +258,17 @@ FocusScope {
 
     property var changelogData: [
         {
+            version: "v3.10.0",
+            date: "28 Nov 2026",
+            changes: [
+                qsTr("Camera Tools can choose a stream, target boxes and VCA lines for every camera, and the choice applies at once."),
+                qsTr("An extra window can open at Normal, Medium or Large size, with a larger toolbar."),
+                qsTr("Detection events opens with the newest 10 entries. Playback opened from one camera fits that picture."),
+                qsTr("Tile controls are orange-red. Region entrance is green and intrusion is orange."),
+                qsTr("Updating from a release tag returns to master, then pulls the latest code.")
+            ]
+        },
+        {
             version: "v3.9.0",
             date: "22 Nov 2026",
             changes: [

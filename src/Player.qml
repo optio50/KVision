@@ -1937,9 +1937,12 @@ FocusScope {
             "password": root.password
         };
         var camName = root.cameraNameInfo || ("Camera " + root.channelId);
+        var frame = root.videoFrameSize();
+        var frameW = (frame && frame.width > 100 && frame.height > 100) ? frame.width : 0;
+        var frameH = (frame && frame.width > 100 && frame.height > 100) ? frame.height : 0;
 
         if (typeof rootWindow !== "undefined" && rootWindow) {
-            rootWindow.openPlaybackWindow(recInfo, root.channelId, camName);
+            rootWindow.openPlaybackWindow(recInfo, root.channelId, camName, 0, frameW, frameH);
         }
     }
 
@@ -2878,8 +2881,8 @@ FocusScope {
             y: Math.min(zoomMouseArea.startY, zoomMouseArea.currentY)
             width: Math.abs(zoomMouseArea.startX - zoomMouseArea.currentX)
             height: Math.abs(zoomMouseArea.startY - zoomMouseArea.currentY)
-            color: "#3300f5d4" // translucent cyan
-            border.color: "#00f5d4" // solid cyan border
+            color: "#33ff4500" // translucent orangered
+            border.color: "#ff4500" // solid orangered border
             border.width: 1
         }
 
@@ -3015,7 +3018,7 @@ FocusScope {
                                 anchors.fill: parent
                                 visible: !volumeControl.showSlider
                                 text: "-"
-                                color: muteMouseArea.containsMouse ? "#00f5d4" : "#ffffff"
+                                color: muteMouseArea.containsMouse ? "#ff4500" : "#ffffff"
                                 font.pixelSize: Math.max(8, Math.round(viewportControls.toolSize * 0.7))
                                 font.bold: true
                                 horizontalAlignment: Text.AlignHCenter
@@ -3068,13 +3071,13 @@ FocusScope {
                             Rectangle {
                                 width: volumeSlider.visualPosition * parent.width
                                 height: parent.height
-                                color: "#00f5d4"
+                                color: "#ff4500"
                                 radius: 2
                                 layer.enabled: true
                                 layer.effect: Glow {
                                     radius: 4
                                     samples: 8
-                                    color: "#00f5d4"
+                                    color: "#ff4500"
                                     transparentBorder: true
                                 }
                             }
@@ -3126,13 +3129,13 @@ FocusScope {
                                 visible: volumeControl.showSlider
                                 sourceSize: Qt.size(32, 32)
                                 fillMode: Image.PreserveAspectFit
-                                source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5'></polygon><path d='M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07'></path></svg>"
+                                source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5'></polygon><path d='M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07'></path></svg>"
                             }
                             Text {
                                 anchors.fill: parent
                                 visible: !volumeControl.showSlider
                                 text: "+"
-                                color: maxVolMouseArea.containsMouse ? "#00f5d4" : "#ffffff"
+                                color: maxVolMouseArea.containsMouse ? "#ff4500" : "#ffffff"
                                 font.pixelSize: Math.max(8, Math.round(viewportControls.toolSize * 0.7))
                                 font.bold: true
                                 horizontalAlignment: Text.AlignHCenter
@@ -3191,7 +3194,7 @@ FocusScope {
                         contentItem: Image {
                             sourceSize: Qt.size(32, 32)
                             fillMode: Image.PreserveAspectFit
-                            source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + (root.talkActiveHere ? (HikvisionTalk.live ? "%23ff6b5b" : "%23ff7a00") : (talkMouseArea.containsMouse ? "%2300f5d4" : "%23ffffff")) + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z'></path><path d='M19 10v2a7 7 0 0 1-14 0v-2'></path><line x1='12' y1='19' x2='12' y2='23'></line><line x1='8' y1='23' x2='16' y2='23'></line></svg>"
+                            source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + (root.talkActiveHere ? (HikvisionTalk.live ? "%23ff6b5b" : "%23ff7a00") : (talkMouseArea.containsMouse ? "%23ff4500" : "%23ffffff")) + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z'></path><path d='M19 10v2a7 7 0 0 1-14 0v-2'></path><line x1='12' y1='19' x2='12' y2='23'></line><line x1='8' y1='23' x2='16' y2='23'></line></svg>"
                         }
 
                         MouseArea {
@@ -3229,7 +3232,7 @@ FocusScope {
 
                             background: Rectangle {
                                 color: "#ee141a21"
-                                border.color: "#00f5d4"
+                                border.color: "#ff4500"
                                 border.width: 1
                                 radius: 8
                             }
@@ -3321,7 +3324,7 @@ FocusScope {
                         source: snapshotBadge.isSavingSnapshot ?
                             "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff7a00' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'></path><circle cx='12' cy='13' r='4'></circle></svg>" :
                             (snapshotMouseAreaBtn.containsMouse ?
-                                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'></path><circle cx='12' cy='13' r='4'></circle></svg>" :
+                                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'></path><circle cx='12' cy='13' r='4'></circle></svg>" :
                                 "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z'></path><circle cx='12' cy='13' r='4'></circle></svg>")
                     }
 
@@ -3379,7 +3382,7 @@ FocusScope {
                         sourceSize: Qt.size(32, 32)
                         fillMode: Image.PreserveAspectFit
                         source: playbackMouseAreaBtn.containsMouse ?
-                            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='5 3 19 12 5 21 5 3'></polygon></svg>" :
+                            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='5 3 19 12 5 21 5 3'></polygon></svg>" :
                             "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='5 3 19 12 5 21 5 3'></polygon></svg>"
                     }
 
@@ -3389,20 +3392,7 @@ FocusScope {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onContainsMouseChanged: playerHoverArea.updateHoverState()
-                        onClicked: {
-                            var recInfo = {
-                                "ip": root.recorderIp,
-                                "port": root.sdkPort || root.recorderPort || 8000,
-                                "sdkPort": root.sdkPort || root.recorderPort || 8000,
-                                "httpPort": root.httpPort || 80,
-                                "rtspPort": root.rtspPort || 554,
-                                "username": root.username,
-                                "password": root.password
-                            };
-                            var camName = root.cameraNameInfo || ("Camera " + root.channelId);
-
-                            rootWindow.openPlaybackWindow(recInfo, root.channelId, camName);
-                        }
+                        onClicked: root.openPlayback()
                     }
 
                     ToolTip.delay: Compact.toolTipDelay
@@ -3423,10 +3413,10 @@ FocusScope {
                     background: Rectangle {
                         radius: viewportControls.toolSize / 2
                         color: root.isQuickPlayback ?
-                            (quickPlaybackToggleMouseArea.pressed ? "#4400f5d4" : (quickPlaybackToggleMouseArea.containsMouse ? "#3300f5d4" : "#2200f5d4")) :
+                            (quickPlaybackToggleMouseArea.pressed ? "#44ff4500" : (quickPlaybackToggleMouseArea.containsMouse ? "#33ff4500" : "#22ff4500")) :
                             (quickPlaybackToggleMouseArea.pressed ? "#4a5560" : (quickPlaybackToggleMouseArea.containsMouse ? "#3a4550" : "#cc121214"))
                         border.color: root.isQuickPlayback ?
-                            "#cc00f5d4" :
+                            "#ccff4500" :
                             ((quickPlaybackToggleMouseArea.containsMouse || quickPlaybackToggleMouseArea.pressed) ? "#cc8898a6" : "#802a3540")
                         border.width: 1
                     }
@@ -3435,7 +3425,7 @@ FocusScope {
                         sourceSize: Qt.size(32, 32)
                         fillMode: Image.PreserveAspectFit
                         source: (root.isQuickPlayback || quickPlaybackToggleMouseArea.containsMouse) ?
-                            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 2v6h6'></path><path d='M3 13a9 9 0 1 0 3-7.7L3 8'></path></svg>" :
+                            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 2v6h6'></path><path d='M3 13a9 9 0 1 0 3-7.7L3 8'></path></svg>" :
                             "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M3 2v6h6'></path><path d='M3 13a9 9 0 1 0 3-7.7L3 8'></path></svg>"
                     }
 
@@ -3467,10 +3457,10 @@ FocusScope {
                     background: Rectangle {
                         radius: viewportControls.toolSize / 2
                         color: root.isOneToOne ?
-                            (oneToOneMouseAreaBtn.pressed ? "#4400f5d4" : (oneToOneMouseAreaBtn.containsMouse ? "#3300f5d4" : "#2200f5d4")) :
+                            (oneToOneMouseAreaBtn.pressed ? "#44ff4500" : (oneToOneMouseAreaBtn.containsMouse ? "#33ff4500" : "#22ff4500")) :
                             (oneToOneMouseAreaBtn.pressed ? "#4a5560" : (oneToOneMouseAreaBtn.containsMouse ? "#3a4550" : "#cc121214"))
                         border.color: root.isOneToOne ?
-                            "#cc00f5d4" :
+                            "#ccff4500" :
                             ((oneToOneMouseAreaBtn.containsMouse || oneToOneMouseAreaBtn.pressed) ? "#cc8898a6" : "#802a3540")
                         border.width: 1
                     }
@@ -3479,7 +3469,7 @@ FocusScope {
                         sourceSize: Qt.size(32, 32)
                         fillMode: Image.PreserveAspectFit
                         source: (root.isOneToOne || oneToOneMouseAreaBtn.containsMouse) ?
-                            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 8.5L8 7v10M16 8.5L18 7v10'></path><circle cx='12' cy='10' r='1' fill='%2300f5d4' stroke='none'></circle><circle cx='12' cy='14' r='1' fill='%2300f5d4' stroke='none'></circle></svg>" :
+                            "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 8.5L8 7v10M16 8.5L18 7v10'></path><circle cx='12' cy='10' r='1' fill='%23ff4500' stroke='none'></circle><circle cx='12' cy='14' r='1' fill='%23ff4500' stroke='none'></circle></svg>" :
                             "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 8.5L8 7v10M16 8.5L18 7v10'></path><circle cx='12' cy='10' r='1' fill='%23ffffff' stroke='none'></circle><circle cx='12' cy='14' r='1' fill='%23ffffff' stroke='none'></circle></svg>"
                     }
 
@@ -3513,13 +3503,13 @@ FocusScope {
                         color: root.isZoomed ?
                             (zoomMouseAreaBtn.pressed ? "#44ff3333" : (zoomMouseAreaBtn.containsMouse ? "#33ff3333" : "#22121214")) :
                             (root.isZoomSelectionMode ?
-                                (zoomMouseAreaBtn.pressed ? "#4400f5d4" : (zoomMouseAreaBtn.containsMouse ? "#3300f5d4" : "#2200f5d4")) :
+                                (zoomMouseAreaBtn.pressed ? "#44ff4500" : (zoomMouseAreaBtn.containsMouse ? "#33ff4500" : "#22ff4500")) :
                                 (zoomMouseAreaBtn.pressed ? "#4a5560" : (zoomMouseAreaBtn.containsMouse ? "#3a4550" : "#cc121214"))
                             )
                         border.color: root.isZoomed ?
                             (zoomMouseAreaBtn.containsMouse ? "#ccff3333" : "#80ff3333") :
                             (root.isZoomSelectionMode ?
-                                "#cc00f5d4" :
+                                "#ccff4500" :
                                 ((zoomMouseAreaBtn.containsMouse || zoomMouseAreaBtn.pressed) ? "#cc8898a6" : "#802a3540")
                             )
                         border.width: 1
@@ -3531,7 +3521,7 @@ FocusScope {
                         source: root.isZoomed ?
                             "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff3333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'></circle><line x1='21' y1='21' x2='16.65' y2='16.65'></line><line x1='8' y1='11' x2='14' y2='11'></line></svg>" :
                             ((root.isZoomSelectionMode || zoomMouseAreaBtn.containsMouse) ?
-                                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'></circle><line x1='21' y1='21' x2='16.65' y2='16.65'></line><line x1='11' y1='8' x2='11' y2='14'></line><line x1='8' y1='11' x2='14' y2='11'></line></svg>" :
+                                "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'></circle><line x1='21' y1='21' x2='16.65' y2='16.65'></line><line x1='11' y1='8' x2='11' y2='14'></line><line x1='8' y1='11' x2='14' y2='11'></line></svg>" :
                                 "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='11' cy='11' r='8'></circle><line x1='21' y1='21' x2='16.65' y2='16.65'></line><line x1='11' y1='8' x2='11' y2='14'></line><line x1='8' y1='11' x2='14' y2='11'></line></svg>"
                             )
                     }
@@ -3586,7 +3576,7 @@ FocusScope {
                     contentItem: Image {
                         sourceSize: Qt.size(32, 32)
                         fillMode: Image.PreserveAspectFit
-                        source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + (root.ptzPadVisible || ptzToggleMouseArea.containsMouse ? "%2300f5d4" : "%23ffffff") + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='5 9 2 12 5 15'></polyline><polyline points='9 5 12 2 15 5'></polyline><polyline points='15 19 12 22 9 19'></polyline><polyline points='19 9 22 12 19 15'></polyline><line x1='2' y1='12' x2='22' y2='12'></line><line x1='12' y1='2' x2='12' y2='22'></line></svg>"
+                        source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + (root.ptzPadVisible || ptzToggleMouseArea.containsMouse ? "%23ff4500" : "%23ffffff") + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='5 9 2 12 5 15'></polyline><polyline points='9 5 12 2 15 5'></polyline><polyline points='15 19 12 22 9 19'></polyline><polyline points='19 9 22 12 19 15'></polyline><line x1='2' y1='12' x2='22' y2='12'></line><line x1='12' y1='2' x2='12' y2='22'></line></svg>"
                     }
 
                     MouseArea {
@@ -3630,7 +3620,7 @@ FocusScope {
                         text: "3D"
                         font.pixelSize: viewportControls.toolFont
                         font.bold: true
-                        color: (root.isAimMode || aimMouseAreaBtn.containsMouse) ? "#00f5d4" : "#ffffff"
+                        color: (root.isAimMode || aimMouseAreaBtn.containsMouse) ? "#ff4500" : "#ffffff"
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                     }
@@ -3715,7 +3705,7 @@ FocusScope {
                 }
 
                 function ptzIconSource(icon) {
-                    var stroke = (icon === "stop") ? "%23ff5555" : "%2300f5d4";
+                    var stroke = (icon === "stop") ? "%23ff5555" : "%23ff4500";
                     var body = "";
                     switch (icon) {
                     case "up": body = "<polyline points='18 15 12 9 6 15'></polyline>"; break;
@@ -3724,7 +3714,7 @@ FocusScope {
                     case "right": body = "<polyline points='9 18 15 12 9 6'></polyline>"; break;
                     case "zoomin": body = "<line x1='12' y1='5' x2='12' y2='19'></line><line x1='5' y1='12' x2='19' y2='12'></line>"; break;
                     case "zoomout": body = "<line x1='5' y1='12' x2='19' y2='12'></line>"; break;
-                    case "focusnear": body = "<circle cx='12' cy='12' r='3' fill='%2300f5d4'></circle><circle cx='12' cy='12' r='8'></circle>"; break;
+                    case "focusnear": body = "<circle cx='12' cy='12' r='3' fill='%23ff4500'></circle><circle cx='12' cy='12' r='8'></circle>"; break;
                     case "focusfar": body = "<polyline points='2 19 8 9 13 16 16 12 22 19'></polyline><circle cx='18' cy='6' r='1.5'></circle>"; break;
                     case "stop": body = "<rect x='7' y='7' width='10' height='10' rx='1'></rect>"; break;
                     }
@@ -3789,7 +3779,7 @@ FocusScope {
                                         text: "3D"
                                         font.pixelSize: 10
                                         font.bold: true
-                                        color: (root.isAimMode || moveArea.containsMouse) ? "#00f5d4" : "#ffffff"
+                                        color: (root.isAimMode || moveArea.containsMouse) ? "#ff4500" : "#ffffff"
                                     }
                                     MouseArea {
                                         id: moveArea
@@ -4062,7 +4052,7 @@ FocusScope {
                     Rectangle {
                         width: qpSlider.visualPosition * parent.width
                         height: parent.height
-                        color: "#00f5d4"
+                        color: "#ff4500"
                         opacity: 0.1
                     }
                 }
@@ -4200,7 +4190,7 @@ FocusScope {
                             Rectangle {
                                 width: qpVolumeSlider.visualPosition * parent.width
                                 height: parent.height
-                                color: "#00f5d4"
+                                color: "#ff4500"
                                 radius: 2
                             }
                         }
@@ -4223,7 +4213,7 @@ FocusScope {
                         isTransparent: true
                         text: qpVolumeRow.showSlider ? "" : "+"
                         iconSource: qpVolumeRow.showSlider
-                            ? "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300f5d4' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5'></polygon><path d='M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07'></path></svg>"
+                            ? "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff4500' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polygon points='11 5 6 9 2 9 2 15 6 15 11 19 11 5'></polygon><path d='M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07'></path></svg>"
                             : ""
                         opacity: (!qpVolumeRow.showSlider && root.volume >= 0.999) ? 0.4 : 1
                         onClicked: {
@@ -4263,7 +4253,7 @@ FocusScope {
                     isMini: true
                     isTransparent: true
                     iconSource: {
-                        var colorStr = qpFrameStepBtn.hovered ? "%2300f5d4" : "%23ffffff";
+                        var colorStr = qpFrameStepBtn.hovered ? "%23ff4500" : "%23ffffff";
                         return "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='" + colorStr + "' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><rect x='3' y='5' width='12' height='14' rx='1'></rect><polygon points='17 8 22 12 17 16' fill='" + colorStr + "' stroke='none'></polygon></svg>";
                     }
                     onClicked: root.stepQuickPlaybackFrame()
